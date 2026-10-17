@@ -36,7 +36,7 @@ confined to an 11x11 window.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -76,6 +76,9 @@ class SwapResult:
         dcost_frac_outside_receptive_field: Share of the change further than
             the encoder's receptive-field radius from any flipped cell. Must be
             0; a non-zero value means the locality property has broken.
+        references: Per obstacle mask (``"O0"`` original, ``"O1"`` altered),
+            the certified optimum and classical-A\* expansion count that the
+            conditions on that mask are scored against.
     """
 
     instance_id: int
@@ -88,6 +91,24 @@ class SwapResult:
     dcost_l1: float
     dcost_frac_under_flips: float
     dcost_frac_outside_receptive_field: float
+    references: Dict[str, Tuple[float, float]] = field(default_factory=dict)
+
+    @property
+    def optimum_changed(self) -> bool:
+        """Whether the flip changed the map's optimal path cost.
+
+        This separates two failure modes that the pooled mediation numbers
+        otherwise mix. When the optimum is unchanged, damage means the planner
+        took a worse path on a problem whose answer did not move. When the
+        optimum changed — on these maps always because a flip opened a new
+        shortcut — damage means the planner failed to exploit a route that
+        exists only under the altered mask, and the mask is precisely what the
+        search route varies, so a search-dominated reading is close to
+        definitional there.
+        """
+        if "O0" not in self.references or "O1" not in self.references:
+            return False
+        return self.references["O0"][0] != self.references["O1"][0]
 
     def mediation_raw(self, metric: str = "opt") -> Dict[str, float]:
         """Mediation fractions on the **raw** counts rather than the ratios.
@@ -236,6 +257,7 @@ def run_swap(
         dcost_frac_outside_receptive_field=(float(delta[far].sum()) / total)
         if total > 0
         else float("nan"),
+        references=references,
     )
 
 
@@ -265,6 +287,11 @@ def swap_columns(result: SwapResult) -> Dict[str, object]:
         out[f"mediation_{metric}_encoder_raw"] = raw["encoder"]
         out[f"mediation_{metric}_search_raw"] = raw["search"]
         out[f"total_effect_{metric}_raw"] = raw["total_effect"]
+    for tag in ("O0", "O1"):
+        if tag in result.references:
+            out[f"optimum_{tag}"] = result.references[tag][0]
+            out[f"classical_expansions_{tag}"] = result.references[tag][1]
+    out["optimum_changed"] = result.optimum_changed
     out["dcost_l1"] = result.dcost_l1
     out["dcost_frac_under_flips"] = result.dcost_frac_under_flips
     out["dcost_frac_outside_receptive_field"] = result.dcost_frac_outside_receptive_field
@@ -348,14 +375,46 @@ def summarize_swaps(
 
     encoder = np.array(encoder_values, dtype=np.float64)
     search = np.array(search_values, dtype=np.float64)
+
+    def describe(values: np.ndarray, prefix: str) -> Dict[str, float]:
+        """Summarise one route's fractions.
+
+        The distribution is typically bimodal — an individual alteration tends
+        to be reproduced almost entirely by one route or by neither — so the
+        median alone is misleading and the shares at each end are reported too.
+
+        Args:
+            values: Mediation fractions over the damaged alterations.
+            prefix: Key prefix, ``"encoder"`` or ``"search"``.
+
+        Returns:
+            dict[str, float]: Mean, median, quartiles and the share of
+            alterations this route essentially explains (>= 0.75) or
+            essentially does not (<= 0.25).
+        """
+        if not values.size:
+            return {
+                f"{prefix}_{name}": float("nan")
+                for name in ("mean", "median", "q25", "q75", "share_dominant", "share_absent")
+            }
+        return {
+            f"{prefix}_mean": float(np.nanmean(values)),
+            f"{prefix}_median": float(np.nanmedian(values)),
+            f"{prefix}_q25": float(np.nanpercentile(values, 25)),
+            f"{prefix}_q75": float(np.nanpercentile(values, 75)),
+            f"{prefix}_share_dominant": float(np.mean(values >= 0.75)),
+            f"{prefix}_share_absent": float(np.mean(values <= 0.25)),
+        }
+
+    both = encoder + search
     return {
         "metric": metric,
         "raw": raw,
         "n": len(results),
         "labels": labels,
         "n_with_damage": int(len(encoder)),
-        "encoder_median": float(np.nanmedian(encoder)) if encoder.size else float("nan"),
-        "encoder_mean": float(np.nanmean(encoder)) if encoder.size else float("nan"),
-        "search_median": float(np.nanmedian(search)) if search.size else float("nan"),
-        "search_mean": float(np.nanmean(search)) if search.size else float("nan"),
+        **describe(encoder, "encoder"),
+        **describe(search, "search"),
+        "route_sum_mean": float(np.nanmean(both)) if both.size else float("nan"),
+        "route_sum_median": float(np.nanmedian(both)) if both.size else float("nan"),
     }

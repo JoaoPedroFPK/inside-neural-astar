@@ -61,12 +61,13 @@ If the failure reappears with altered costs on original obstacles, the encoder's
 
 ## Status — 2026-10-17
 
-**Steps 0–4 of the plan are done**: the environment is pinned and asserted,
+**Steps 0–5 of the plan are done**: the environment is pinned and asserted,
 the upstream numbers are reproduced, the structural premise of the swap design
 is verified in code and under test, the exact solver reproduces upstream's
 search exactly (`make step2`), the random-flip pilot has run with its budget
 decision (`make pilot`), and the E1 feature library is built and spot-checked
-(`make features spotcheck`).
+(`make features spotcheck`), and the surrogate fits plus the sufficiency test
+have run (`make surrogate`).
 
 > The research plan, the verification record (every premise checked in code,
 > with file and line references), the decision log and the per-step write-ups
@@ -203,6 +204,44 @@ topology, but that partition is degenerate here (70 % "open", 0 % "dead end").
 `src.features.wall_zone` — distance to the nearest wall, bucketed — is balanced
 (43 / 31 / 26 %) and is what step 5 will group by; both are stored.
 
+### Step 5 — what the cost map is made of, and what of it matters
+
+`make surrogate` → `results/e1_surrogate.{md,json,png}`. Fitted on 360 700
+cells from 800 training maps, scored on 44 635 cells from 100 unseen maps.
+
+| feature group | ridge R² | boosting R² |
+|---|---|---|
+| the search's own heuristic | **0.002** | — |
+| distance to goal only | 0.007 | 0.074 |
+| obstacle geometry only | 0.022 | 0.153 |
+| **H1 as stated** (goal + obstacles) | 0.026 | **0.240** |
+| path indicators only | 0.123 | 0.123 |
+| **everything** | 0.151 | **0.408** |
+
+**The encoder does not re-encode the search's heuristic** — those features
+explain 0.2 % of its output, which is what the architecture predicts, since the
+search already adds the Chebyshev heuristic itself. H1 is refuted *as stated*
+(linear fits reach 0.026) but partly vindicated in substance (0.240
+non-linearly), and the competing path-prediction account does not replace it
+either (0.123 alone). The cost map is a combination, and ~59 % of it is
+explained by nothing we named.
+
+Then the test R² cannot perform — feed the surrogate's prediction to the real
+search instead of the network's output:
+
+| cost map driving the search | exactly optimal | mean Exp ratio | Hmean |
+|---|---|---|---|
+| the network's own | 0.830 | 0.578 | **0.573** |
+| surrogate, H1 features only | 0.620 | 0.755 | 0.413 |
+| **surrogate, all features** | **0.920** | 0.627 | 0.552 |
+| flat costs = classical A\* | 1.000 | 1.000 | 0.000 |
+
+Geometry alone cannot plan. Geometry plus path indicators nearly can: a
+surrogate reconstructing 41 % of the cost map plans *more optimally than the
+network it imitates*, buying that with search effort and landing at 96 % of its
+combined score. So the unexplained 59 % is not where planning competence lives
+— it is what makes the network cut corners.
+
 ---
 
 ## Repository layout
@@ -236,13 +275,13 @@ topology, but that partition is degenerate here (70 % "open", 0 % "dead end").
 │   ├── metrics.py             ✅ paper metrics + Opt/Exp ratios + mediation fraction
 │   ├── exact_solver.py        ✅ [2] Dijkstra ground truth + classical-A* control
 │   ├── features.py            ✅ [4] geometric + path features, two partitions
-│   ├── surrogate.py           ⬜ [5] additive model fit + residual analysis
+│   ├── surrogate.py           ✅ [5] feature groups, fits, residuals, sufficiency
 │   ├── perturb.py             ✅ [3] random flips + k=1 enumeration + evaluation harness
 │   │                          ⬜ [6,9] exhaustive sweep, greedy, gradient
 │   ├── swap.py                ⬜ [7] the 2×2 cost/obstacle harness
 │   ├── attribution.py         ⬜ [8] Integrated Gradients / Grad-CAM
 │   └── detect.py              ⬜ [12] residual detector + Mahalanobis baseline
-├── tests/                     ✅ 97 tests: env, data, swap premise, planner, solver, metrics, perturbations, features
+├── tests/                     ✅ 109 tests: env, data, swap premise, planner, solver, metrics, perturbations, features, surrogate
 ├── notebooks/                 ✅ 01_features_spotcheck.ipynb (display only)
 └── results/
     ├── e0_reproduce.json      ✅ [0]
@@ -282,7 +321,7 @@ Check an environment you did not build yourself:
 
 ```bash
 make test-env     # 16 assertions: interpreter, pins, data, checkpoint, clean submodule
-make test         # whole suite, 97 tests, ~16 s
+make test         # whole suite, 109 tests, ~18 s
 ```
 
 ### Data
@@ -317,6 +356,7 @@ make pilot              # step-3 random-flip pilot (k = 1, 2, 4, 8), ~20 s
 make probe              # step-3 worst-case probe: exhaustive k=1 on 3 instances
 make features           # step-4 feature archives for all 1 000 instances, ~9 s
 make spotcheck          # step-4 figure + correlation diagnostic
+make surrogate          # step-5 fits, residuals and the sufficiency test, ~40 s
 make test               # the full suite
 python scripts/pilot_random.py --instances 3 --timing-only   # extrapolate first
 ```
@@ -371,7 +411,7 @@ that same map. Classical A\* replanning correctly is not an error.
 ## Roadmap (course stages)
 
 - [x] **Stage 1 — Proposal** (16 Oct 2026): question, hypothesis, design. ✔ submitted
-- [ ] **Stage 2:** E0 reproduced ✅ · swap premise confirmed in `differentiable_astar.py` ✅ · exact solver + metrics [2] ✅ · random-flip pilot [3] ✅ · feature library [4] ✅ · surrogate fit [5] ⬜ · perturbation harness for one objective [6] ⬜
+- [ ] **Stage 2:** E0 reproduced ✅ · swap premise confirmed in `differentiable_astar.py` ✅ · exact solver + metrics [2] ✅ · random-flip pilot [3] ✅ · feature library [4] ✅ · surrogate fit [5] ✅ · perturbation harness for one objective [6] ⬜
 - [ ] **Stage 3:** E2 + E3 complete on mazes [6–9]; three training seeds [10]; WarCraft started if time allows [11].
 - [ ] **Final:** E4 if reached [12]; write-up with explicit negative results.
 

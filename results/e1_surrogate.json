@@ -1,0 +1,211 @@
+{
+  "seed": 0,
+  "n_train_rows": 360700,
+  "n_test_rows": 44635,
+  "fits": [
+    {
+      "group": "goal_to",
+      "kind": "ridge",
+      "n_features": 3,
+      "r2": 0.006605798074915792,
+      "r2_within": 0.0037743776268001072,
+      "rmse": 0.2890972966448468
+    },
+    {
+      "group": "heuristic",
+      "kind": "ridge",
+      "n_features": 2,
+      "r2": 0.0023485934386455742,
+      "r2_within": 0.0028264210216873975,
+      "rmse": 0.2897160996195215
+    },
+    {
+      "group": "obstacle",
+      "kind": "ridge",
+      "n_features": 7,
+      "r2": 0.022260720186957905,
+      "r2_within": 0.02012306485641313,
+      "rmse": 0.2868103051979452
+    },
+    {
+      "group": "geometric_h1",
+      "kind": "ridge",
+      "n_features": 10,
+      "r2": 0.026055235724346426,
+      "r2_within": 0.022186469703462497,
+      "rmse": 0.286253222067707
+    },
+    {
+      "group": "geometric",
+      "kind": "ridge",
+      "n_features": 11,
+      "r2": 0.03334468783850619,
+      "r2_within": 0.031028589312286248,
+      "rmse": 0.2851799845315749
+    },
+    {
+      "group": "path",
+      "kind": "ridge",
+      "n_features": 3,
+      "r2": 0.12280247192398797,
+      "r2_within": 0.12817734056525343,
+      "rmse": 0.27166389288971354
+    },
+    {
+      "group": "all",
+      "kind": "ridge",
+      "n_features": 14,
+      "r2": 0.15126683365928706,
+      "r2_within": 0.15046011379775226,
+      "rmse": 0.26721990606033263
+    },
+    {
+      "group": "goal_to",
+      "kind": "gbm",
+      "n_features": 3,
+      "r2": 0.07391853822456174,
+      "r2_within": 0.07684594371320252,
+      "rmse": 0.2791308354712011
+    },
+    {
+      "group": "goal",
+      "kind": "gbm",
+      "n_features": 4,
+      "r2": 0.10468709935572695,
+      "r2_within": 0.10939502834089587,
+      "rmse": 0.27445468035524223
+    },
+    {
+      "group": "obstacle",
+      "kind": "gbm",
+      "n_features": 7,
+      "r2": 0.1527235372715311,
+      "r2_within": 0.15952778273780077,
+      "rmse": 0.26699048921544044
+    },
+    {
+      "group": "geometric_h1",
+      "kind": "gbm",
+      "n_features": 10,
+      "r2": 0.24033362263760927,
+      "r2_within": 0.24485240999915603,
+      "rmse": 0.2528102468527384
+    },
+    {
+      "group": "geometric",
+      "kind": "gbm",
+      "n_features": 11,
+      "r2": 0.27296807598030104,
+      "r2_within": 0.2810832803043146,
+      "rmse": 0.24732041169060381
+    },
+    {
+      "group": "path",
+      "kind": "gbm",
+      "n_features": 3,
+      "r2": 0.12283779291774055,
+      "r2_within": 0.1281770422306462,
+      "rmse": 0.2716584234629595
+    },
+    {
+      "group": "all",
+      "kind": "gbm",
+      "n_features": 14,
+      "r2": 0.40827345148933913,
+      "r2_within": 0.4092534086634205,
+      "rmse": 0.22312269533494827
+    }
+  ],
+  "ridge_coefficients_all": {
+    "geodesic_to_goal": 0.02938383480956097,
+    "geodesic_from_start": 0.014598119037701507,
+    "euclidean_to_goal": -0.06702341490821592,
+    "chebyshev_to_goal": 0.03172630115224629,
+    "dist_to_obstacle_chebyshev": -0.17467087925430175,
+    "dist_to_obstacle_euclidean": 0.15727940423353604,
+    "obstacle_density_3x3": 0.018231740144166047,
+    "obstacle_density_5x5": -0.0055386647298866516,
+    "corridor_width_min4": 0.0720637317065667,
+    "corridor_span_min": 0.004726579417842679,
+    "free_neighbours": -0.018224943995155105,
+    "on_reference_path": -0.03472191955625041,
+    "on_any_optimal_path": -0.07842821642142124,
+    "on_solver_path": -0.009560326244652199
+  },
+  "residuals_by_wall_zone": [
+    {
+      "class": "wall_adjacent",
+      "share": 0.30980172510361825,
+      "mean_abs_residual": 0.1498860829114223,
+      "mean_signed_residual": -0.0012399357857844526,
+      "mean_cost": 0.5641639632817713
+    },
+    {
+      "class": "near_wall",
+      "share": 0.26136440013442364,
+      "mean_abs_residual": 0.17935862592970056,
+      "mean_signed_residual": -0.005236157398049494,
+      "mean_cost": 0.5111726574751294
+    },
+    {
+      "class": "interior",
+      "share": 0.4288338747619581,
+      "mean_abs_residual": 0.18478279479007473,
+      "mean_signed_residual": -0.005492528410750534,
+      "mean_cost": 0.5750505922498922
+    }
+  ],
+  "residuals_by_topology": [
+    {
+      "class": "corridor",
+      "share": 0.01760949927187185,
+      "mean_abs_residual": 0.0909337491199153,
+      "mean_signed_residual": -0.00480387006242157,
+      "mean_cost": 0.6277625524929462
+    },
+    {
+      "class": "junction",
+      "share": 0.2800492886748068,
+      "mean_abs_residual": 0.15365038076305723,
+      "mean_signed_residual": -0.0014724448399879196,
+      "mean_cost": 0.5578018297915999
+    },
+    {
+      "class": "open",
+      "share": 0.7023412120533213,
+      "mean_abs_residual": 0.18213806734905055,
+      "mean_signed_residual": -0.005141533324595246,
+      "mean_cost": 0.5520335147521748
+    }
+  ],
+  "sufficiency": {
+    "neural_encoder": {
+      "p_opt": 0.83,
+      "mean_opt": 1.0153876654825627,
+      "mean_exp": 0.5778953162599954,
+      "p_exp": 0.4373488633414951,
+      "h_mean": 0.5728486719683568
+    },
+    "surrogate_geometric_h1": {
+      "p_opt": 0.62,
+      "mean_opt": 1.0366269781480455,
+      "mean_exp": 0.7549600466396481,
+      "p_exp": 0.3094802138661297,
+      "h_mean": 0.412871042946799
+    },
+    "surrogate_all": {
+      "p_opt": 0.92,
+      "mean_opt": 1.0073884897828862,
+      "mean_exp": 0.6269066016330966,
+      "p_exp": 0.3943807546887424,
+      "h_mean": 0.5520931329762103
+    },
+    "classical_unit_cost": {
+      "p_opt": 1.0,
+      "mean_opt": 1.0,
+      "mean_exp": 1.0,
+      "p_exp": 0.0,
+      "h_mean": 1.9999999998e-10
+    }
+  }
+}

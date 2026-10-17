@@ -61,22 +61,33 @@ def render_plot(
     axes = np.atleast_1d(axes)
     for ax, (objective, rows) in zip(axes, results.items()):
         metric = OBJECTIVES[objective][1]
-        encoder, search = [], []
+        groups = {"optimum unchanged": ([], []), "optimum changed": ([], [])}
         for result in rows:
             fractions = result.mediation(metric)
-            if np.isfinite(fractions["total_effect"]) and fractions["total_effect"] != 0:
-                encoder.append(fractions["encoder"])
-                search.append(fractions["search"])
+            if not np.isfinite(fractions["total_effect"]) or fractions["total_effect"] <= 0:
+                continue
+            key = "optimum changed" if result.optimum_changed else "optimum unchanged"
+            groups[key][0].append(fractions["encoder"])
+            groups[key][1].append(fractions["search"])
         ax.axhline(0, color="0.8", lw=0.8)
         ax.axvline(0, color="0.8", lw=0.8)
         ax.axhline(1, color="0.9", lw=0.8, ls="--")
         ax.axvline(1, color="0.9", lw=0.8, ls="--")
         ax.plot([-0.5, 1.5], [1.5, -0.5], color="0.85", lw=0.8, ls=":")
-        ax.scatter(encoder, search, s=18, alpha=0.6, edgecolor="none")
+        total = 0
+        for (label, (encoder, search)), marker in zip(groups.items(), ("o", "^")):
+            if not encoder:
+                continue
+            total += len(encoder)
+            ax.scatter(
+                encoder, search, s=26, alpha=0.6, marker=marker, edgecolor="none",
+                label=f"{label} (n={len(encoder)})",
+            )
+        ax.legend(fontsize=8, loc="upper right")
         ax.set_xlabel("encoder route  (C1O0 share of the damage)")
         ax.set_ylabel("search route  (C0O1 share of the damage)")
         ax.set_title(
-            f"{objective} objective — metric {metric.upper()}  (n={len(encoder)})", fontsize=10
+            f"{objective} objective — metric {metric.upper()}  (n={total})", fontsize=10
         )
         ax.set_xlim(-0.5, 1.6)
         ax.set_ylim(-0.5, 1.6)
@@ -100,6 +111,7 @@ def render_markdown(
     meta: Dict[str, object],
     figure: Path,
     summaries_raw: Optional[Dict[str, Dict[str, object]]] = None,
+    summaries_split: Optional[Dict[str, Dict[str, Dict[str, object]]]] = None,
 ) -> str:
     """Render the step-7 report, including the one-paragraph reading.
 
@@ -110,6 +122,8 @@ def render_markdown(
         figure: Path to the plot.
         summaries_raw: The same decomposition on raw counts, as a robustness
             check against the metric denominators differing between conditions.
+        summaries_split: The decomposition split by whether the flip moved the
+            map's optimum — two qualitatively different failure modes.
 
     Returns:
         str: Markdown document.
@@ -145,12 +159,63 @@ def render_markdown(
             lines.append(f"| {label} | {count} | {count / total:.0%} |")
         lines += [
             "",
-            f"Mediation fraction over the {summary['n_with_damage']} damaged alterations: "
-            f"**encoder median {summary['encoder_median']:.2f}** (mean "
-            f"{summary['encoder_mean']:.2f}), **search median "
-            f"{summary['search_median']:.2f}** (mean {summary['search_mean']:.2f}).",
+            f"Mediation fractions over the {summary['n_with_damage']} damaged "
+            "alterations. The distribution is bimodal — an individual failure is "
+            "usually reproduced almost entirely by one route or by neither — so the "
+            "share at each end says more than the average:",
+            "",
+            "| route | mean | median | IQR | explains it alone (≥ 0.75) | contributes nothing (≤ 0.25) |",
+            "|-------|------|--------|-----|----------------------------|------------------------------|",
+            f"| encoder | {summary['encoder_mean']:+.3f} | {summary['encoder_median']:+.2f} | "
+            f"{summary['encoder_q25']:+.2f} – {summary['encoder_q75']:+.2f} | "
+            f"{summary['encoder_share_dominant']:.0%} | {summary['encoder_share_absent']:.0%} |",
+            f"| search | {summary['search_mean']:+.3f} | {summary['search_median']:+.2f} | "
+            f"{summary['search_q25']:+.2f} – {summary['search_q75']:+.2f} | "
+            f"{summary['search_share_dominant']:.0%} | {summary['search_share_absent']:.0%} |",
+            "",
+            f"The two routes sum to {summary['route_sum_mean']:.3f} on average "
+            f"(median {summary['route_sum_median']:.3f}). A sum near 1 means the "
+            "decomposition is nearly additive — the two routes partition the damage; "
+            "a sum well below 1 means the rest is interaction, needing both changes "
+            "at once.",
             "",
         ]
+        if summaries_split and objective in summaries_split:
+            lines += [
+                "### Split by failure mode",
+                "",
+                "Two different things are being called damage here. When the flip "
+                "leaves the map's optimum unchanged, the planner took a worse path on "
+                "a problem whose answer did not move. When the flip opens a new "
+                "shortcut the optimum drops, and the planner is penalised for not "
+                "using a route that exists only under the altered mask — the mask "
+                "being exactly what the search route varies, so a search-dominated "
+                "reading there is close to definitional. Pooling the two is "
+                "misleading:",
+                "",
+                "| failure mode | n | encoder mean | encoder dominant | search mean | search dominant |",
+                "|--------------|---|--------------|------------------|-------------|-----------------|",
+            ]
+            for mode, part in summaries_split[objective].items():
+                if not part["n_with_damage"]:
+                    continue
+                lines.append(
+                    f"| {mode} | {part['n_with_damage']} | {part['encoder_mean']:+.3f} | "
+                    f"{part['encoder_share_dominant']:.0%} | {part['search_mean']:+.3f} | "
+                    f"{part['search_share_dominant']:.0%} |"
+                )
+            lines.append("")
+        if summaries_raw and objective in summaries_raw:
+            raw = summaries_raw[objective]
+            lines += [
+                "Robustness check on raw counts (path length in moves, or expanded "
+                "cells) rather than the ratios, which have a per-condition "
+                f"denominator: encoder mean {raw['encoder_mean']:+.3f}, search mean "
+                f"{raw['search_mean']:+.3f}, over {raw['n_with_damage']} alterations. "
+                "The two need not agree exactly — when a flip changes the optimum, a "
+                "ratio can worsen while the raw path length improves.",
+                "",
+            ]
     lines += [
         f"Plot: `{figure.name}`. Each point is one alteration; the axes are the two "
         "mediation fractions. A point near (1, 0) is encoder-mediated, near (0, 1) is "
@@ -226,15 +291,31 @@ def main() -> int:
         objective: summarize_swaps(rows, OBJECTIVES[objective][1], raw=True)
         for objective, rows in results.items()
     }
+    # The same decomposition split by whether the flip moved the map's optimum.
+    # Pooling the two hides a qualitative difference; see the report.
+    summaries_split = {
+        objective: {
+            "optimum unchanged": summarize_swaps(
+                [r for r in rows if not r.optimum_changed], OBJECTIVES[objective][1]
+            ),
+            "optimum changed": summarize_swaps(
+                [r for r in rows if r.optimum_changed], OBJECTIVES[objective][1]
+            ),
+        }
+        for objective, rows in results.items()
+    }
 
     # Merge the swap columns into the manifest, leaving untouched rows as NaN.
     additions = pd.DataFrame.from_dict(swap_rows, orient="index")
     for column in additions.columns:
-        if column in frame.columns:
-            frame.loc[additions.index, column] = additions[column]
-        else:
-            frame[column] = np.nan
-            frame.loc[additions.index, column] = additions[column]
+        # Create the column with the addition's own dtype rather than float64,
+        # so boolean validity flags are not silently coerced.
+        if column not in frame.columns:
+            empty = pd.Series(index=frame.index, dtype=additions[column].dtype)
+            frame[column] = empty
+        elif frame[column].dtype != additions[column].dtype:
+            frame[column] = frame[column].astype(object)
+        frame.loc[additions.index, column] = additions[column]
     frame.to_parquet(args.manifest, index=False)
 
     figure = render_plot(results, config.RESULTS_DIR / "e3_k1_mediation.png")
@@ -246,22 +327,29 @@ def main() -> int:
     }
     (config.RESULTS_DIR / "e3_k1.json").write_text(
         json.dumps(
-            {"meta": meta, "summaries": summaries, "summaries_raw": summaries_raw},
+            {
+                "meta": meta,
+                "summaries": summaries,
+                "summaries_raw": summaries_raw,
+                "summaries_by_failure_mode": summaries_split,
+            },
             indent=2,
             default=float,
         )
         + "\n"
     )
     (config.RESULTS_DIR / "e3_k1.md").write_text(
-        render_markdown(summaries, results, meta, figure, summaries_raw) + "\n"
+        render_markdown(summaries, results, meta, figure, summaries_raw, summaries_split)
+        + "\n"
     )
 
     print()
     for objective, summary in summaries.items():
         print(
-            f"{objective:11} encoder median {summary['encoder_median']:+.2f}  "
-            f"search median {summary['search_median']:+.2f}  "
-            f"labels {summary['labels']}"
+            f"{objective:11} encoder mean {summary['encoder_mean']:+.3f} "
+            f"(dominant in {summary['encoder_share_dominant']:.0%})  "
+            f"search mean {summary['search_mean']:+.3f} "
+            f"(dominant in {summary['search_share_dominant']:.0%})"
         )
     print(f"\nwrote e3_k1.md, e3_k1.json, {figure.name}, and merged swap columns into the manifest")
     return 0
