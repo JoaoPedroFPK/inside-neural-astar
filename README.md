@@ -511,6 +511,18 @@ the gain tracks how inconspicuous the alteration is:
 | 2 flips, both blocking | 0.918 | +0.061 [+0.011, +0.125] |
 | 8 flips, chosen for path damage | 0.927 | +0.005 [−0.040, +0.052] |
 
+**And the realistic version of the task is not harder.** Scoring each
+evaluation map on either its clean or its altered version — never both, so
+there is no clean twin to compare against, which is what a deployed monitor
+faces — costs the grid control AUC and costs the combined detector nothing. The
+gain therefore *grows*: +0.199 instead of +0.113 on single path flips, +0.310
+instead of +0.238 on effort flips. For stealthy effort flips the grid control
+falls to **0.449, below chance**, while the combined detector holds 0.842:
+without a clean reference, counting obstacles says nothing about whether *this*
+map was altered, since maps legitimately differ in obstacle count far more than
+one flip changes it. The step had predicted the opposite and recorded the
+correction.
+
 Every gap carries a bootstrap interval over scoring maps, because step 9's
 retracted conclusion came from a 0.03 margin. The single-flip gains replicate
 in all four maze models (+0.111 to +0.137 on path, +0.228 to +0.252 on effort,

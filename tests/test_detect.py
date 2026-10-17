@@ -17,6 +17,7 @@ from src.detect import (
     fit_detector,
     map_only_features,
     paired_alteration,
+    unpaired_mask,
     pooled_activations,
     residual_statistics,
 )
@@ -372,3 +373,42 @@ def test_fitting_the_baseline_on_the_maps_it_scores_inflates_it_to_perfect() -> 
     honest = evaluate_mahalanobis(reference, vectors, labels)["auc"]
     assert leaked > 0.99
     assert honest < leaked
+
+
+def test_the_unpaired_mask_leaves_each_evaluation_map_one_example() -> None:
+    """No evaluation map may appear both clean and altered — that is the point."""
+    ids = list(np.repeat(np.arange(20), 2))
+    labels = np.tile([0, 1], 20)
+    is_train = np.array([i < 10 for i in ids])
+
+    keep = unpaired_mask(labels, is_train, ids)
+    kept = np.asarray(ids)[keep]
+    evaluation = kept[~is_train[keep]]
+    assert len(evaluation) == len(set(evaluation.tolist()))
+    # Both classes must survive, or the AUC is undefined.
+    assert set(labels[keep][~is_train[keep]].tolist()) == {0, 1}
+
+
+def test_the_unpaired_mask_keeps_every_training_row() -> None:
+    """The restriction is about scoring, not about what the detector learned from."""
+    ids = list(np.repeat(np.arange(20), 2))
+    labels = np.tile([0, 1], 20)
+    is_train = np.array([i < 10 for i in ids])
+
+    keep = unpaired_mask(labels, is_train, ids)
+    assert keep[is_train].all()
+
+
+def test_the_unpaired_split_interleaves_rather_than_blocks() -> None:
+    """Maps arrive in a fixed order, so a block split could align with difficulty.
+
+    Alternating means the clean-only and altered-only groups are drawn from the
+    same part of the ordering.
+    """
+    ids = list(np.repeat(np.arange(8, 16), 2))
+    labels = np.tile([0, 1], 8)
+    is_train = np.zeros(len(ids), dtype=bool)
+
+    keep = unpaired_mask(labels, is_train, ids)
+    altered_maps = sorted({i for i, k, l in zip(ids, keep, labels) if k and l})
+    assert altered_maps == [9, 11, 13, 15]

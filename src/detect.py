@@ -543,3 +543,44 @@ def paired_alteration(
         if is_reachable(altered, instance.start_rc, instance.goal_rc):
             return cells
     return None
+
+
+def unpaired_mask(
+    labels: np.ndarray, is_train: np.ndarray, ids: Sequence[int]
+) -> np.ndarray:
+    """Keep one example per evaluation map, so no map appears clean *and* altered.
+
+    The paired task — show the detector a map's clean and altered version and
+    ask it to separate them — is easier than the real one. Because both
+    examples come from the same map, every difference between them is the
+    alteration, and nothing else. A deployed monitor sees one map arrive and
+    must judge it against maps it has never seen.
+
+    This builds that harder task from the same examples: evaluation maps are
+    split by position, and each contributes *either* its clean row or its
+    altered row, never both. Between-map variation then becomes noise the
+    detector has to survive, and the AUC it earns is the realistic one.
+
+    Training rows are all kept — the restriction is about what the detector is
+    scored on, not what it learned from.
+
+    Args:
+        labels: 1 for altered, 0 for clean.
+        is_train: Which rows belong to the fitting half.
+        ids: Instance id per row.
+
+    Returns:
+        np.ndarray: Boolean mask over rows, True for rows to keep.
+    """
+    identifiers = np.asarray(ids)
+    evaluation = sorted(set(identifiers[~is_train].tolist()))
+    # Alternate, so the two groups are interleaved rather than split by index:
+    # the maps are ordered and a block split could align with map difficulty.
+    altered_only = {value for position, value in enumerate(evaluation) if position % 2}
+    keep = np.ones(len(labels), dtype=bool)
+    for row, (identifier, label, training) in enumerate(zip(identifiers, labels, is_train)):
+        if training:
+            continue
+        wants_altered = identifier in altered_only
+        keep[row] = bool(label) == wants_altered
+    return keep

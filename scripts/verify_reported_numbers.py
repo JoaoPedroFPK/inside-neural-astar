@@ -208,6 +208,19 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
                      conditions["blocked_2"]["mahalanobis_auc"]
                      - conditions["balanced_2"]["mahalanobis_auc"]
                  ) < 0.01),
+                # The expectation that the realistic, unpaired task would be
+                # harder was written into the step and then measured. It was
+                # wrong in the direction that matters, so both halves are
+                # pinned: the control loses AUC, the combination does not.
+                ("step 12: dropping the clean twin costs the control AUC",
+                 lambda: conditions["k1_opt"]["unpaired"]["map_only"]
+                 < conditions["k1_opt"]["map_only_auc"]),
+                ("step 12: dropping the clean twin does not cost the combined detector",
+                 lambda: conditions["k1_opt"]["unpaired"]["combined"]
+                 >= conditions["k1_opt"]["combined_auc"]),
+                ("step 12: without a clean twin the grid control falls below chance "
+                 "on stealthy effort flips",
+                 lambda: conditions["greedy_eff_b1"]["unpaired"]["map_only"] < 0.5),
                 ("step 12: the residual helps more against the stealthier attack",
                  lambda: conditions["balanced_2"]["combined_minus_map_only"]["gap"]
                  > conditions["blocked_2"]["combined_minus_map_only"]["hi"]),
@@ -244,9 +257,18 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
             for payload in present
             for row in payload["conditions"]
         ]
-        out.append(
-            ("step 12: the residual's gain over the control holds in every maze model",
-             lambda: min(gains) > 0)
+        unpaired_gains = [
+            row["unpaired_combined_minus_map_only"]["lo"]
+            for payload in present
+            for row in payload["conditions"]
+        ]
+        out.extend(
+            [
+                ("step 12: the residual's gain over the control holds in every maze model",
+                 lambda: min(gains) > 0),
+                ("step 12: it holds in every maze model on the unpaired task too",
+                 lambda: min(unpaired_gains) > 0),
+            ]
         )
 
     forest = [payload for payload in detector_forest if payload]
@@ -258,9 +280,20 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
             for payload in forest
             for row in payload["conditions"]
         ]
-        out.append(
-            ("step 12: on forest the residual adds nothing, in every model",
-             lambda: all(row["lo"] <= 0 <= row["hi"] for row in intervals))
+        unpaired_intervals = [
+            row["unpaired_combined_minus_map_only"]
+            for payload in forest
+            for row in payload["conditions"]
+        ]
+        out.extend(
+            [
+                ("step 12: on forest the residual adds nothing, in every model",
+                 lambda: all(row["lo"] <= 0 <= row["hi"] for row in intervals)),
+                ("step 12: the forest null holds on the unpaired task too",
+                 lambda: all(
+                     row["lo"] <= 0 <= row["hi"] for row in unpaired_intervals
+                 )),
+            ]
         )
         # And the baseline fails there too, which is why the reading is about
         # the internals as a whole rather than about the residual.

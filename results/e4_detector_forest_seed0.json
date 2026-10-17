@@ -3,6 +3,7 @@
   "seed": 0,
   "family": "forest",
   "model_tag": "forest_seed0",
+  "transfer_from": null,
   "surrogate": {
     "group": "geometric_h1",
     "kind": "gbm",
@@ -41,6 +42,17 @@
         "hi": 0.03600999999999997,
         "p_positive": 0.461
       },
+      "unpaired": {
+        "residual": 0.536,
+        "map_only": 0.776,
+        "combined": 0.7392000000000001
+      },
+      "unpaired_combined_minus_map_only": {
+        "gap": -0.036799999999999944,
+        "lo": -0.11538628472222236,
+        "hi": 0.04080627257799674,
+        "p_positive": 0.1765
+      },
       "mahalanobis_auc": 0.5844,
       "mahalanobis_variant": "l5_mean",
       "mahalanobis_auc_by_variant": {
@@ -53,7 +65,7 @@
         "l11_mean": 0.562,
         "l11_max": 0.5127999999999999
       },
-      "seconds": 5.616266833996633
+      "seconds": 5.2892517909931485
     },
     {
       "condition": "k1_eff",
@@ -70,6 +82,17 @@
         "hi": 0.004128689236111145,
         "p_positive": 0.0345
       },
+      "unpaired": {
+        "residual": 0.5711805555555556,
+        "map_only": 0.6388888888888888,
+        "combined": 0.7083333333333334
+      },
+      "unpaired_combined_minus_map_only": {
+        "gap": 0.06944444444444453,
+        "lo": -0.11788274225774228,
+        "hi": 0.24108455882352925,
+        "p_positive": 0.778
+      },
       "mahalanobis_auc": 0.552517361111111,
       "mahalanobis_variant": "l8_mean",
       "mahalanobis_auc_by_variant": {
@@ -82,7 +105,7 @@
         "l11_mean": 0.5351562500000001,
         "l11_max": 0.5247395833333334
       },
-      "seconds": 5.337059666984715
+      "seconds": 5.027483875019243
     }
   ]
 }

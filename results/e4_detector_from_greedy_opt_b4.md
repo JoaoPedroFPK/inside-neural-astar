@@ -19,3 +19,20 @@ Paired task: the detector sees each instance's clean and altered map and must se
 | `balanced_2` | 100 | 50 | 0.778 | 0.670 | 0.952 | `l2_mean` | 0.786 | 0.920 | +0.134 [+0.073, +0.192] |
 | `blocked_2` | 100 | 50 | 0.688 | 0.600 | 0.955 | `l2_mean` | 0.932 | 0.976 | +0.045 [+0.005, +0.090] |
 
+## The harder version: no clean twin
+
+Each evaluation map contributes either its clean map or its altered one, never both, so the detector cannot compare a map against itself. This is what a deployed monitor faces, and these are the realistic numbers.
+
+| condition | residual AUC | map-only AUC | map-only + residual | gap, 95 % CI |
+|-----------|--------------|--------------|---------------------|--------------|
+| `k1_opt` | 0.658 | 0.719 | 0.912 | +0.193 [+0.061, +0.345] |
+| `k1_eff` | 0.790 | 0.545 | 0.781 | +0.236 [+0.080, +0.399] |
+| `greedy_opt_b1` | 0.658 | 0.719 | 0.912 | +0.193 [+0.061, +0.345] |
+| `greedy_opt_b4` | 0.818 | 0.893 | 0.931 | +0.038 [-0.026, +0.114] |
+| `greedy_opt_b8` | 0.834 | 0.890 | 0.938 | +0.048 [-0.018, +0.125] |
+| `greedy_eff_b1` | 0.795 | 0.470 | 0.738 | +0.268 [+0.102, +0.444] |
+| `greedy_eff_b4` | 0.948 | 0.960 | 0.993 | +0.033 [+0.000, +0.095] |
+| `greedy_eff_b8` | 0.982 | 0.897 | 1.000 | +0.103 [+0.010, +0.215] |
+| `balanced_2` | 0.811 | 0.743 | 0.931 | +0.188 [+0.078, +0.325] |
+| `blocked_2` | 0.712 | 0.921 | 0.970 | +0.049 [+0.000, +0.126] |
+

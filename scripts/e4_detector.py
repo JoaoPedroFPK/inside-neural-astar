@@ -54,6 +54,7 @@ from src.detect import (  # noqa: E402
     evaluate_mahalanobis,
     fit_detector,
     paired_alteration,
+    unpaired_mask,
 )
 from src.features import compute_instance_features  # noqa: E402
 from src.planner import load_pretrained_neural_astar  # noqa: E402
@@ -378,6 +379,35 @@ def main() -> int:
         }
         best_variant = max(per_variant, key=per_variant.get)
         baseline = {"auc": per_variant[best_variant], "variant": best_variant}
+        # The harder, realistic version of the task: each evaluation map
+        # contributes either its clean row or its altered row, never both, so
+        # the detector cannot lean on a clean reference for the same map.
+        keep = unpaired_mask(labels, is_train, ids)
+        unpaired_ids = [identifier for identifier, k in zip(ids, keep) if k]
+        unpaired = {
+            name: evaluate_detector(
+                matrix[keep][is_train[keep]],
+                labels[keep][is_train[keep]],
+                matrix[keep][~is_train[keep]],
+                labels[keep][~is_train[keep]],
+                model=heads.get(name),
+            )["auc"]
+            for name, matrix in (
+                ("residual", residual),
+                ("map_only", plain),
+                ("combined", joint),
+            )
+        }
+        unpaired_gap = bootstrap_auc_gap(
+            joint[keep],
+            plain[keep],
+            labels[keep],
+            is_train[keep],
+            unpaired_ids,
+            seed=args.seed,
+            models=(heads.get("combined"), heads.get("map_only")),
+        )
+
         gap = bootstrap_auc_gap(
             joint,
             plain,
@@ -398,6 +428,8 @@ def main() -> int:
                 "map_only_accuracy": control["accuracy"],
                 "combined_auc": combined["auc"],
                 "combined_minus_map_only": gap,
+                "unpaired": unpaired,
+                "unpaired_combined_minus_map_only": unpaired_gap,
                 "mahalanobis_auc": baseline["auc"],
                 "mahalanobis_variant": baseline["variant"],
                 "mahalanobis_auc_by_variant": per_variant,
@@ -408,6 +440,11 @@ def main() -> int:
             f"{condition}: n={len(unique)} | residual AUC {scores['auc']:.3f} "
             f"(acc {scores['accuracy']:.3f}) | mahalanobis AUC {baseline['auc']:.3f} "
             f"[{baseline['variant']}] | map-only AUC {control['auc']:.3f} "
+            f"| combined {combined['auc']:.3f} "
+            f"(gap {gap['gap']:+.3f} [{gap['lo']:+.3f}, {gap['hi']:+.3f}]) "
+            f"| unpaired: map-only {unpaired['map_only']:.3f}, "
+            f"combined {unpaired['combined']:.3f} "
+            f"(gap {unpaired_gap['gap']:+.3f}) "
             f"| {seconds:.1f} s"
         )
         if args.timing_only:
@@ -470,6 +507,27 @@ def main() -> int:
             f"{row['combined_minus_map_only']['gap']:+.3f} "
             f"[{row['combined_minus_map_only']['lo']:+.3f}, "
             f"{row['combined_minus_map_only']['hi']:+.3f}] |"
+        )
+    lines.extend(
+        [
+            "",
+            "## The harder version: no clean twin",
+            "",
+            "Each evaluation map contributes either its clean map or its altered one, "
+            "never both, so the detector cannot compare a map against itself. This is "
+            "what a deployed monitor faces, and these are the realistic numbers.",
+            "",
+            "| condition | residual AUC | map-only AUC | map-only + residual | gap, 95 % CI |",
+            "|-----------|--------------|--------------|---------------------|--------------|",
+        ]
+    )
+    for row in rows:
+        values = row["unpaired"]
+        moved = row["unpaired_combined_minus_map_only"]
+        lines.append(
+            f"| `{row['condition']}` | {values['residual']:.3f} | "
+            f"{values['map_only']:.3f} | {values['combined']:.3f} | "
+            f"{moved['gap']:+.3f} [{moved['lo']:+.3f}, {moved['hi']:+.3f}] |"
         )
     lines.append("")
     report = config.RESULTS_DIR / f"e4_detector{suffix}{transfer}.md"

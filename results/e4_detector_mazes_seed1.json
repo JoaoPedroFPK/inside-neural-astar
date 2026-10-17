@@ -3,6 +3,7 @@
   "seed": 0,
   "family": "mazes",
   "model_tag": "mazes_seed1",
+  "transfer_from": null,
   "surrogate": {
     "group": "geometric_h1",
     "kind": "gbm",
@@ -41,6 +42,17 @@
         "hi": 0.1972199999999997,
         "p_positive": 0.998
       },
+      "unpaired": {
+        "residual": 0.6928000000000001,
+        "map_only": 0.7160000000000001,
+        "combined": 0.8703999999999998
+      },
+      "unpaired_combined_minus_map_only": {
+        "gap": 0.15439999999999976,
+        "lo": 0.00177901881755852,
+        "hi": 0.31673611111111083,
+        "p_positive": 0.9765
+      },
       "mahalanobis_auc": 0.784,
       "mahalanobis_variant": "l5_max",
       "mahalanobis_auc_by_variant": {
@@ -53,7 +65,7 @@
         "l11_mean": 0.7656,
         "l11_max": 0.5844
       },
-      "seconds": 3.791191500000423
+      "seconds": 3.644769417005591
     },
     {
       "condition": "k1_eff",
@@ -70,6 +82,17 @@
         "hi": 0.328605,
         "p_positive": 1.0
       },
+      "unpaired": {
+        "residual": 0.7872,
+        "map_only": 0.6103999999999999,
+        "combined": 0.9168
+      },
+      "unpaired_combined_minus_map_only": {
+        "gap": 0.3064,
+        "lo": 0.13135881773399022,
+        "hi": 0.4887956691297207,
+        "p_positive": 0.999
+      },
       "mahalanobis_auc": 0.8116,
       "mahalanobis_variant": "l5_mean",
       "mahalanobis_auc_by_variant": {
@@ -82,7 +105,7 @@
         "l11_mean": 0.7891999999999999,
         "l11_max": 0.6244000000000001
       },
-      "seconds": 4.298255542002153
+      "seconds": 3.9113633329980075
     }
   ]
 }

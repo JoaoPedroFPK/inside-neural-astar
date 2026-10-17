@@ -42,6 +42,17 @@
         "hi": 0.02080999999999998,
         "p_positive": 0.2965
       },
+      "unpaired": {
+        "residual": 0.5279999999999999,
+        "map_only": 0.8224,
+        "combined": 0.7696
+      },
+      "unpaired_combined_minus_map_only": {
+        "gap": -0.05280000000000007,
+        "lo": -0.12824675324675316,
+        "hi": 0.01043669871794868,
+        "p_positive": 0.0515
+      },
       "mahalanobis_auc": 0.5948,
       "mahalanobis_variant": "l8_mean",
       "mahalanobis_auc_by_variant": {
@@ -54,7 +65,7 @@
         "l11_mean": 0.5671999999999999,
         "l11_max": 0.4966
       },
-      "seconds": 4.525287875003414
+      "seconds": 4.835329791996628
     },
     {
       "condition": "k1_eff",
@@ -71,6 +82,17 @@
         "hi": 0.0491229062924399,
         "p_positive": 0.747
       },
+      "unpaired": {
+        "residual": 0.552536231884058,
+        "map_only": 0.8034420289855073,
+        "combined": 0.7536231884057971
+      },
+      "unpaired_combined_minus_map_only": {
+        "gap": -0.0498188405797102,
+        "lo": -0.16296398046398058,
+        "hi": 0.0460094043887145,
+        "p_positive": 0.158
+      },
       "mahalanobis_auc": 0.5672249886826618,
       "mahalanobis_variant": "l2_max",
       "mahalanobis_auc_by_variant": {
@@ -83,7 +105,7 @@
         "l11_mean": 0.5550022634676325,
         "l11_max": 0.5273879583521954
       },
-      "seconds": 4.547255167010007
+      "seconds": 4.79134054199676
     }
   ]
 }
