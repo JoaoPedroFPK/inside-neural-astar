@@ -39,12 +39,15 @@ JOINED = (
 )
 
 
-def load_joined(manifest_path: Path, split: str) -> pd.DataFrame:
+def load_joined(manifest_path: Path, split: str, tag: str = "") -> pd.DataFrame:
     """Load the exhaustive k=1 rows with their flipped cell's features attached.
 
     Args:
         manifest_path: The results manifest.
         split: Which split's feature archive to join against.
+        tag: Model tag, so a per-model manifest is joined to that model's own
+            feature archive. Mixing them would attach one model's cost-map
+            features to another's alterations.
 
     Returns:
         pd.DataFrame: One row per single-cell alteration, with the joined
@@ -55,7 +58,8 @@ def load_joined(manifest_path: Path, split: str) -> pd.DataFrame:
     """
     frame = pd.read_parquet(manifest_path)
     frame = frame[(frame["method"] == "exhaustive") & (frame["budget"] == 1)].copy()
-    archive_path = config.RESULTS_DIR / f"features_{split}.npz"
+    suffix = f"_{tag}" if tag else ""
+    archive_path = config.RESULTS_DIR / f"features_{split}{suffix}.npz"
     if not archive_path.exists():
         raise FileNotFoundError(f"{archive_path} missing; run `make features`")
     with np.load(archive_path, allow_pickle=False) as handle:
@@ -153,10 +157,16 @@ def main() -> int:
     """Run the analysis and write the report."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--split", default="test")
-    parser.add_argument("--manifest", type=Path, default=config.RESULTS_DIR / "manifest.parquet")
+    parser.add_argument(
+        "--tag", default="", help="model tag; selects both the manifest and the archive"
+    )
+    parser.add_argument("--manifest", type=Path, default=None)
     args = parser.parse_args()
 
-    frame = load_joined(args.manifest, config.canonical_split(args.split))
+    suffix = f"_{args.tag}" if args.tag else ""
+    if args.manifest is None:
+        args.manifest = config.RESULTS_DIR / f"manifest{suffix}.parquet"
+    frame = load_joined(args.manifest, config.canonical_split(args.split), tag=args.tag)
     report = {
         "n_alterations": int(len(frame)),
         "n_damaging": int(frame["damaging"].sum()),
@@ -186,10 +196,12 @@ def main() -> int:
     report["crossed"] = crossed
     report["distortion"] = damage_by_distortion(frame)
 
-    (config.RESULTS_DIR / "e2_damaging_cells.json").write_text(
+    (config.RESULTS_DIR / f"e2_damaging_cells{suffix}.json").write_text(
         json.dumps(report, indent=2, default=float) + "\n"
     )
-    (config.RESULTS_DIR / "e2_damaging_cells.md").write_text(render_markdown(report) + "\n")
+    (config.RESULTS_DIR / f"e2_damaging_cells{suffix}.md").write_text(
+        render_markdown(report) + "\n"
+    )
 
     print(f"{report['n_alterations']:,} alterations, {report['n_damaging']:,} damaging "
           f"({report['overall_rate']:.2%})\n")
