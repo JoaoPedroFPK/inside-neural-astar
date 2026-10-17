@@ -777,12 +777,27 @@ that same map. Classical A\* replanning correctly is not an error.
 - [ ] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] ✅ · WarCraft [11] not started — it needs a third-party dataset download, so it waits for an explicit decision rather than being fetched automatically.
 - [ ] **Final:** E4 detector [12] ✅ · write-up with explicit negative results.
 
-**Next step:** finish the three `forest` seeds, to settle whether the mediation
-difference found there is real or the same single-model artefact step 10
-exposed on mazes — about 45 minutes per seed, two of them running. After that,
-step 11 (WarCraft) if the dataset download is wanted, and three optional
-extensions to step 12: an unpaired version of the detection task, a
-convolutional map-only control, and a gradient-guided attack to detect.
+**Everything planned for mazes and forest is done.** Three `forest` seeds
+settled the mediation question (the difference was noise; see step 7b), and
+step 12's three open extensions were all run: the unpaired detection task, the
+convolutional map-only control, and replication across all seven encoders —
+the last two between them withdrew half of step 12's first claim.
+
+**Next step:** one of two things, both needing a decision rather than more
+compute.
+
+1. **Step 11 (WarCraft 12×12)** — needs a third-party dataset download, so it
+   waits for an explicit go-ahead rather than being fetched automatically.
+2. **A gradient-guided attack** (`PLAN.md` step 9's conditional branch). It is
+   the one experiment that could overturn step 12's surviving claim: an
+   alteration optimised directly against the encoder might be quiet in the grid
+   *and* quiet in the residual. It needs no download.
+
+Smaller items, in descending order of value: a streaming version of the
+detector (a threshold fixed in advance, with no altered examples at fitting
+time); a map-only control trained on *selected* rather than random flips; and
+the 64×64 families, which need `MAP_SIZE` and the unreachable sentinel to
+become per-dataset values first.
 
 ---
 
