@@ -526,7 +526,7 @@ that same map. Classical A\* replanning correctly is not an error.
 
 - [x] **Stage 1 — Proposal** (16 Oct 2026): question, hypothesis, design. ✔ submitted
 - [ ] **Stage 2:** E0 reproduced ✅ · swap premise confirmed in `differentiable_astar.py` ✅ · exact solver + metrics [2] ✅ · random-flip pilot [3] ✅ · feature library [4] ✅ · surrogate fit [5] ✅ · perturbation harness [6] ✅
-- [ ] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] ⬜ · WarCraft [11] only if time allows.
+- [ ] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] 🏃 · WarCraft [11] not started — it needs a third-party dataset download, so it waits for an explicit decision rather than being fetched automatically.
 - [ ] **Final:** E4 if reached [12]; write-up with explicit negative results.
 
 **Next step:** step 10 — three encoders trained from different seeds, with the
