@@ -230,3 +230,44 @@ def test_raw_mediation_uses_counts_not_ratios() -> None:
     assert np.isnan(result.mediation_raw("exp")["encoder"])
     with pytest.raises(ValueError, match="unknown metric"):
         result.mediation_raw("hmean")
+
+
+def test_summary_reports_the_distribution_not_just_the_centre() -> None:
+    """The summary carries quartiles and end-shares, because the median lies.
+
+    An individual alteration is usually reproduced almost entirely by one route
+    or by neither, so the distribution is bimodal and its median can sit at 0
+    while the mean is near 0.5. The shares at each end are what make that
+    visible.
+    """
+    results = [
+        _result([1.0, 1.0, 1.4, 1.4]),   # encoder explains all of it
+        _result([1.0, 1.0, 1.4, 1.4]),
+        _result([1.0, 1.4, 1.0, 1.4]),   # search explains all of it
+        _result([1.0, 1.4, 1.0, 1.4]),
+    ]
+    summary = summarize_swaps(results, "opt")
+    assert summary["encoder_share_dominant"] == 0.5
+    assert summary["encoder_share_absent"] == 0.5
+    assert abs(summary["encoder_mean"] - 0.5) < 1e-12
+    assert summary["encoder_q25"] == 0.0 and summary["encoder_q75"] == 1.0
+    # Each alteration is fully explained by exactly one route, so the two sum to 1.
+    assert abs(summary["route_sum_mean"] - 1.0) < 1e-12
+
+
+def test_optimum_changed_flags_a_shortcut_opening_flip(
+    pretrained_planner, corridor_instance
+) -> None:
+    """The failure-mode flag fires exactly when the flip moves the optimum.
+
+    The whole step-7 conclusion turns on this split, so the flag is checked
+    against a map built so that one flip shortens the route and another does
+    not.
+    """
+    opening = run_swap(pretrained_planner, corridor_instance, [(4, 0)])
+    assert opening.optimum_changed, "opening a second doorway must shorten the optimum"
+    assert opening.references["O1"][0] < opening.references["O0"][0]
+
+    far_corner = run_swap(pretrained_planner, corridor_instance, [(0, 4)])
+    assert not far_corner.optimum_changed
+    assert far_corner.references["O0"][0] == far_corner.references["O1"][0]
