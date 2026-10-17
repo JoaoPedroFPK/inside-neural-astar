@@ -1,0 +1,66 @@
+{
+  "n_cells": 20,
+  "seconds": 19.178434333996847,
+  "steps": 64,
+  "max_radius_over_all_cells": 5.0,
+  "min_share_within_5": 0.9999998807907104,
+  "mean_completeness_error": 0.0053836976177990435,
+  "randomization": {
+    "mean_pearson": 0.041761174041801664,
+    "max_abs_pearson": 0.6913564463228523,
+    "mean_spearman": 0.051576229616278085,
+    "mean_abs_cosine": 0.6594435274600983
+  },
+  "by_group": [
+    {
+      "group": "attacked",
+      "attr_abs_total": 3.925084686279297,
+      "obstacles_within_5": 16.0,
+      "attr_per_nearby_obstacle": 0.24881038185385299,
+      "max_radius": 4.0,
+      "randomization_pearson": -0.13793785182268614
+    },
+    {
+      "group": "clean",
+      "attr_abs_total": 2.2331791162490844,
+      "obstacles_within_5": 13.2,
+      "attr_per_nearby_obstacle": 0.14944285878113336,
+      "max_radius": 3.0,
+      "randomization_pearson": -0.10951262952082981
+    },
+    {
+      "group": "interior",
+      "attr_abs_total": 0.5518911927938461,
+      "obstacles_within_5": 6.0,
+      "attr_per_nearby_obstacle": 0.09672469224793341,
+      "max_radius": 3.0,
+      "randomization_pearson": -0.0541260969662525
+    },
+    {
+      "group": "wall_adjacent",
+      "attr_abs_total": 4.543996429443359,
+      "obstacles_within_5": 17.8,
+      "attr_per_nearby_obstacle": 0.2862763085975255,
+      "max_radius": 5.0,
+      "randomization_pearson": 0.33381703947580327
+    }
+  ],
+  "locality_by_method": [
+    {
+      "method": "grad_cam",
+      "share_within_5": 0.10947952661663293,
+      "max_radius": 24.6
+    },
+    {
+      "method": "integrated_gradients",
+      "share_within_5": 0.999999984105428,
+      "max_radius": 3.75
+    },
+    {
+      "method": "saliency",
+      "share_within_5": 1.0000000059604646,
+      "max_radius": 5.0
+    }
+  ],
+  "mass_vs_local_obstacles_r": 0.8245772679284729
+}

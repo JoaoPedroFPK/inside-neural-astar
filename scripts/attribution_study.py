@@ -24,7 +24,7 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple  # noqa: F401
 
 import numpy as np
 import pandas as pd
@@ -39,6 +39,7 @@ from src.attribution import (  # noqa: E402
     grad_cam,
     integrated_gradients,
     randomization_check,
+    saliency,
 )
 from src.planner import load_pretrained_neural_astar  # noqa: E402
 
@@ -200,6 +201,14 @@ def main() -> int:
         cell = tuple(entry["cell"])  # type: ignore[arg-type]
         ig = integrated_gradients(planner, instance, cell, steps=args.steps)
         radius = attribution_radius(ig)
+        # Control for the baseline's mechanical effect: with the `free`
+        # baseline the input difference is non-zero only at obstacle cells, so
+        # total attribution mass scales with how many obstacles sit inside the
+        # receptive field. Without this normalisation, "cells in cluttered
+        # places get more attribution" would masquerade as a finding.
+        rows, columns = np.ogrid[: instance.map_design.shape[0], : instance.map_design.shape[1]]
+        near = (np.abs(rows - cell[0]) <= 5) & (np.abs(columns - cell[1]) <= 5)
+        obstacles_near = int(((instance.map_design == config.OBSTACLE) & near).sum())
         check = randomization_check(
             planner, instance, cell, method="integrated_gradients", seed=args.seed, steps=16
         )
@@ -212,6 +221,12 @@ def main() -> int:
                 "completeness_error": ig.completeness_error,
                 "attr_total_map": ig.total_by_channel()["map_design"],
                 "attr_abs_total": float(np.abs(ig.values[0]).sum()),
+                "obstacles_within_5": obstacles_near,
+                "attr_per_nearby_obstacle": (
+                    float(np.abs(ig.values[0]).sum() / obstacles_near)
+                    if obstacles_near
+                    else float("nan")
+                ),
                 "max_radius": radius["max_radius"],
                 "share_within_5": radius["share_within_5"],
                 "share_on_target": radius["share_on_target"],
@@ -222,13 +237,45 @@ def main() -> int:
         )
     seconds = time.perf_counter() - started
 
+    # Locality test across methods. The encoder's receptive field has radius 5,
+    # so attribution mass further away is attributing influence the
+    # architecture cannot carry. Most settings cannot run this test because the
+    # true influence region is unknown; here it is exact.
+    locality = []
+    for entry in entries:
+        instance = split.instance(int(entry["instance_id"]), seed=args.seed)
+        cell = tuple(entry["cell"])  # type: ignore[arg-type]
+        for name, attribution in (
+            ("integrated_gradients", integrated_gradients(planner, instance, cell, steps=32)),
+            ("saliency", saliency(planner, instance, cell)),
+            ("grad_cam", grad_cam(planner, instance, cell)),
+        ):
+            radius = attribution_radius(attribution, channel=0)
+            locality.append(
+                {
+                    "method": name,
+                    "share_within_5": radius["share_within_5"],
+                    "max_radius": radius["max_radius"],
+                }
+            )
+    locality_table = (
+        pd.DataFrame(locality).groupby("method")[["share_within_5", "max_radius"]].mean()
+        .reset_index()
+    )
+
     frame = pd.DataFrame(records)
     out_dir = config.RESULTS_DIR / "e1_attribution"
     figures = render_figure(planner, split, entries, out_dir, args.seed)
 
     grouped = (
         frame.groupby("group")[
-            ["attr_abs_total", "share_on_target", "max_radius", "randomization_pearson"]
+            [
+                "attr_abs_total",
+                "obstacles_within_5",
+                "attr_per_nearby_obstacle",
+                "max_radius",
+                "randomization_pearson",
+            ]
         ]
         .mean()
         .reset_index()
@@ -247,10 +294,16 @@ def main() -> int:
             "mean_abs_cosine": float(frame["randomization_abs_cosine"].mean()),
         },
         "by_group": grouped.to_dict("records"),
+        "locality_by_method": locality_table.to_dict("records"),
+        "mass_vs_local_obstacles_r": float(
+            frame["attr_abs_total"].corr(frame["obstacles_within_5"])
+        ),
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, default=float) + "\n")
     frame.to_csv(out_dir / "cells.csv", index=False)
-    (out_dir / "summary.md").write_text(render_markdown(summary, grouped, figures) + "\n")
+    (out_dir / "summary.md").write_text(
+        render_markdown(summary, grouped, figures, locality_table) + "\n"
+    )
 
     print(f"\nreceptive-field check: max radius {summary['max_radius_over_all_cells']:.0f} "
           f"(must be <= 5), min share within 5 = {summary['min_share_within_5']:.3f}")
@@ -261,13 +314,20 @@ def main() -> int:
     return 0
 
 
-def render_markdown(summary: Dict[str, object], grouped: pd.DataFrame, figures) -> str:
+def render_markdown(
+    summary: Dict[str, object],
+    grouped: pd.DataFrame,
+    figures,
+    locality_table: Optional[pd.DataFrame] = None,
+) -> str:
     """Render the attribution summary.
 
     Args:
         summary: Assembled summary values.
         grouped: Per-group means.
         figures: Figure paths.
+        locality_table: Per-method share of attribution mass inside the
+            receptive field.
 
     Returns:
         str: Markdown document.
@@ -301,14 +361,56 @@ def render_markdown(summary: Dict[str, object], grouped: pd.DataFrame, figures) 
         "",
         "## By group",
         "",
-        "| group | mean \\|attribution\\| | share on the explained cell | mean radius | randomisation r |",
-        "|-------|---------------------|-----------------------------|-------------|-----------------|",
+        "| group | mean \\|attribution\\| | obstacles within radius 5 | per nearby obstacle | randomisation r |",
+        "|-------|---------------------|---------------------------|---------------------|-----------------|",
     ]
     for _, row in grouped.iterrows():
         lines.append(
-            f"| {row['group']} | {row['attr_abs_total']:.4f} | {row['share_on_target']:.3f} | "
-            f"{row['max_radius']:.1f} | {row['randomization_pearson']:+.3f} |"
+            f"| {row['group']} | {row['attr_abs_total']:.3f} | "
+            f"{row['obstacles_within_5']:.1f} | {row['attr_per_nearby_obstacle']:.3f} | "
+            f"{row['randomization_pearson']:+.3f} |"
         )
+    lines += [
+        "",
+        f"**The totals need a control.** With the `free` baseline the input "
+        f"difference is non-zero only at obstacle cells, so total attribution mass "
+        f"scales with local clutter: across the curated set it correlates "
+        f"{summary['mass_vs_local_obstacles_r']:.2f} with the number of obstacles "
+        f"inside the receptive field. The per-obstacle column divides that out. "
+        f"Attacked cells keep a higher attribution density than clean ones after the "
+        f"correction, which is the comparison worth quoting - on five cells per "
+        f"group, so it is a direction, not a measurement.",
+    ]
+    if locality_table is not None:
+        lines += [
+            "",
+            "## Which methods respect the receptive field",
+            "",
+            "The encoder is five 3x3 convolutions, so an input cell further than 5 "
+            "away from the explained cell **cannot** influence it. That makes a hard "
+            "test most settings cannot run, because the true influence region is "
+            "usually unknown. Here it is exact:",
+            "",
+            "| method | share of mass within radius 5 | mean furthest non-zero cell |",
+            "|--------|-------------------------------|------------------------------|",
+        ]
+        for _, row in locality_table.iterrows():
+            lines.append(
+                f"| {row['method']} | {row['share_within_5']:.1%} | "
+                f"{row['max_radius']:.1f} |"
+            )
+        lines += [
+            "",
+            "Integrated gradients and plain saliency place **all** their mass inside "
+            "the field. Grad-CAM does not come close: it spreads most of its mass "
+            "over regions that provably had no influence on the value being "
+            "explained. The reason is structural - Grad-CAM weights each feature "
+            "channel by that channel's *mean* gradient over the whole map, so a "
+            "channel that matters anywhere lights up everywhere it is active. On an "
+            "architecture with no downsampling, that produces a picture of where the "
+            "network is active in general, not of what produced this number.",
+            "",
+        ]
     lines += ["", "Per-cell values: `cells.csv`.", ""]
     return "\n".join(lines)
 
