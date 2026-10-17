@@ -1,0 +1,32 @@
+{
+  "split": "test",
+  "seed": 0,
+  "device": "cpu",
+  "python": "3.10.18",
+  "torch": "1.12.1",
+  "checkpoint": "neural-astar/model/mazes_032_moore_c8/lightning_logs/version_0/checkpoints/epoch=33-step=272.ckpt",
+  "protocols": {
+    "upstream": {
+      "n": 100,
+      "p_opt": 0.84,
+      "p_exp": 0.4351974625589305,
+      "h_mean": 0.5733478607871567,
+      "mean_expansions_neural": 60.71,
+      "mean_expansions_classical": 133.43,
+      "mean_path_cost_neural": 28.99,
+      "mean_path_cost_classical": 28.55,
+      "seconds": 1.5
+    },
+    "fixed": {
+      "n": 100,
+      "p_opt": 0.83,
+      "p_exp": 0.4373488633414951,
+      "h_mean": 0.5728486719683568,
+      "mean_expansions_neural": 61.99,
+      "mean_expansions_classical": 134.33,
+      "mean_path_cost_neural": 28.89,
+      "mean_path_cost_classical": 28.47,
+      "seconds": 1.55
+    }
+  }
+}
