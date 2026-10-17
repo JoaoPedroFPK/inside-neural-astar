@@ -1,0 +1,231 @@
+{
+  "meta": {
+    "split": "test",
+    "seed": 0,
+    "n_swaps": 200,
+    "seconds": 9.731549208023353
+  },
+  "summaries": {
+    "optimality": {
+      "metric": "opt",
+      "raw": false,
+      "n": 100,
+      "labels": {
+        "search": 29,
+        "interaction": 17,
+        "encoder": 35,
+        "no damage": 15,
+        "both": 4
+      },
+      "n_with_damage": 85,
+      "encoder_mean": 0.49643962848297213,
+      "encoder_median": 0.4999999999999983,
+      "encoder_q25": 0.0,
+      "encoder_q75": 1.0,
+      "encoder_share_dominant": 0.4588235294117647,
+      "encoder_share_absent": 0.4823529411764706,
+      "search_mean": 0.4901960784313726,
+      "search_median": 0.0,
+      "search_q25": 0.0,
+      "search_q75": 1.0,
+      "search_share_dominant": 0.38823529411764707,
+      "search_share_absent": 0.5647058823529412,
+      "route_sum_mean": 0.9866357069143448,
+      "route_sum_median": 1.0
+    },
+    "efficiency": {
+      "metric": "exp",
+      "raw": false,
+      "n": 100,
+      "labels": {
+        "interaction": 50,
+        "search": 32,
+        "encoder": 9,
+        "no damage": 8,
+        "both": 1
+      },
+      "n_with_damage": 92,
+      "encoder_mean": 0.16356525850122278,
+      "encoder_median": 0.011319444444444444,
+      "encoder_q25": 0.0,
+      "encoder_q75": 0.14139763518001866,
+      "encoder_share_dominant": 0.10869565217391304,
+      "encoder_share_absent": 0.8260869565217391,
+      "search_mean": 0.4743375065268176,
+      "search_median": 0.44780293294936097,
+      "search_q25": 0.0,
+      "search_q75": 1.0,
+      "search_share_dominant": 0.358695652173913,
+      "search_share_absent": 0.391304347826087,
+      "route_sum_mean": 0.6379027650280404,
+      "route_sum_median": 0.7473361388936262
+    }
+  },
+  "summaries_raw": {
+    "optimality": {
+      "metric": "opt",
+      "raw": true,
+      "n": 100,
+      "labels": {
+        "search": 16,
+        "no damage": 31,
+        "interaction": 15,
+        "encoder": 34,
+        "both": 4
+      },
+      "n_with_damage": 69,
+      "encoder_mean": 0.5978260869565217,
+      "encoder_median": 1.0,
+      "encoder_q25": 0.0,
+      "encoder_q75": 1.0,
+      "encoder_share_dominant": 0.5507246376811594,
+      "encoder_share_absent": 0.37681159420289856,
+      "search_mean": 0.30434782608695654,
+      "search_median": 0.0,
+      "search_q25": 0.0,
+      "search_q75": 1.0,
+      "search_share_dominant": 0.2898550724637681,
+      "search_share_absent": 0.6811594202898551,
+      "route_sum_mean": 0.9021739130434783,
+      "route_sum_median": 1.0
+    },
+    "efficiency": {
+      "metric": "exp",
+      "raw": true,
+      "n": 100,
+      "labels": {
+        "interaction": 43,
+        "no damage": 29,
+        "encoder": 10,
+        "search": 17,
+        "both": 1
+      },
+      "n_with_damage": 71,
+      "encoder_mean": 0.21401461615786582,
+      "encoder_median": 0.023255813953488372,
+      "encoder_q25": 0.0,
+      "encoder_q75": 0.18888888888888888,
+      "encoder_share_dominant": 0.15492957746478872,
+      "encoder_share_absent": 0.7605633802816901,
+      "search_mean": 0.19872492555521085,
+      "search_median": 0.0,
+      "search_q25": 0.0,
+      "search_q75": 0.7339039345937659,
+      "search_share_dominant": 0.2535211267605634,
+      "search_share_absent": 0.5352112676056338,
+      "route_sum_mean": 0.4127395417130767,
+      "route_sum_median": 0.4539877300613497
+    }
+  },
+  "summaries_by_failure_mode": {
+    "optimality": {
+      "optimum unchanged": {
+        "metric": "opt",
+        "raw": false,
+        "n": 84,
+        "labels": {
+          "search": 16,
+          "interaction": 15,
+          "encoder": 34,
+          "no damage": 15,
+          "both": 4
+        },
+        "n_with_damage": 69,
+        "encoder_mean": 0.5978260869565217,
+        "encoder_median": 1.0,
+        "encoder_q25": 0.0,
+        "encoder_q75": 1.0,
+        "encoder_share_dominant": 0.5507246376811594,
+        "encoder_share_absent": 0.37681159420289856,
+        "search_mean": 0.3043478260869564,
+        "search_median": 0.0,
+        "search_q25": 0.0,
+        "search_q75": 1.0,
+        "search_share_dominant": 0.2898550724637681,
+        "search_share_absent": 0.6811594202898551,
+        "route_sum_mean": 0.902173913043478,
+        "route_sum_median": 1.0
+      },
+      "optimum changed": {
+        "metric": "opt",
+        "raw": false,
+        "n": 16,
+        "labels": {
+          "search": 13,
+          "encoder": 1,
+          "interaction": 2
+        },
+        "n_with_damage": 16,
+        "encoder_mean": 0.05921052631578938,
+        "encoder_median": 0.0,
+        "encoder_q25": 0.0,
+        "encoder_q75": 0.0,
+        "encoder_share_dominant": 0.0625,
+        "encoder_share_absent": 0.9375,
+        "search_mean": 1.2916666666666674,
+        "search_median": 1.0,
+        "search_q25": 1.0,
+        "search_q75": 1.0,
+        "search_share_dominant": 0.8125,
+        "search_share_absent": 0.0625,
+        "route_sum_mean": 1.3508771929824568,
+        "route_sum_median": 1.0
+      }
+    },
+    "efficiency": {
+      "optimum unchanged": {
+        "metric": "exp",
+        "raw": false,
+        "n": 65,
+        "labels": {
+          "interaction": 43,
+          "no damage": 7,
+          "search": 10,
+          "encoder": 4,
+          "both": 1
+        },
+        "n_with_damage": 58,
+        "encoder_mean": 0.160058680927106,
+        "encoder_median": 0.011319444444444444,
+        "encoder_q25": 0.0,
+        "encoder_q75": 0.14861652358899055,
+        "encoder_share_dominant": 0.08620689655172414,
+        "encoder_share_absent": 0.8275862068965517,
+        "search_mean": 0.29764711558278545,
+        "search_median": 0.23588790897708106,
+        "search_q25": 0.0,
+        "search_q75": 0.6124475245698084,
+        "search_share_dominant": 0.1896551724137931,
+        "search_share_absent": 0.5,
+        "route_sum_mean": 0.4577057965098915,
+        "route_sum_median": 0.3789954337899542
+      },
+      "optimum changed": {
+        "metric": "exp",
+        "raw": false,
+        "n": 35,
+        "labels": {
+          "search": 22,
+          "encoder": 5,
+          "interaction": 7,
+          "no damage": 1
+        },
+        "n_with_damage": 34,
+        "encoder_mean": 0.16954706730412786,
+        "encoder_median": 0.009757233718534507,
+        "encoder_q25": 0.0,
+        "encoder_q75": 0.06286538138150011,
+        "encoder_share_dominant": 0.14705882352941177,
+        "encoder_share_absent": 0.8235294117647058,
+        "search_mean": 0.7757505263725196,
+        "search_median": 1.0,
+        "search_q25": 0.40366780574589173,
+        "search_q75": 1.0,
+        "search_share_dominant": 0.6470588235294118,
+        "search_share_absent": 0.20588235294117646,
+        "route_sum_mean": 0.9452975936766473,
+        "route_sum_median": 1.0
+      }
+    }
+  }
+}
