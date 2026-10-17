@@ -29,7 +29,7 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
 import numpy as np
 import torch

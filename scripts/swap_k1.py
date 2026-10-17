@@ -21,7 +21,7 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src import config  # noqa: E402
 from src.data import load_split  # noqa: E402
 from src.planner import load_pretrained_neural_astar  # noqa: E402
-from src.swap import SwapResult, classify_route, run_swap, summarize_swaps, swap_columns  # noqa: E402
+from src.swap import SwapResult, run_swap, summarize_swaps, swap_columns  # noqa: E402
 
 #: Which manifest tag selects each objective, and which metric it is judged on.
 OBJECTIVES = {

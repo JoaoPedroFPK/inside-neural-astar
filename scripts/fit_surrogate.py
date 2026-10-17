@@ -39,7 +39,6 @@ from src.metrics import (  # noqa: E402
 )
 from src.planner import load_pretrained_neural_astar, run_astar_module  # noqa: E402
 from src.surrogate import (  # noqa: E402
-    FEATURE_GROUPS,
     build_design_matrix,
     fit_and_score,
     load_archive,

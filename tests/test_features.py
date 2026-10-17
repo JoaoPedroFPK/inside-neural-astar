@@ -12,7 +12,6 @@ import pytest
 
 from src import config
 from src.data import ACTION_TO_MOVE, optimal_trajectory
-from src.exact_solver import distance_field
 from src.features import (
     AUX_NAMES,
     FEATURE_NAMES,

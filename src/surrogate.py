@@ -35,7 +35,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from . import config
-from .features import AUX_NAMES, FEATURE_NAMES
+from .features import FEATURE_NAMES
 
 #: Named groups of features. ``geometric`` and ``path`` partition
 #: `FEATURE_NAMES`; the others are nested subsets used for the finer
