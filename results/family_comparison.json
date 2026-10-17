@@ -1,0 +1,381 @@
+{
+  "seed": 0,
+  "families": {
+    "mazes": {
+      "structure": {
+        "obstacle_fraction_mean": 0.10817382484674454,
+        "wall_zone_shares": {
+          "obstacle": 0.109619140625,
+          "wall_adjacent": 0.2859375,
+          "near_wall": 0.23203125,
+          "interior": 0.372412109375
+        },
+        "topology_shares": {
+          "obstacle": 0.109619140625,
+          "dead_end": 0.0001953125,
+          "corridor": 0.022998046875,
+          "junction": 0.2572265625,
+          "open": 0.6099609375
+        },
+        "sealing_flips_tried": 4513,
+        "sealing_flips_found": 0,
+        "sealing_rate": 0.0
+      },
+      "transfer": {
+        "p_opt": 0.83,
+        "mean_opt": 1.0153876654825627,
+        "mean_exp": 0.5778953162599954,
+        "p_exp": 0.4373488633414951,
+        "h_mean": 0.5728486719683568
+      },
+      "pillar_door": [
+        {
+          "direction": "free->obstacle (pillar)",
+          "n": 275,
+          "share_of_draws": 0.9166666666666666,
+          "frac_newly_suboptimal": 0.00881057268722467,
+          "mean_opt_C1O1": 1.0176374604878498,
+          "mean_dcost_l1": 10.418538934534245
+        },
+        {
+          "direction": "obstacle->free (door)",
+          "n": 25,
+          "share_of_draws": 0.08333333333333333,
+          "frac_newly_suboptimal": 0.045454545454545456,
+          "mean_opt_C1O1": 1.013162087912088,
+          "mean_dcost_l1": 12.957891235351562
+        }
+      ],
+      "seconds": 19.518070250021992
+    },
+    "forest": {
+      "structure": {
+        "obstacle_fraction_mean": 0.17112304270267487,
+        "wall_zone_shares": {
+          "obstacle": 0.17158203125,
+          "wall_adjacent": 0.27978515625,
+          "near_wall": 0.236279296875,
+          "interior": 0.312353515625
+        },
+        "topology_shares": {
+          "obstacle": 0.17158203125,
+          "dead_end": 4.8828125e-05,
+          "corridor": 0.01689453125,
+          "junction": 0.2337890625,
+          "open": 0.577685546875
+        },
+        "sealing_flips_tried": 4236,
+        "sealing_flips_found": 0,
+        "sealing_rate": 0.0
+      },
+      "transfer": {
+        "p_opt": 0.43,
+        "mean_opt": 1.0692863958326095,
+        "mean_exp": 0.8597808022274032,
+        "p_exp": 0.3174821057137311,
+        "h_mean": 0.3652724378325343
+      },
+      "pillar_door": [
+        {
+          "direction": "free->obstacle (pillar)",
+          "n": 249,
+          "share_of_draws": 0.83,
+          "frac_newly_suboptimal": 0.02857142857142857,
+          "mean_opt_C1O1": 1.0725440875084178,
+          "mean_dcost_l1": 8.610071995650909
+        },
+        {
+          "direction": "obstacle->free (door)",
+          "n": 51,
+          "share_of_draws": 0.17,
+          "frac_newly_suboptimal": 0.0,
+          "mean_opt_C1O1": 1.0560282071737945,
+          "mean_dcost_l1": 5.9780246416727705
+        }
+      ],
+      "seconds": 31.741589041019324
+    },
+    "single_bugtrap": {
+      "structure": {
+        "obstacle_fraction_mean": 0.061640623956918716,
+        "wall_zone_shares": {
+          "obstacle": 0.058935546875,
+          "wall_adjacent": 0.1814453125,
+          "near_wall": 0.1666015625,
+          "interior": 0.593017578125
+        },
+        "topology_shares": {
+          "obstacle": 0.058935546875,
+          "dead_end": 4.8828125e-05,
+          "corridor": 0.01025390625,
+          "junction": 0.164990234375,
+          "open": 0.765771484375
+        },
+        "sealing_flips_tried": 4824,
+        "sealing_flips_found": 0,
+        "sealing_rate": 0.0
+      },
+      "transfer": {
+        "p_opt": 0.83,
+        "mean_opt": 1.018330291905,
+        "mean_exp": 0.919568076442513,
+        "p_exp": 0.17359239803292031,
+        "h_mean": 0.2871318888452634
+      },
+      "pillar_door": [
+        {
+          "direction": "free->obstacle (pillar)",
+          "n": 293,
+          "share_of_draws": 0.9766666666666667,
+          "frac_newly_suboptimal": 0.004098360655737705,
+          "mean_opt_C1O1": 1.0181669695233257,
+          "mean_dcost_l1": 12.799405436873842
+        },
+        {
+          "direction": "obstacle->free (door)",
+          "n": 7,
+          "share_of_draws": 0.023333333333333334,
+          "frac_newly_suboptimal": 0.0,
+          "mean_opt_C1O1": 1.0228937728937728,
+          "mean_dcost_l1": 9.512227943965367
+        }
+      ],
+      "seconds": 39.14851162498235
+    },
+    "multiple_bugtraps": {
+      "structure": {
+        "obstacle_fraction_mean": 0.09459961205720901,
+        "wall_zone_shares": {
+          "obstacle": 0.096240234375,
+          "wall_adjacent": 0.262109375,
+          "near_wall": 0.23203125,
+          "interior": 0.409619140625
+        },
+        "topology_shares": {
+          "obstacle": 0.096240234375,
+          "dead_end": 0.0,
+          "corridor": 0.019482421875,
+          "junction": 0.229052734375,
+          "open": 0.655224609375
+        },
+        "sealing_flips_tried": 4613,
+        "sealing_flips_found": 0,
+        "sealing_rate": 0.0
+      },
+      "transfer": {
+        "p_opt": 0.59,
+        "mean_opt": 1.0369571053453162,
+        "mean_exp": 0.8422425411862658,
+        "p_exp": 0.27245403434886667,
+        "h_mean": 0.37276857412154357
+      },
+      "pillar_door": [
+        {
+          "direction": "free->obstacle (pillar)",
+          "n": 269,
+          "share_of_draws": 0.8966666666666666,
+          "frac_newly_suboptimal": 0.012422360248447204,
+          "mean_opt_C1O1": 1.0374697139226743,
+          "mean_dcost_l1": 10.788320203252885
+        },
+        {
+          "direction": "obstacle->free (door)",
+          "n": 31,
+          "share_of_draws": 0.10333333333333333,
+          "frac_newly_suboptimal": 0.0625,
+          "mean_opt_C1O1": 1.0482925862928192,
+          "mean_dcost_l1": 12.396915620373141
+        }
+      ],
+      "seconds": 35.68336158298189
+    },
+    "bugtrap_forest": {
+      "structure": {
+        "obstacle_fraction_mean": 0.1625683605670929,
+        "wall_zone_shares": {
+          "obstacle": 0.163818359375,
+          "wall_adjacent": 0.2935546875,
+          "near_wall": 0.24658203125,
+          "interior": 0.296044921875
+        },
+        "topology_shares": {
+          "obstacle": 0.163818359375,
+          "dead_end": 0.00029296875,
+          "corridor": 0.014453125,
+          "junction": 0.24853515625,
+          "open": 0.572900390625
+        },
+        "sealing_flips_tried": 4234,
+        "sealing_flips_found": 0,
+        "sealing_rate": 0.0
+      },
+      "transfer": {
+        "p_opt": 0.6,
+        "mean_opt": 1.0406346997267413,
+        "mean_exp": 1.0225698906668956,
+        "p_exp": 0.17594137315163386,
+        "h_mean": 0.2720948452911933
+      },
+      "pillar_door": [
+        {
+          "direction": "free->obstacle (pillar)",
+          "n": 258,
+          "share_of_draws": 0.86,
+          "frac_newly_suboptimal": 0.025974025974025976,
+          "mean_opt_C1O1": 1.0419175606919695,
+          "mean_dcost_l1": 8.934055740981139
+        },
+        {
+          "direction": "obstacle->free (door)",
+          "n": 42,
+          "share_of_draws": 0.14,
+          "frac_newly_suboptimal": 0.038461538461538464,
+          "mean_opt_C1O1": 1.0521120813093447,
+          "mean_dcost_l1": 6.907947290511358
+        }
+      ],
+      "seconds": 31.64755675001652
+    },
+    "alternating_gaps": {
+      "structure": {
+        "obstacle_fraction_mean": 0.16945312917232513,
+        "wall_zone_shares": {
+          "obstacle": 0.16904296875,
+          "wall_adjacent": 0.17744140625,
+          "near_wall": 0.161328125,
+          "interior": 0.4921875
+        },
+        "topology_shares": {
+          "obstacle": 0.16904296875,
+          "dead_end": 0.0,
+          "corridor": 0.0078125,
+          "junction": 0.16572265625,
+          "open": 0.657421875
+        },
+        "sealing_flips_tried": 4240,
+        "sealing_flips_found": 0,
+        "sealing_rate": 0.0
+      },
+      "transfer": {
+        "p_opt": 0.77,
+        "mean_opt": 1.046096491842261,
+        "mean_exp": 0.6800400999346138,
+        "p_exp": 0.3597170261806912,
+        "h_mean": 0.49035661816920634
+      },
+      "pillar_door": [
+        {
+          "direction": "free->obstacle (pillar)",
+          "n": 246,
+          "share_of_draws": 0.82,
+          "frac_newly_suboptimal": 0.0106951871657754,
+          "mean_opt_C1O1": 1.0509887516059062,
+          "mean_dcost_l1": 12.013116059264517
+        },
+        {
+          "direction": "obstacle->free (door)",
+          "n": 54,
+          "share_of_draws": 0.18,
+          "frac_newly_suboptimal": 0.022727272727272728,
+          "mean_opt_C1O1": 1.0354389081307414,
+          "mean_dcost_l1": 6.328964635177895
+        }
+      ],
+      "seconds": 33.26474191699526
+    },
+    "shifting_gaps": {
+      "structure": {
+        "obstacle_fraction_mean": 0.16951172053813934,
+        "wall_zone_shares": {
+          "obstacle": 0.16962890625,
+          "wall_adjacent": 0.17763671875,
+          "near_wall": 0.160546875,
+          "interior": 0.4921875
+        },
+        "topology_shares": {
+          "obstacle": 0.16962890625,
+          "dead_end": 0.0,
+          "corridor": 0.0078125,
+          "junction": 0.16591796875,
+          "open": 0.656640625
+        },
+        "sealing_flips_tried": 4240,
+        "sealing_flips_found": 0,
+        "sealing_rate": 0.0
+      },
+      "transfer": {
+        "p_opt": 0.77,
+        "mean_opt": 1.0436432323457867,
+        "mean_exp": 0.6215649413327226,
+        "p_exp": 0.40058450854939465,
+        "h_mean": 0.5270018002025808
+      },
+      "pillar_door": [
+        {
+          "direction": "free->obstacle (pillar)",
+          "n": 247,
+          "share_of_draws": 0.8233333333333334,
+          "frac_newly_suboptimal": 0.02702702702702703,
+          "mean_opt_C1O1": 1.0498294531315218,
+          "mean_dcost_l1": 12.068656327753414
+        },
+        {
+          "direction": "obstacle->free (door)",
+          "n": 53,
+          "share_of_draws": 0.17666666666666667,
+          "frac_newly_suboptimal": 0.0,
+          "mean_opt_C1O1": 1.0203730644015943,
+          "mean_dcost_l1": 6.456347222598094
+        }
+      ],
+      "seconds": 27.057927124988055
+    },
+    "gaps_and_forest": {
+      "structure": {
+        "obstacle_fraction_mean": 0.3566210865974426,
+        "wall_zone_shares": {
+          "obstacle": 0.3591796875,
+          "wall_adjacent": 0.289453125,
+          "near_wall": 0.203466796875,
+          "interior": 0.147900390625
+        },
+        "topology_shares": {
+          "obstacle": 0.3591796875,
+          "dead_end": 0.00029296875,
+          "corridor": 0.02392578125,
+          "junction": 0.24150390625,
+          "open": 0.37509765625
+        },
+        "sealing_flips_tried": 3285,
+        "sealing_flips_found": 3,
+        "sealing_rate": 0.0009132420091324201
+      },
+      "transfer": {
+        "p_opt": 0.54,
+        "mean_opt": 1.0411169480022704,
+        "mean_exp": 0.6461798502720169,
+        "p_exp": 0.3642462887715627,
+        "h_mean": 0.43504297098255323
+      },
+      "pillar_door": [
+        {
+          "direction": "free->obstacle (pillar)",
+          "n": 204,
+          "share_of_draws": 0.68,
+          "frac_newly_suboptimal": 0.017699115044247787,
+          "mean_opt_C1O1": 1.0392147818823863,
+          "mean_dcost_l1": 6.967629972626181
+        },
+        {
+          "direction": "obstacle->free (door)",
+          "n": 96,
+          "share_of_draws": 0.32,
+          "frac_newly_suboptimal": 0.02040816326530612,
+          "mean_opt_C1O1": 1.044443077835598,
+          "mean_dcost_l1": 5.676103321214517
+        }
+      ],
+      "seconds": 21.009766416013008
+    }
+  }
+}
