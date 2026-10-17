@@ -19,6 +19,23 @@ Paired task: the detector sees each instance's clean and altered map and must se
 | `balanced_2` | 100 | 50 | 0.778 | 0.650 | 0.952 | `l2_mean` | 0.794 | 0.940 | +0.146 [+0.083, +0.206] |
 | `blocked_2` | 100 | 50 | 0.734 | 0.690 | 0.955 | `l2_mean` | 0.918 | 0.979 | +0.061 [+0.011, +0.125] |
 
+## Against the convolutional map-only control
+
+A small convolutional network given the raw grid, trained on **random** single obstacle-additions to the 800 training maps — never on a selected damaging flip and never on a map it is scored on. This is the hardest model-free bar: it discovers whatever local pattern a flip leaves without being told to look for it, and a defender really could build it, since random flips cost nothing to generate.
+
+| condition | convolutional control | + residual | gap, 95 % CI |
+|-----------|-----------------------|------------|--------------|
+| `k1_opt` | 0.919 | 0.975 | +0.056 [+0.012, +0.105] |
+| `k1_eff` | 0.797 | 0.902 | +0.106 [+0.024, +0.182] |
+| `greedy_opt_b1` | 0.919 | 0.975 | +0.056 [+0.012, +0.105] |
+| `greedy_opt_b4` | 0.994 | 0.982 | -0.013 [-0.036, +0.002] |
+| `greedy_opt_b8` | 0.990 | 0.977 | -0.012 [-0.044, +0.013] |
+| `greedy_eff_b1` | 0.794 | 0.899 | +0.105 [+0.025, +0.181] |
+| `greedy_eff_b4` | 0.996 | 0.993 | -0.003 [-0.012, +0.000] |
+| `greedy_eff_b8` | 0.995 | 0.990 | -0.005 [-0.019, +0.000] |
+| `balanced_2` | 0.966 | 0.981 | +0.016 [-0.018, +0.050] |
+| `blocked_2` | 1.000 | 1.000 | +0.000 [-0.000, +0.000] |
+
 ## The harder version: no clean twin
 
 Each evaluation map contributes either its clean map or its altered one, never both, so the detector cannot compare a map against itself. This is what a deployed monitor faces, and these are the realistic numbers.

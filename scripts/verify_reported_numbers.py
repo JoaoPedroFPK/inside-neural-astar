@@ -221,6 +221,34 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
                 ("step 12: without a clean twin the grid control falls below chance "
                  "on stealthy effort flips",
                  lambda: conditions["greedy_eff_b1"]["unpaired"]["map_only"] < 0.5),
+                # The claim the step actually reports: measured against a
+                # convolutional map-only control, the residual's contribution
+                # survives at one flipped cell and vanishes at two or more.
+                ("step 12: against the convolutional control the residual still helps "
+                 "at one flipped cell",
+                 lambda: all(
+                     conditions[name]["grid_cnn"]["gap"]["lo"] > 0
+                     for name in ("k1_opt", "k1_eff", "greedy_eff_b1")
+                 )),
+                ("step 12: against the convolutional control it adds nothing at two cells "
+                 "or more",
+                 lambda: all(
+                     conditions[name]["grid_cnn"]["gap"]["lo"] <= 0
+                     for name in (
+                         "balanced_2",
+                         "blocked_2",
+                         "greedy_opt_b4",
+                         "greedy_opt_b8",
+                         "greedy_eff_b4",
+                         "greedy_eff_b8",
+                     )
+                 )),
+                ("step 12: the convolutional control beats the hand-feature detector "
+                 "on single path flips",
+                 lambda: conditions["k1_opt"]["grid_cnn"]["auc"]
+                 > conditions["k1_opt"]["combined_auc"]),
+                ("step 12: two added obstacles are perfectly visible in the grid alone",
+                 lambda: near(conditions["blocked_2"]["grid_cnn"]["auc"], 1.0, 1e-6)),
                 ("step 12: the residual helps more against the stealthier attack",
                  lambda: conditions["balanced_2"]["combined_minus_map_only"]["gap"]
                  > conditions["blocked_2"]["combined_minus_map_only"]["hi"]),

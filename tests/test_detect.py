@@ -412,3 +412,73 @@ def test_the_unpaired_split_interleaves_rather_than_blocks() -> None:
     keep = unpaired_mask(labels, is_train, ids)
     altered_maps = sorted({i for i, k, l in zip(ids, keep, labels) if k and l})
     assert altered_maps == [9, 11, 13, 15]
+
+
+def test_the_grid_control_sees_only_the_map_and_the_endpoints(instance) -> None:
+    """It is a *model-free* control: no cost map, no activations, no planner.
+
+    If the planner leaked into this control's input, the comparison the step's
+    headline rests on would be meaningless.
+    """
+    import torch
+
+    from src.detect import GridCnn, grid_cnn_inputs
+
+    inputs = grid_cnn_inputs([instance], [instance.map_design])
+    assert inputs.shape == (1, 2, *instance.map_design.shape)
+    assert np.array_equal(inputs[0, 0].numpy(), instance.map_design)
+    assert inputs[0, 1].sum().item() == 2.0
+    assert inputs[0, 1][instance.start_rc].item() == 1.0
+    assert inputs[0, 1][instance.goal_rc].item() == 1.0
+    assert GridCnn()(inputs).shape == (1,)
+    assert isinstance(inputs, torch.Tensor)
+
+
+def test_the_grid_control_learns_a_detectable_pattern(instance) -> None:
+    """A control that cannot learn is not a control.
+
+    Fits on one repeated map so the test stays fast: the point is that the
+    machinery optimises, not that it generalises.
+    """
+    import torch
+
+    from src.detect import grid_cnn_inputs, score_grid_cnn, train_grid_cnn
+    from sklearn.metrics import roc_auc_score
+
+    altered = flip_cells(instance.map_design, [(16, 16), (8, 8)])
+    instances = [instance] * 8
+    designs = [instance.map_design, altered] * 4
+    labels = torch.tensor([0.0, 1.0] * 4)
+
+    inputs = grid_cnn_inputs(instances, designs)
+    model = train_grid_cnn(inputs, labels, epochs=30, batch_size=4)
+    assert roc_auc_score(labels.numpy(), score_grid_cnn(model, inputs)) > 0.9
+
+
+def test_the_grid_control_scores_a_pattern_the_same_wherever_it_sits() -> None:
+    """Pooling over positions is what lets the control transfer between maps.
+
+    A flipped cell near the top-left and the identical flip near the
+    bottom-right must score the same, or the control would be learning *where*
+    alterations sat in its training maps instead of what they look like. Built
+    synthetically and kept clear of the borders, where zero padding breaks the
+    translation symmetry.
+    """
+    import torch
+
+    from src.detect import GridCnn, score_grid_cnn
+
+    model = GridCnn(channels=4).eval()
+
+    def grid_with_blob_at(row: int, column: int) -> torch.Tensor:
+        """An all-free map with one obstacle, plus two endpoint markers."""
+        inputs = torch.zeros(1, 2, 32, 32)
+        inputs[0, 0] = 1.0
+        inputs[0, 0, row, column] = 0.0
+        inputs[0, 1, row - 3, column - 3] = 1.0
+        inputs[0, 1, row + 3, column + 3] = 1.0
+        return inputs
+
+    near_origin = score_grid_cnn(model, grid_with_blob_at(8, 8))
+    far_corner = score_grid_cnn(model, grid_with_blob_at(22, 22))
+    assert near_origin == pytest.approx(far_corner, abs=1e-5)

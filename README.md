@@ -483,58 +483,61 @@ so it is recorded as a difference worth testing, not a reversal.
 ### Step 12 — detecting a tampered map from the planner's internals
 
 The planner never signals that its input was altered; it just returns a worse
-route. Can the tampering be seen from inside? Three detectors are compared on a
-paired task — each map's clean and altered version, separate them — scored by
-AUC, where 0.5 is chance.
+route. Can the tampering be seen from inside? Four detectors are compared on
+100 test maps, scored by AUC, where 0.5 is chance.
 
 | detector | what it sees |
 |---|---|
 | surrogate residual | the cost map minus what the step-5 geometry surrogate predicts, in seven summary statistics |
 | Mahalanobis (baseline) | pooled encoder activations, scored against clean maps; best of four layers × two poolings |
-| grid statistics (control) | the map alone: obstacle fraction, isolated obstacles, isolated free cells, dead ends, path length — no model |
+| grid statistics (weak control) | the map alone: obstacle fraction, isolated obstacles, isolated free cells, dead ends, path length |
+| convolutional net (strong control) | the raw grid, trained on **random** flips of the 800 training maps — never a selected flip, never a scored map |
 
-**The residual loses to the standard baseline in all ten conditions**, and the
-baseline's own strength is unexplained: its best configuration's dominant
-direction correlates 0.994 with the obstacle count, but constructing
-alterations that hold the obstacle count fixed costs it 0.003 AUC while costing
-the grid control 0.124. Mahalanobis distance discounts the directions that vary
-most among clean examples, so the obvious mechanism is the wrong one.
+**The claim, at the strength the measurements support: for a single flipped
+cell, the planner's internals carry information that even a convolutional
+network reading the raw grid does not have. For two or more, they do not.**
 
-**What the residual does do is add information the grid does not contain**, and
-the gain tracks how inconspicuous the alteration is:
+| alteration | convolutional control | + residual | gain, 95 % CI |
+|---|---|---|---|
+| 1 flip, path damage | 0.919 | 0.975 | **+0.056** [+0.012, +0.105] |
+| 1 flip, search-effort damage | 0.797 | 0.902 | **+0.106** [+0.024, +0.182] |
+| 2 flips, obstacle count hidden | 0.966 | 0.981 | +0.016 [−0.018, +0.050] |
+| 2 flips, both blocking | **1.000** | 1.000 | +0.000 |
+| 8 flips, path damage | 0.990 | 0.977 | −0.012 [−0.044, +0.013] |
 
-| alteration | grid control alone | gain from adding the residual |
-|---|---|---|
-| 1 flip, chosen for path damage | 0.779 | **+0.113** [+0.045, +0.178] |
-| 1 flip, chosen for search-effort damage | 0.634 | **+0.238** [+0.142, +0.311] |
-| 2 flips, obstacle count hidden | 0.794 | **+0.146** [+0.083, +0.206] |
-| 2 flips, both blocking | 0.918 | +0.061 [+0.011, +0.125] |
-| 8 flips, chosen for path damage | 0.927 | +0.005 [−0.040, +0.052] |
+That is the narrow claim, and the narrowing is itself a result. Against the
+*weak* control the gains look like +0.113 and +0.238 and look like they depend
+on the attacker's objective; they replicate in all four maze models and vanish
+on forest. Against the *strong* control they are +0.056 and +0.106 and depend
+only on how many cells were flipped. Five hand-picked statistics were measuring
+their own weakness as much as the residual's strength. Since the single-cell
+regime is what steps 3, 6 and 7 are all built on, the surviving claim is about
+exactly the case this project cares about.
 
-**And the realistic version of the task is not harder.** Scoring each
-evaluation map on either its clean or its altered version — never both, so
-there is no clean twin to compare against, which is what a deployed monitor
-faces — costs the grid control AUC and costs the combined detector nothing. The
-gain therefore *grows*: +0.199 instead of +0.113 on single path flips, +0.310
-instead of +0.238 on effort flips. For stealthy effort flips the grid control
-falls to **0.449, below chance**, while the combined detector holds 0.842:
-without a clean reference, counting obstacles says nothing about whether *this*
-map was altered, since maps legitimately differ in obstacle count far more than
-one flip changes it. The step had predicted the opposite and recorded the
-correction.
+**As a standalone detector the residual loses** to the out-of-distribution
+score in all ten conditions, and that score's own strength is unexplained: its
+best configuration's dominant direction correlates 0.994 with the obstacle
+count, but constructing alterations that hold the count fixed costs it 0.003
+AUC while costing the grid statistics 0.124. A Mahalanobis score discounts
+whatever varies most among clean examples, so the obvious mechanism is the
+wrong one.
+
+**The realistic version of the task is not the hard one.** Scoring each map on
+either its clean or its altered version — no clean twin, which is what a
+deployed monitor faces — costs map-based detectors AUC and costs the residual
+nothing. For stealthy effort flips the grid statistics fall to **0.449, below
+chance**, while the combined detector holds 0.842: without a reference, counting
+obstacles says nothing about whether *this* map was altered, since maps
+legitimately differ in obstacle count far more than one flip changes it. The
+step had predicted the opposite and the correction is recorded.
 
 Every gap carries a bootstrap interval over scoring maps, because step 9's
-retracted conclusion came from a 0.03 margin. The single-flip gains replicate
-in all four maze models (+0.111 to +0.137 on path, +0.228 to +0.252 on effort,
-every interval clear of zero) and **vanish on forest** (two models, all four
-gaps with intervals containing zero). On forest the activation baseline
-collapses too (0.553–0.595 against 0.784–0.841 on mazes), so it is not the
-residual that fails there: the planner's internals as a whole barely register a
-single flipped cell on open terrain, while the grid shows it plainly. A detector fitted on four-cell flips transfers to every other condition
-for ≤ 0.024 AUC, except two-blocking-cells at 0.046.
+retracted conclusion came from a 0.03 margin. A detector fitted on four-cell
+flips transfers to every other condition for ≤ 0.024 AUC.
 
-Full write-up: `docs/steps/step-12-detector.md`, including the leak that made
-the first transfer run return a flat AUC of 1.000.
+Full write-up: `docs/steps/step-12-detector.md`, including two predictions this
+step made and then overturned, and the leak that made its first transfer run
+return a flat AUC of 1.000.
 
 ### Negative and corrected results, collected
 
@@ -549,8 +552,10 @@ together. Each links to the step that produced it.
 | Large distortions steer the search to a worse path | Correlation between the size of the cost-map change and whether the path broke: **+0.04**. Among broken cases, severity correlates **−0.06**. Non-monotone, with the largest distortions *less* damaging. Location predicts damage; magnitude does not. |
 | ~~Search-effort damage is search-mediated~~ | **Reinstated.** The pooled 2.6 : 1 was wrong, and so was the single-model correction (0.23 vs 0.26). Across four models the search route is larger in every one, 0.256–0.363 against 0.040–0.229. |
 | Denser map families would make the plan's cell partition usable | The "dead end" class is empty in **all eight** families, including the densest at 36 % obstacles. |
-| The surrogate residual would beat an out-of-distribution score at detecting tampering | It loses in **all ten** conditions. It is a complement to a model-free grid control, not a replacement for the standard baseline. |
-| The OOD baseline is essentially counting obstacles | Its dominant activation direction correlates 0.994 with the obstacle count, but hiding the count costs it **0.003** AUC (and costs the grid control 0.124). Written down, then tested, then withdrawn. |
+| The surrogate residual would beat an out-of-distribution score at detecting tampering | It loses in **all ten** conditions. It is a complement to a map-only control, not a replacement for the standard baseline. |
+| The OOD baseline is essentially counting obstacles | Its dominant activation direction correlates 0.994 with the obstacle count, but hiding the count costs it **0.003** AUC (and costs the hand-feature control 0.124). Written down, then tested, then withdrawn. |
+| Detecting tampering without a clean reference would be harder | The opposite. Dropping the clean twin costs map-based detectors AUC and the residual nothing; the grid statistics fall to **0.449** on stealthy effort flips. Predicted, measured, corrected. |
+| The residual's gain depends on which objective the attacker chose | Against a convolutional control it depends only on **how many cells were flipped**: present at one, absent at two or more, on both objectives. The objective pattern was an artefact of a weak control. |
 
 **Premises of the project that were wrong**
 

@@ -584,3 +584,137 @@ def unpaired_mask(
         wants_altered = identifier in altered_only
         keep[row] = bool(label) == wants_altered
     return keep
+
+
+class GridCnn(torch.nn.Module):
+    """A small convolutional classifier that sees only the map, never the planner.
+
+    This is the hardest version of the model-free control. The five hand-chosen
+    grid statistics of `map_only_features` are a weak baseline by construction:
+    somebody had to think of the right five things. A convolutional network
+    given the raw grid can discover whatever local pattern an alteration leaves
+    — a lone obstacle, a notched wall, a one-cell gap — without being told to
+    look for it.
+
+    If this control matches the residual detector, then the planner's internals
+    contributed nothing that careful inspection of the map would not have found,
+    and the honest conclusion is to say so.
+
+    The architecture deliberately mirrors the thing it is a control for: 3 × 3
+    convolutions with the same receptive field growth as the planner's encoder,
+    so the two detectors see neighbourhoods of the same size. A global maximum
+    over positions makes the output independent of *where* the evidence is,
+    which is what lets it generalise from one map to another.
+
+    Attributes:
+        body: The convolutional stack.
+        head: The linear layer producing a single logit.
+    """
+
+    def __init__(self, channels: int = 16) -> None:
+        """Build the network.
+
+        Args:
+            channels: Width of the convolutional stack.
+        """
+        super().__init__()
+        self.body = torch.nn.Sequential(
+            torch.nn.Conv2d(2, channels, 3, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.Conv2d(channels, channels, 3, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.Conv2d(channels, channels, 3, padding=1),
+            torch.nn.ReLU(),
+        )
+        self.head = torch.nn.Linear(2 * channels, 1)
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        """Score a batch of maps.
+
+        Args:
+            inputs: ``(batch, 2, H, W)`` — channel 0 the map, channel 1 the
+                start and goal, matching what the planner's encoder receives.
+
+        Returns:
+            torch.Tensor: ``(batch,)`` logits, higher meaning "altered".
+        """
+        features = self.body(inputs)
+        pooled = torch.cat(
+            [features.amax(dim=(2, 3)), features.mean(dim=(2, 3))], dim=1
+        )
+        return self.head(pooled)[:, 0]
+
+
+def grid_cnn_inputs(instances: Sequence[MazeInstance], designs: Sequence[np.ndarray]):
+    """Stack maps and endpoint markers into the `GridCnn` input tensor.
+
+    Args:
+        instances: One instance per design, supplying the start and goal.
+        designs: The (possibly altered) maps.
+
+    Returns:
+        torch.Tensor: ``(n, 2, H, W)`` float tensor.
+    """
+    rows = []
+    for instance, design in zip(instances, designs):
+        endpoints = np.zeros_like(design, dtype=np.float32)
+        endpoints[instance.start_rc] = 1.0
+        endpoints[instance.goal_rc] = 1.0
+        rows.append(np.stack([design.astype(np.float32), endpoints]))
+    return torch.from_numpy(np.stack(rows))
+
+
+def train_grid_cnn(
+    inputs: torch.Tensor,
+    labels: torch.Tensor,
+    epochs: int = 40,
+    batch_size: int = 64,
+    learning_rate: float = 3e-3,
+    seed: int = 0,
+    channels: int = 16,
+) -> GridCnn:
+    """Fit the convolutional control.
+
+    Args:
+        inputs: ``(n, 2, H, W)`` from `grid_cnn_inputs`.
+        labels: ``(n,)`` 1 for altered, 0 for clean.
+        epochs: Passes over the data.
+        batch_size: Examples per step.
+        learning_rate: Adam step size.
+        seed: Seed for initialisation and shuffling.
+        channels: Width passed to `GridCnn`.
+
+    Returns:
+        GridCnn: The fitted network, in eval mode.
+    """
+    torch.manual_seed(seed)
+    model = GridCnn(channels=channels)
+    optimiser = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    loss_function = torch.nn.BCEWithLogitsLoss()
+    generator = torch.Generator().manual_seed(seed)
+
+    model.train()
+    for _ in range(epochs):
+        order = torch.randperm(len(inputs), generator=generator)
+        for begin in range(0, len(order), batch_size):
+            rows = order[begin : begin + batch_size]
+            optimiser.zero_grad()
+            loss = loss_function(model(inputs[rows]), labels[rows])
+            loss.backward()
+            optimiser.step()
+    model.eval()
+    return model
+
+
+def score_grid_cnn(model: GridCnn, inputs: torch.Tensor) -> np.ndarray:
+    """Score maps with the convolutional control.
+
+    Args:
+        model: A fitted `GridCnn`.
+        inputs: ``(n, 2, H, W)`` from `grid_cnn_inputs`.
+
+    Returns:
+        np.ndarray: ``(n,)`` scores, higher meaning "altered".
+    """
+    with torch.no_grad():
+        return model(inputs).numpy()

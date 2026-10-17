@@ -57,6 +57,7 @@ from src.detect import (  # noqa: E402
     unpaired_mask,
 )
 from src.features import compute_instance_features  # noqa: E402
+from src.grid import flip_cells  # noqa: E402
 from src.planner import load_pretrained_neural_astar  # noqa: E402
 from src.surrogate import FEATURE_GROUPS, build_design_matrix, fit_and_score  # noqa: E402
 
@@ -185,6 +186,57 @@ def make_feature_builder(group: str):
     return builder
 
 
+def train_grid_control(
+    split_name: str, family: str, seed: int, epochs: int, limit: Optional[int] = None
+):
+    """Train the convolutional map-only control, the hardest baseline here.
+
+    The five hand-chosen statistics of `map_only_features` are a weak control by
+    construction — somebody had to think of the right five things. A small
+    convolutional network given the raw grid can discover whatever local pattern
+    a flipped cell leaves without being told to look for it.
+
+    It is trained on **random** single obstacle-additions to the training split,
+    never on the selected damaging flips and never on the maps it is scored on.
+    That is deliberate and it is also realistic: random flips cost nothing to
+    generate, so a defender really could build this control, which is what makes
+    it the fair bar for the residual detector to clear.
+
+    Args:
+        split_name: Split to train on, normally ``"train"``.
+        family: Map family.
+        seed: Seed for the flips and the optimisation.
+        epochs: Training epochs.
+        limit: Optional cap on instances, for probes.
+
+    Returns:
+        GridCnn: The fitted control, in eval mode.
+    """
+    from src.detect import grid_cnn_inputs, train_grid_cnn
+    from src.perturb import sample_random_flips
+
+    instances = load_split(split_name, npz_path=config.family_npz(family)).instances(seed=seed)
+    if limit is not None:
+        instances = instances[:limit]
+    rng = np.random.default_rng(seed)
+    paired_instances, designs, labels = [], [], []
+    for instance in instances:
+        cells = sample_random_flips(instance, 1, rng, free_only=True)
+        if cells is None:
+            continue
+        paired_instances += [instance, instance]
+        designs += [instance.map_design, flip_cells(instance.map_design, cells)]
+        labels += [0.0, 1.0]
+    import torch
+
+    return train_grid_cnn(
+        grid_cnn_inputs(paired_instances, designs),
+        torch.tensor(labels),
+        epochs=epochs,
+        seed=seed,
+    )
+
+
 def clean_residual_sd(
     planner, surrogate, instances: Sequence, builder, limit: int = 20
 ) -> float:
@@ -240,6 +292,13 @@ def main() -> int:
         "PLAN.md asks for a detector fitted on k=4 optimality flips and tested across "
         "budgets and objectives, which this implements",
     )
+    parser.add_argument(
+        "--grid-cnn",
+        action="store_true",
+        help="also train the convolutional map-only control and report it; adds about "
+        "a minute, and it is the hardest bar the residual has to clear",
+    )
+    parser.add_argument("--grid-cnn-epochs", type=int, default=40)
     parser.add_argument("--timing-only", action="store_true")
     args = parser.parse_args()
 
@@ -260,11 +319,26 @@ def main() -> int:
     spread = clean_residual_sd(planner, surrogate, valid, builder)
     print(f"clean residual sd = {spread:.4f} (validation split)")
 
+    grid_control = None
+    if args.grid_cnn:
+        started = time.perf_counter()
+        grid_control = train_grid_control(
+            "train", args.family, args.seed, args.grid_cnn_epochs, limit=args.instances
+        )
+        print(
+            f"convolutional map-only control trained on random train-split flips "
+            f"({time.perf_counter() - started:.0f} s)"
+        )
+
     manifest = pd.read_parquet(config.RESULTS_DIR / f"manifest{suffix}.parquet")
     manifest = manifest[manifest["split"] == args.split]
 
     def examples_for(condition: str):
-        """Build the detector's examples for one condition, or None if too few."""
+        """Build the detector's examples for one condition, or None if too few.
+
+        Returns the alterations alongside the examples, because the
+        convolutional control has to rebuild the altered maps to score them.
+        """
         alterations = select_alterations(manifest, condition)
         polarity = CONDITIONS[condition].get("polarity")
         if polarity:
@@ -276,7 +350,7 @@ def main() -> int:
             print(f"{condition}: only {len(alterations)} instances, skipped")
             return None
         usable = [i for i in instances if i.instance_id in alterations]
-        return build_examples(
+        return alterations, build_examples(
             planner, surrogate, usable, alterations, builder, clean_sd=spread
         )
 
@@ -289,7 +363,8 @@ def main() -> int:
         if built is None:
             print(f"cannot train on {args.transfer_from}: too few instances")
             return 1
-        source_residual, source_activations, source_plain, source_labels, source_ids = built
+        _, source_built = built
+        source_residual, source_activations, source_plain, source_labels, source_ids = source_built
         source_unique = sorted(set(source_ids))
         source_first = set(source_unique[: len(source_unique) // 2])
         source_train = np.array([i in source_first for i in source_ids])
@@ -322,7 +397,8 @@ def main() -> int:
         built = examples_for(condition)
         if built is None:
             continue
-        residual, activations, plain, labels, ids = built
+        alterations_used, examples = built
+        residual, activations, plain, labels, ids = examples
         seconds = time.perf_counter() - started
 
         # Split by instance, so no map contributes to both halves. Under a
@@ -408,6 +484,42 @@ def main() -> int:
             models=(heads.get("combined"), heads.get("map_only")),
         )
 
+        cnn_scores: Dict[str, object] = {}
+        if grid_control is not None:
+            from src.detect import grid_cnn_inputs, score_grid_cnn
+
+            by_id = {inst.instance_id: inst for inst in instances}
+            paired_instances, designs = [], []
+            for identifier, label in zip(ids, labels):
+                instance = by_id[identifier]
+                paired_instances.append(instance)
+                designs.append(
+                    instance.map_design
+                    if label == 0
+                    else flip_cells(instance.map_design, alterations_used[identifier])
+                )
+            column = score_grid_cnn(
+                grid_control, grid_cnn_inputs(paired_instances, designs)
+            ).reshape(-1, 1)
+            with_residual = np.hstack([column, residual])
+            cnn_scores = {
+                "auc": evaluate_detector(
+                    column[is_train],
+                    labels[is_train],
+                    column[~is_train],
+                    labels[~is_train],
+                )["auc"],
+                "with_residual_auc": evaluate_detector(
+                    with_residual[is_train],
+                    labels[is_train],
+                    with_residual[~is_train],
+                    labels[~is_train],
+                )["auc"],
+                "gap": bootstrap_auc_gap(
+                    with_residual, column, labels, is_train, ids, seed=args.seed
+                ),
+            }
+
         gap = bootstrap_auc_gap(
             joint,
             plain,
@@ -428,6 +540,7 @@ def main() -> int:
                 "map_only_accuracy": control["accuracy"],
                 "combined_auc": combined["auc"],
                 "combined_minus_map_only": gap,
+                "grid_cnn": cnn_scores,
                 "unpaired": unpaired,
                 "unpaired_combined_minus_map_only": unpaired_gap,
                 "mahalanobis_auc": baseline["auc"],
@@ -445,7 +558,15 @@ def main() -> int:
             f"| unpaired: map-only {unpaired['map_only']:.3f}, "
             f"combined {unpaired['combined']:.3f} "
             f"(gap {unpaired_gap['gap']:+.3f}) "
-            f"| {seconds:.1f} s"
+            + (
+                f"| cnn {cnn_scores['auc']:.3f}, +residual "
+                f"{cnn_scores['with_residual_auc']:.3f} "
+                f"(gap {cnn_scores['gap']['gap']:+.3f} "
+                f"[{cnn_scores['gap']['lo']:+.3f}, {cnn_scores['gap']['hi']:+.3f}]) "
+                if cnn_scores
+                else ""
+            )
+            + f"| {seconds:.1f} s"
         )
         if args.timing_only:
             break
@@ -508,6 +629,33 @@ def main() -> int:
             f"[{row['combined_minus_map_only']['lo']:+.3f}, "
             f"{row['combined_minus_map_only']['hi']:+.3f}] |"
         )
+    if any(row["grid_cnn"] for row in rows):
+        lines.extend(
+            [
+                "",
+                "## Against the convolutional map-only control",
+                "",
+                "A small convolutional network given the raw grid, trained on **random** "
+                "single obstacle-additions to the 800 training maps — never on a selected "
+                "damaging flip and never on a map it is scored on. This is the hardest "
+                "model-free bar: it discovers whatever local pattern a flip leaves without "
+                "being told to look for it, and a defender really could build it, since "
+                "random flips cost nothing to generate.",
+                "",
+                "| condition | convolutional control | + residual | gap, 95 % CI |",
+                "|-----------|-----------------------|------------|--------------|",
+            ]
+        )
+        for row in rows:
+            cnn = row["grid_cnn"]
+            if not cnn:
+                continue
+            lines.append(
+                f"| `{row['condition']}` | {cnn['auc']:.3f} | "
+                f"{cnn['with_residual_auc']:.3f} | {cnn['gap']['gap']:+.3f} "
+                f"[{cnn['gap']['lo']:+.3f}, {cnn['gap']['hi']:+.3f}] |"
+            )
+
     lines.extend(
         [
             "",
