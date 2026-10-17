@@ -120,7 +120,7 @@ def evaluate_tag(tag: str, checkpoint: Optional[Path], seed: int) -> Dict[str, o
         fits[f"{group}_{kind}"] = result.r2
         if group == "all":
             full = result
-    return {
+    out = {
         "tag": tag or "pretrained",
         "planning": planning_metrics(planner, instances),
         "surrogate_r2": fits,
@@ -128,6 +128,41 @@ def evaluate_tag(tag: str, checkpoint: Optional[Path], seed: int) -> Dict[str, o
             planner, instances, sufficiency_cost_maps(full, archive)
         ),
     }
+    out.update(mediation_for(tag))
+    return out
+
+
+def mediation_for(tag: str) -> Dict[str, object]:
+    """Read this model's step-7 decomposition, if its swap has been run.
+
+    Each model needs its own sweep and swap, because each has its own worst
+    flips; this only collects what `scripts/seed_pipeline.sh` produced.
+
+    Args:
+        tag: Model tag (empty for the shipped checkpoint).
+
+    Returns:
+        dict: Mediation means per objective, restricted to the alterations
+        that did not change the map's optimum — the clean failure mode. Empty
+        when the model's swap output is absent.
+    """
+    suffix = f"_{tag}" if tag else ""
+    path = config.RESULTS_DIR / f"e3_k1{suffix}.json"
+    if not path.exists():
+        return {}
+    report = json.loads(path.read_text())
+    split = report.get("summaries_by_failure_mode", {})
+    out: Dict[str, object] = {}
+    for objective in ("optimality", "efficiency"):
+        part = split.get(objective, {}).get("optimum unchanged")
+        if not part or not part.get("n_with_damage"):
+            continue
+        out[f"mediation_{objective}"] = {
+            "n": part["n_with_damage"],
+            "encoder": part["encoder_mean"],
+            "search": part["search_mean"],
+        }
+    return out
 
 
 def main() -> int:
@@ -196,6 +231,30 @@ def render_markdown(rows: List[Dict[str, object]], dispersion: pd.DataFrame) -> 
             f"{planning['h_mean']:.3f} | {fits['geometric_h1_gbm']:.3f} | "
             f"{fits['path_gbm']:.3f} | {fits['all_gbm']:.3f} | {sufficiency['p_opt']:.3f} |"
         )
+    if any("mediation_optimality" in row for row in rows):
+        lines += [
+            "",
+            "## Mediation per model (clean failure mode only)",
+            "",
+            "Each model has its own worst flips, so each needs its own sweep and swap. "
+            "Restricted to alterations that did not change the map's optimum.",
+            "",
+            "| model | path: encoder | path: search | effort: encoder | effort: search |",
+            "|-------|---------------|--------------|-----------------|----------------|",
+        ]
+        for row in rows:
+            path_part = row.get("mediation_optimality")
+            effort_part = row.get("mediation_efficiency")
+            if not path_part:
+                continue
+            lines.append(
+                f"| `{row['tag']}` | {path_part['encoder']:+.3f} | {path_part['search']:+.3f} | "
+                + (
+                    f"{effort_part['encoder']:+.3f} | {effort_part['search']:+.3f} |"
+                    if effort_part
+                    else "— | — |"
+                )
+            )
     lines += ["", "## Dispersion", "", "| quantity | mean | std | min | max |", "|---|---|---|---|---|"]
     for name, row in dispersion.iterrows():
         lines.append(
