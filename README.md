@@ -607,7 +607,7 @@ together. Each links to the step that produced it.
 │   ├── swap.py                ✅ [7] the 2×2 cost/obstacle harness + mediation
 │   ├── attribution.py         ✅ [8] integrated gradients, Grad-CAM, sanity checks
 │   └── detect.py              ✅ [12] residual detector, OOD + model-free baselines, bootstrap
-├── tests/                     ✅ 189 tests across 15 files, including published-tree and manifest-schema guards
+├── tests/                     ✅ 192 tests across 15 files, including published-tree and manifest-schema guards
 ├── notebooks/                 ✅ 01_features_spotcheck.ipynb (display only)
 └── results/
     ├── e0_reproduce.json      ✅ [0]
