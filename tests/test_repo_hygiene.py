@@ -127,3 +127,38 @@ def test_every_make_target_names_a_real_script() -> None:
     assert referenced, "no scripts referenced from the Makefile"
     missing = [name for name in referenced if not (REPO_ROOT / "scripts" / name).exists()]
     assert not missing, f"Makefile references missing scripts: {missing}"
+
+
+def test_no_build_artifacts_are_tracked() -> None:
+    """Model checkpoints and training logs must not be in version control.
+
+    They are build outputs, they are large, and the tensorboard event files are
+    named after the machine that produced them — which put a personal hostname
+    into the published history once already and had to be scrubbed.
+    """
+    listing = subprocess.run(
+        ["git", "ls-files"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
+    ).stdout.split()
+    offenders = [
+        name
+        for name in listing
+        if name.startswith("results/models/")
+        or name.endswith((".ckpt", ".npz", ".parquet"))
+        or ".tfevents." in name
+    ]
+    assert not offenders, f"build artifacts are tracked: {offenders[:5]}"
+
+
+def test_no_tracked_file_names_the_local_machine() -> None:
+    """No tracked path may carry the training machine's hostname."""
+    import platform
+
+    hostname = platform.node().split(".")[0]
+    if not hostname:
+        pytest.skip("no hostname to check against")
+    listing = subprocess.run(
+        ["git", "ls-files"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
+    ).stdout
+    assert hostname.lower() not in listing.lower(), (
+        f"a tracked path contains the hostname {hostname!r}"
+    )
