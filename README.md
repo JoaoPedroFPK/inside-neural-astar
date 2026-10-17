@@ -514,8 +514,11 @@ the gain tracks how inconspicuous the alteration is:
 Every gap carries a bootstrap interval over scoring maps, because step 9's
 retracted conclusion came from a 0.03 margin. The single-flip gains replicate
 in all four maze models (+0.111 to +0.137 on path, +0.228 to +0.252 on effort,
-every interval clear of zero) and **vanish on forest** (−0.001 and −0.046, one
-model). A detector fitted on four-cell flips transfers to every other condition
+every interval clear of zero) and **vanish on forest** (two models, all four
+gaps with intervals containing zero). On forest the activation baseline
+collapses too (0.553–0.595 against 0.784–0.841 on mazes), so it is not the
+residual that fails there: the planner's internals as a whole barely register a
+single flipped cell on open terrain, while the grid shows it plainly. A detector fitted on four-cell flips transfers to every other condition
 for ≤ 0.024 AUC, except two-blocking-cells at 0.046.
 
 Full write-up: `docs/steps/step-12-detector.md`, including the leak that made

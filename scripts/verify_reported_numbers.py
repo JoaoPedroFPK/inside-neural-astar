@@ -60,6 +60,9 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
         load(f"e4_detector_{tag}.json")
         for tag in ("mazes_seed0", "mazes_seed1", "mazes_seed2")
     ]
+    detector_forest = [
+        load(f"e4_detector_{tag}.json") for tag in ("forest_seed0", "forest_seed1")
+    ]
 
     out: List[Tuple[str, Callable[[], bool]]] = []
 
@@ -244,6 +247,29 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
         out.append(
             ("step 12: the residual's gain over the control holds in every maze model",
              lambda: min(gains) > 0)
+        )
+
+    forest = [payload for payload in detector_forest if payload]
+    if len(forest) > 1:
+        # The forest null is the opposite claim and needs the opposite check:
+        # every interval must *contain* zero, in every forest model.
+        intervals = [
+            row["combined_minus_map_only"]
+            for payload in forest
+            for row in payload["conditions"]
+        ]
+        out.append(
+            ("step 12: on forest the residual adds nothing, in every model",
+             lambda: all(row["lo"] <= 0 <= row["hi"] for row in intervals))
+        )
+        # And the baseline fails there too, which is why the reading is about
+        # the internals as a whole rather than about the residual.
+        baselines = [
+            row["mahalanobis_auc"] for payload in forest for row in payload["conditions"]
+        ]
+        out.append(
+            ("step 12: on forest the activation baseline collapses as well",
+             lambda: max(baselines) < 0.65)
         )
     return out
 

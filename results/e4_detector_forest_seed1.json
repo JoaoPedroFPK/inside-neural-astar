@@ -1,0 +1,89 @@
+{
+  "split": "test",
+  "seed": 0,
+  "family": "forest",
+  "model_tag": "forest_seed1",
+  "transfer_from": null,
+  "surrogate": {
+    "group": "geometric_h1",
+    "kind": "gbm",
+    "r2": 0.3006820538184761
+  },
+  "clean_residual_sd": 0.1970501943492466,
+  "residual_features": [
+    "mean_abs",
+    "std",
+    "max_abs",
+    "p99_abs",
+    "frac_over_2sd",
+    "max_window_share",
+    "signed_mean"
+  ],
+  "map_only_features": [
+    "obstacle_fraction",
+    "isolated_obstacles",
+    "isolated_free_cells",
+    "dead_ends",
+    "optimum_length"
+  ],
+  "conditions": [
+    {
+      "condition": "k1_opt",
+      "n_instances": 100,
+      "n_test_pairs": 50,
+      "residual_auc": 0.6072,
+      "residual_accuracy": 0.58,
+      "map_only_auc": 0.8552000000000001,
+      "map_only_accuracy": 0.8,
+      "combined_auc": 0.8484,
+      "combined_minus_map_only": {
+        "gap": -0.006800000000000028,
+        "lo": -0.04121000000000012,
+        "hi": 0.02080999999999998,
+        "p_positive": 0.2965
+      },
+      "mahalanobis_auc": 0.5948,
+      "mahalanobis_variant": "l8_mean",
+      "mahalanobis_auc_by_variant": {
+        "l2_mean": 0.5611999999999999,
+        "l2_max": 0.5713999999999999,
+        "l5_mean": 0.5628,
+        "l5_max": 0.544,
+        "l8_mean": 0.5948,
+        "l8_max": 0.5484,
+        "l11_mean": 0.5671999999999999,
+        "l11_max": 0.4966
+      },
+      "seconds": 4.525287875003414
+    },
+    {
+      "condition": "k1_eff",
+      "n_instances": 93,
+      "n_test_pairs": 47,
+      "residual_auc": 0.5948392937980986,
+      "residual_accuracy": 0.5425531914893617,
+      "map_only_auc": 0.7089180624717065,
+      "map_only_accuracy": 0.6595744680851063,
+      "combined_auc": 0.7179719330013581,
+      "combined_minus_map_only": {
+        "gap": 0.009053870529651564,
+        "lo": -0.026482571299230373,
+        "hi": 0.0491229062924399,
+        "p_positive": 0.747
+      },
+      "mahalanobis_auc": 0.5672249886826618,
+      "mahalanobis_variant": "l2_max",
+      "mahalanobis_auc_by_variant": {
+        "l2_mean": 0.5282933454051607,
+        "l2_max": 0.5672249886826618,
+        "l5_mean": 0.520597555454957,
+        "l5_max": 0.5319148936170213,
+        "l8_mean": 0.552286102308737,
+        "l8_max": 0.5604345857854233,
+        "l11_mean": 0.5550022634676325,
+        "l11_max": 0.5273879583521954
+      },
+      "seconds": 4.547255167010007
+    }
+  ]
+}
