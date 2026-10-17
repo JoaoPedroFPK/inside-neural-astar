@@ -113,7 +113,9 @@ def checkpoint_epoch(checkpoint: Optional[Path]) -> Optional[int]:
     return int(match.group(1)) if match else None
 
 
-def evaluate_tag(tag: str, checkpoint: Optional[Path], seed: int) -> Dict[str, object]:
+def evaluate_tag(
+    tag: str, checkpoint: Optional[Path], seed: int, family: str = "mazes"
+) -> Dict[str, object]:
     """Run every per-seed measurement for one model.
 
     Args:
@@ -130,7 +132,7 @@ def evaluate_tag(tag: str, checkpoint: Optional[Path], seed: int) -> Dict[str, o
         FileNotFoundError: If the feature archive for this tag is missing.
     """
     planner = load_pretrained_neural_astar(checkpoint_path=checkpoint)
-    split = load_split("test")
+    split = load_split("test", npz_path=config.family_npz(family))
     instances = split.instances(seed=seed)
 
     archive = load_archive("test", tag=tag)
@@ -333,7 +335,11 @@ def cost_map_agreement(tags: List[str]) -> List[Dict[str, object]]:
 
 
 def mediation_on_shared_flips(
-    tag: str, checkpoint: Optional[Path], seed: int, manifest: Path
+    tag: str,
+    checkpoint: Optional[Path],
+    seed: int,
+    manifest: Path,
+    family: str = "mazes",
 ) -> Dict[str, object]:
     """Decompose the *same* alterations with every model.
 
@@ -361,7 +367,7 @@ def mediation_on_shared_flips(
 
     frame = pd.read_parquet(manifest)
     planner = load_pretrained_neural_astar(checkpoint_path=checkpoint)
-    split = load_split("test")
+    split = load_split("test", npz_path=config.family_npz(family))
     out: Dict[str, object] = {}
     for objective, column, metric in (
         ("optimality", "is_worst_optimality", "opt"),
@@ -393,6 +399,13 @@ def main() -> int:
     )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
+        "--family",
+        default="mazes",
+        choices=list(config.MAP_FAMILIES),
+        help="map family of the models being compared; a forest model scored on maze "
+        "maps would silently answer a different question",
+    )
+    parser.add_argument(
         "--shared-flips",
         type=Path,
         default=None,
@@ -411,10 +424,12 @@ def main() -> int:
     rows = []
     for tag, checkpoint in zip(args.tags, checkpoints):
         print(f"evaluating {tag or 'pretrained'}...", flush=True)
-        row = evaluate_tag(tag, checkpoint, args.seed)
+        row = evaluate_tag(tag, checkpoint, args.seed, family=args.family)
         if args.shared_flips is not None and args.shared_flips.exists():
             row.update(
-                mediation_on_shared_flips(tag, checkpoint, args.seed, args.shared_flips)
+                mediation_on_shared_flips(
+                    tag, checkpoint, args.seed, args.shared_flips, family=args.family
+                )
             )
         rows.append(row)
 
@@ -432,16 +447,20 @@ def main() -> int:
         "cost_map_agreement": agreement,
         "vulnerability_overlap": overlap,
     }
-    (config.RESULTS_DIR / "seeds.json").write_text(
+    # Families are compared separately, so each writes its own report. The
+    # maze report keeps the original filename that the write-ups reference.
+    stem = "seeds" if args.family == "mazes" else f"seeds_{args.family}"
+    report["family"] = args.family
+    (config.RESULTS_DIR / f"{stem}.json").write_text(
         json.dumps(report, indent=2, default=float) + "\n"
     )
-    (config.RESULTS_DIR / "seeds.md").write_text(
+    (config.RESULTS_DIR / f"{stem}.md").write_text(
         render_markdown(rows, dispersion, agreement, overlap) + "\n"
     )
 
     print()
     print(dispersion.round(4).to_string())
-    print("\nwrote seeds.md and seeds.json")
+    print(f"\nwrote {stem}.md and {stem}.json")
     return 0
 
 
