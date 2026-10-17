@@ -95,7 +95,8 @@ def render_markdown(summary: Dict[str, object], meta: Dict[str, object]) -> str:
         "",
         "## Selected flips",
         "",
-        f"Two alterations are tagged per map in `results/manifest.parquet`: the worst "
+        f"Two alterations are tagged per map in `results/manifest{meta.get('suffix', '')}"
+        f".parquet`: the worst "
         f"by Opt ratio (`is_worst_optimality`), and the worst by Exp ratio among "
         f"alterations costing at most {OPT_CAP_FOR_EFFICIENCY:.2f} in Opt "
         "(`is_worst_efficiency`). Step 7 runs the 2×2 swap on these.",
@@ -202,6 +203,7 @@ def main() -> int:
     frame.to_parquet(args.out, index=False)
 
     meta = {
+        "suffix": suffix,
         "split": split_name,
         "seed": args.seed,
         "minutes": seconds / 60,
@@ -220,7 +222,9 @@ def main() -> int:
         f"have a damaging cell; median {overall['median_frac_cells_damaging']:.2%} of cells "
         f"are damaging; worst Opt {overall['max_worst_opt']:.3f}"
     )
-    print(f"wrote {args.out.relative_to(config.REPO_ROOT)} and e2_k1_sweep.md")
+    print(
+        f"wrote {args.out.relative_to(config.REPO_ROOT)} and e2_k1_sweep{suffix}.md"
+    )
     return 0
 
 

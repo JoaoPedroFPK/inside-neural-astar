@@ -210,7 +210,7 @@ def main() -> int:
         for row in report[section]:
             print(f"   {row['group']:28} n={row['n']:6,}  {row['damage_rate']:.2%}")
         print()
-    print("wrote e2_damaging_cells.md and .json")
+    print(f"wrote e2_damaging_cells{suffix}.md and e2_damaging_cells{suffix}.json")
     return 0
 
 

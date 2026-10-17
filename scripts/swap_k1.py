@@ -339,6 +339,11 @@ def main() -> int:
     meta = {
         "split": split_name,
         "seed": args.seed,
+        # Which model and which map family produced this, so the file is
+        # self-describing: two reports differing only in their filename is how
+        # a per-model comparison ends up silently mixing families.
+        "model_tag": args.tag or "pretrained",
+        "family": args.family,
         "n_swaps": sum(len(r) for r in results.values()),
         "seconds": seconds,
     }
@@ -368,7 +373,10 @@ def main() -> int:
             f"search mean {summary['search_mean']:+.3f} "
             f"(dominant in {summary['search_share_dominant']:.0%})"
         )
-    print(f"\nwrote e3_k1.md, e3_k1.json, {figure.name}, and merged swap columns into the manifest")
+    print(
+        f"\nwrote e3_k1{suffix}.md, e3_k1{suffix}.json, {figure.name}, "
+        f"and merged swap columns into manifest{suffix}.parquet"
+    )
     return 0
 
 

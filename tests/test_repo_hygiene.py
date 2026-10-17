@@ -178,3 +178,33 @@ def test_empty_checkpoint_argument_means_the_shipped_model() -> None:
     resolved = [Path(entry) if entry else None for entry in entries]
     assert resolved[0] is None
     assert resolved[1] == Path("results/models/mazes_seed0")
+
+
+def test_tagged_scripts_never_print_an_untagged_artifact_name() -> None:
+    """A script run with `--tag` must report the file it actually wrote.
+
+    Every per-model script writes `<stem>_<tag>.<ext>` but several once printed
+    the bare `<stem>.<ext>` in their closing summary. Nothing was overwritten,
+    but the message said a shared, committed report had been replaced when it
+    had not — which is worse than useless when the whole point of the tag is to
+    keep models from contaminating each other's results.
+    """
+    import re
+
+    artifact = re.compile(
+        r"\b(e\d[\w]*|features_\w+|manifest|seeds)\.(md|json|parquet|npz)\b"
+    )
+    interpolated = re.compile(r"\{[^}]*(suffix|tag|stem|name|out|path)[^}]*\}")
+
+    offenders = []
+    for path in sorted((REPO_ROOT / "scripts").glob("*.py")):
+        source = path.read_text()
+        if "--tag" not in source:
+            continue
+        for number, line in enumerate(source.splitlines(), start=1):
+            if "print" not in line and not line.lstrip().startswith(('f"', '"')):
+                continue
+            found = artifact.search(line)
+            if found and not interpolated.search(line):
+                offenders.append(f"{path.name}:{number}: {found.group(0)}")
+    assert not offenders, "untagged artifact names in output messages:\n" + "\n".join(offenders)
