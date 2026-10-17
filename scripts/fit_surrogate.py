@@ -196,12 +196,23 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--no-sufficiency", action="store_true")
+    parser.add_argument(
+        "--tag", default="", help="model tag; selects that model's feature archives"
+    )
+    parser.add_argument(
+        "--family",
+        default="mazes",
+        choices=list(config.MAP_FAMILIES),
+        help="map family, for the sufficiency test's instances",
+    )
+    parser.add_argument("--checkpoint", type=Path, default=None)
     args = parser.parse_args()
 
+    suffix = f"_{args.tag}" if args.tag else ""
     config.set_global_seeds(args.seed)
-    train = build_design_matrix("train")
-    test = build_design_matrix("test")
-    archive = load_archive("test")
+    train = build_design_matrix("train", tag=args.tag)
+    test = build_design_matrix("test", tag=args.tag)
+    archive = load_archive("test", tag=args.tag)
     print(f"train rows {len(train.y):,}  test rows {len(test.y):,}\n")
 
     started = time.perf_counter()
@@ -229,13 +240,13 @@ def main() -> int:
         "all": sufficiency_cost_maps(best_all, archive),
     }
     figure = render_residual_figure(
-        archive, predictions, config.RESULTS_DIR / "e1_surrogate_residuals.png"
+        archive, predictions, config.RESULTS_DIR / f"e1_surrogate_residuals{suffix}.png"
     )
 
     if not args.no_sufficiency:
         print("\nsufficiency test: planning with surrogate cost maps")
-        planner = load_pretrained_neural_astar()
-        split = load_split("test")
+        planner = load_pretrained_neural_astar(checkpoint_path=args.checkpoint)
+        split = load_split("test", npz_path=config.family_npz(args.family))
         instances = [split.instance(int(i), seed=args.seed) for i in archive["instance_ids"]]
         sufficiency = {
             "neural_encoder": plan_with_cost_maps(
@@ -260,9 +271,11 @@ def main() -> int:
                 f"Hmean={row['h_mean']:.4f}"
             )
 
-    out_json = config.RESULTS_DIR / "e1_surrogate.json"
+    out_json = config.RESULTS_DIR / f"e1_surrogate{suffix}.json"
     out_json.write_text(json.dumps(report, indent=2, default=float) + "\n")
-    (config.RESULTS_DIR / "e1_surrogate.md").write_text(render_markdown(report, figure) + "\n")
+    (config.RESULTS_DIR / f"e1_surrogate{suffix}.md").write_text(
+        render_markdown(report, figure) + "\n"
+    )
     print(f"\nwrote {out_json.relative_to(config.REPO_ROOT)}, e1_surrogate.md and {figure.name}")
     return 0
 
