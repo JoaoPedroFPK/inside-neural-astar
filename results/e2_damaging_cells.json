@@ -1,0 +1,83 @@
+{
+  "n_alterations": 102198,
+  "n_damaging": 2040,
+  "overall_rate": 0.01996125168789996,
+  "by_wall_zone": [
+    {
+      "group": "obstacle",
+      "n": 11077,
+      "damage_rate": 0.033763654419066536
+    },
+    {
+      "group": "wall_adjacent",
+      "n": 29310,
+      "damage_rate": 0.012623677925622655
+    },
+    {
+      "group": "near_wall",
+      "n": 23835,
+      "damage_rate": 0.016782043213761276
+    },
+    {
+      "group": "interior",
+      "n": 37976,
+      "damage_rate": 0.023593848746576784
+    }
+  ],
+  "by_on_optimal_path": [
+    {
+      "group": "on some optimal path",
+      "n": 11997,
+      "damage_rate": 0.053430024172709846
+    },
+    {
+      "group": "off every optimal path",
+      "n": 90201,
+      "damage_rate": 0.015509805877983614
+    }
+  ],
+  "by_direction": [
+    {
+      "group": "free -> wall (pillar)",
+      "n": 91121,
+      "damage_rate": 0.01828338143786833
+    },
+    {
+      "group": "wall -> free (door)",
+      "n": 11077,
+      "damage_rate": 0.033763654419066536
+    }
+  ],
+  "crossed": [
+    {
+      "group": "on path, wall_adjacent",
+      "n": 2534,
+      "damage_rate": 0.03472770323599053
+    },
+    {
+      "group": "on path, near_wall",
+      "n": 2857,
+      "damage_rate": 0.05110255512775639
+    },
+    {
+      "group": "on path, interior",
+      "n": 6606,
+      "damage_rate": 0.06161065697850439
+    },
+    {
+      "group": "off path, wall_adjacent",
+      "n": 26776,
+      "damage_rate": 0.010531819539886465
+    },
+    {
+      "group": "off path, near_wall",
+      "n": 20978,
+      "damage_rate": 0.01210792258556583
+    },
+    {
+      "group": "off path, interior",
+      "n": 31370,
+      "damage_rate": 0.015588141536499841
+    }
+  ]
+}
