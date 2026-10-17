@@ -146,3 +146,46 @@ def test_feature_join_is_aligned() -> None:
         )
         assert indicator[cell] == row["on_any_optimal_path"]
         assert (instance.map_design[cell] == 1) == (row["is_free"] == 1)
+
+
+@needs_manifest
+def test_single_cell_analyses_filter_out_multi_cell_rows(manifest) -> None:
+    """Analyses that explain one flipped cell must not read multi-cell rows.
+
+    The manifest is shared: step 6 writes single-cell alterations and step 9
+    appends greedy sets of up to eight cells. Any analysis that takes
+    `flip_cells[0]` has to filter first, or it silently attributes an effect of
+    eight changes to one of them. That happened once, in the attribution
+    curation, and inverted a reported result.
+    """
+    from scripts.analyse_damaging_cells import load_joined
+    from scripts.attribution_study import curate
+
+    import pandas as pd
+
+    from src.data import load_split
+
+    if not (manifest["budget"] > 1).any():
+        pytest.skip("no multi-cell rows present; run `make budgets`")
+
+    # The damaging-cell join restricts to single-cell exhaustive rows.
+    joined = load_joined(MANIFEST, "test")
+    assert (joined["budget"] == 1).all()
+    assert (joined["method"] == "exhaustive").all()
+
+    # So does the attribution curation.
+    split = load_split("test")
+    entries = curate(split, pd.read_parquet(MANIFEST), per_group=3, seed=0)
+    for entry in entries:
+        if entry["group"] not in ("attacked", "clean"):
+            continue
+        cell = tuple(entry["cell"])
+        matches = manifest[
+            (manifest["instance_id"] == entry["instance_id"])
+            & (manifest["budget"] == 1)
+            & (manifest["method"] == "exhaustive")
+            & manifest["flip_cells"].apply(lambda cells: tuple(int(v) for v in cells[0]) == cell)
+        ]
+        assert len(matches) == 1, (
+            f"curated cell {cell} does not correspond to a single-cell alteration"
+        )
