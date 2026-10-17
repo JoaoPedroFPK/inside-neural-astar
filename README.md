@@ -246,6 +246,12 @@ network it imitates*, buying that with search effort and landing at 96 % of its
 combined score. So the unexplained 59 % is not where planning competence lives
 — it is what makes the network cut corners.
 
+That is not just "weaker guidance". Scaling the network's own cost map toward a
+constant traces the weaker-guidance curve; at scale 0.50 it reaches 0.840
+optimality at 0.644 of classical effort, while the surrogate reaches **0.920 at
+0.627** — strictly better on both axes. The structure interpretable features
+impose is genuinely better for path quality at a comparable search cost.
+
 ### Steps 6–7 — where the damage comes from
 
 `make sweep` evaluated **102 198 single-cell alterations** across the 100 test

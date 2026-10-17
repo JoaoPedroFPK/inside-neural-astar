@@ -105,6 +105,35 @@ def plan_with_cost_maps(planner, instances, cost_maps: np.ndarray) -> Dict[str, 
     }
 
 
+def guidance_strength_curve(planner, instances, cost_maps: np.ndarray) -> List[Dict[str, float]]:
+    """Trade-off curve from weakening the encoder's own cost map.
+
+    The sufficiency test shows a surrogate planning more optimally than the
+    network. An obvious alternative explanation is that the surrogate is simply
+    *weaker* guidance, and weaker guidance means a search that behaves more
+    like plain A\*: more optimal, less efficient.
+
+    This control traces that curve directly. Scaling the encoder's output
+    toward a constant, ``0.5 + a * (cost - 0.5)``, keeps its shape and reduces
+    only its strength. If the surrogate lies on the resulting curve, it adds
+    nothing beyond weakening; if it lies above it, its structure matters.
+
+    Args:
+        planner: The planner whose search module is used.
+        instances: The instances to evaluate.
+        cost_maps: ``(N, H, W)`` encoder output at full strength.
+
+    Returns:
+        list[dict]: One entry per scale factor with the planning metrics.
+    """
+    out = []
+    for alpha in (1.0, 0.75, 0.5, 0.25, 0.1, 0.0):
+        scaled = (0.5 + alpha * (cost_maps - 0.5)).astype(np.float32)
+        metrics = plan_with_cost_maps(planner, instances, scaled)
+        out.append({"alpha": alpha, **metrics})
+    return out
+
+
 def render_residual_figure(archive, results, out_path: Path, rows=(0, 1, 2)) -> Path:
     """Draw cost map, surrogate prediction and residual for a few instances.
 
@@ -221,6 +250,9 @@ def main() -> int:
             ),
         }
         report["sufficiency"] = sufficiency
+        report["guidance_strength_curve"] = guidance_strength_curve(
+            planner, instances, archive["cost_map"].astype(np.float32)
+        )
         for label, row in sufficiency.items():
             print(
                 f"  {label:22} Opt={row['p_opt']:.3f}  meanOpt={row['mean_opt']:.4f}  "
@@ -339,6 +371,51 @@ def render_markdown(report: Dict[str, object], figure: Path) -> str:
                 f"{row['mean_exp']:.3f} | {row['h_mean']:.4f} |"
             )
         lines.append("")
+        curve = report.get("guidance_strength_curve")
+        if curve:
+            lines += [
+                "### Control: is the surrogate just weaker guidance?",
+                "",
+                "Weaker guidance makes the search behave more like plain A\\*: more "
+                "optimal, less efficient. If that were the whole story, the surrogate "
+                "would sit on the curve traced by scaling the encoder's own output "
+                "toward a constant (`0.5 + a * (cost - 0.5)`), which keeps its shape "
+                "and reduces only its strength.",
+                "",
+                "| scale `a` | exactly optimal | mean Exp ratio | Hmean |",
+                "|-----------|-----------------|----------------|-------|",
+            ]
+            for row in curve:
+                lines.append(
+                    f"| {row['alpha']:.2f} | {row['p_opt']:.3f} | {row['mean_exp']:.3f} | "
+                    f"{row['h_mean']:.4f} |"
+                )
+            surrogate = report["sufficiency"]["surrogate_all"]  # type: ignore[index]
+            dominated = [
+                row
+                for row in curve
+                if row["p_opt"] < surrogate["p_opt"] and row["mean_exp"] > surrogate["mean_exp"]
+            ]
+            lines += [
+                "",
+                f"The surrogate reaches {surrogate['p_opt']:.3f} optimality at "
+                f"{surrogate['mean_exp']:.3f} of classical effort. "
+                + (
+                    f"It is **strictly better on both axes** than {len(dominated)} point(s) "
+                    "on the weakening curve, so its advantage is not merely that it guides "
+                    "less — the structure it imposes is better for path quality at a "
+                    "comparable search cost."
+                    if dominated
+                    else "It lies on or below the weakening curve, so its advantage is "
+                    "explained by guiding less rather than by guiding better."
+                ),
+                "",
+                "Note also that scaling to `a = 0` is **not** classical A\\*: a constant "
+                "cost still enters `g` and `h`, changing their balance and making the "
+                "search greedier. That is why the bottom row is less optimal than the "
+                "flat-cost-map row above.",
+                "",
+            ]
     return "\n".join(lines)
 
 

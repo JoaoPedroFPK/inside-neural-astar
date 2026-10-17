@@ -45,3 +45,20 @@ R² measures reconstruction, not behaviour: a cost-map difference only matters i
 | `surrogate_all` | 0.920 | 1.0074 | 0.627 | 0.5521 |
 | `classical_unit_cost` | 1.000 | 1.0000 | 1.000 | 0.0000 |
 
+### Control: is the surrogate just weaker guidance?
+
+Weaker guidance makes the search behave more like plain A\*: more optimal, less efficient. If that were the whole story, the surrogate would sit on the curve traced by scaling the encoder's own output toward a constant (`0.5 + a * (cost - 0.5)`), which keeps its shape and reduces only its strength.
+
+| scale `a` | exactly optimal | mean Exp ratio | Hmean |
+|-----------|-----------------|----------------|-------|
+| 1.00 | 0.830 | 0.578 | 0.5728 |
+| 0.75 | 0.840 | 0.603 | 0.5534 |
+| 0.50 | 0.840 | 0.644 | 0.5196 |
+| 0.25 | 0.860 | 0.693 | 0.4796 |
+| 0.10 | 0.880 | 0.708 | 0.4601 |
+| 0.00 | 0.810 | 0.691 | 0.4474 |
+
+The surrogate reaches 0.920 optimality at 0.627 of classical effort. It is **strictly better on both axes** than 4 point(s) on the weakening curve, so its advantage is not merely that it guides less — the structure it imposes is better for path quality at a comparable search cost.
+
+Note also that scaling to `a = 0` is **not** classical A\*: a constant cost still enters `g` and `h`, changing their balance and making the search greedier. That is why the bottom row is less optimal than the flat-cost-map row above.
+
