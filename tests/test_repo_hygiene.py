@@ -85,3 +85,45 @@ def test_public_files_do_not_link_to_untracked_notes(path: str) -> None:
     """
     text = (REPO_ROOT / path).read_text()
     assert "](docs/" not in text, f"{path} links to the untracked notes directory"
+
+
+def test_every_script_has_a_working_cli() -> None:
+    """`--help` must work for every script, with no import-time failure.
+
+    Cheap insurance for a repository whose experiments are run from the command
+    line: a broken import or a malformed argument definition shows up here
+    rather than twenty minutes into a sweep.
+    """
+    scripts = sorted(
+        path
+        for path in (REPO_ROOT / "scripts").glob("*.py")
+        if path.name != "__init__.py"
+    )
+    assert scripts, "no scripts found"
+    failures = []
+    for path in scripts:
+        completed = subprocess.run(
+            [str(REPO_ROOT / ".venv" / "bin" / "python"), str(path), "--help"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if completed.returncode != 0:
+            failures.append(f"{path.name}: exit {completed.returncode}\n{completed.stderr[-400:]}")
+    assert not failures, "\n".join(failures)
+
+
+def test_every_make_target_names_a_real_script() -> None:
+    """Makefile recipes must point at scripts that exist.
+
+    The targets are how every experiment is launched, and a renamed script
+    would otherwise fail only when someone runs it.
+    """
+    import re
+
+    makefile = (REPO_ROOT / "Makefile").read_text()
+    referenced = set(re.findall(r"scripts/([A-Za-z0-9_]+\.(?:py|sh))", makefile))
+    assert referenced, "no scripts referenced from the Makefile"
+    missing = [name for name in referenced if not (REPO_ROOT / "scripts" / name).exists()]
+    assert not missing, f"Makefile references missing scripts: {missing}"
