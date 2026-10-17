@@ -30,7 +30,7 @@ computed here; the row schema leaves room for them.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple  # noqa: F401
 
 import numpy as np
 import torch
@@ -481,3 +481,251 @@ def summarize_by_direction(
             }
         )
     return out
+
+
+#: Cap on the Opt ratio an alteration may cost while still counting as an
+#: *efficiency* attack (plan step 6: "max Exp-ratio with Opt-ratio <= 1.05").
+#: Without it the efficiency objective would simply select flips that wreck the
+#: path, since a wrecked path usually also expands more nodes.
+OPT_CAP_FOR_EFFICIENCY: float = 1.05
+
+
+def select_worst_flips(
+    rows: Sequence[Dict[str, object]],
+    opt_cap: float = OPT_CAP_FOR_EFFICIENCY,
+) -> List[Dict[str, object]]:
+    """Tag, per instance, the worst alteration under each objective.
+
+    PLAN.md step 6 selects two alterations per map: the one that damages path
+    quality most, and the one that damages search efficiency most *without*
+    materially damaging path quality. The second constraint is what keeps the
+    two objectives distinct.
+
+    Args:
+        rows: Alteration rows from `evaluate_alterations`, any number of
+            instances and budgets mixed together. Rows are grouped by
+            ``(instance_id, budget)``.
+        opt_cap: Maximum ``opt_C1O1`` an alteration may have to qualify for the
+            efficiency objective.
+
+    Returns:
+        list[dict]: The same row objects, with two keys added in place and
+        returned for convenience:
+
+        * ``is_worst_optimality`` — True for the row maximising ``opt_C1O1``
+          within its ``(instance_id, budget)`` group;
+        * ``is_worst_efficiency`` — True for the row maximising ``exp_C1O1``
+          among rows with ``opt_C1O1 <= opt_cap``.
+
+        Ties are broken by the first row in iteration order, which is row-major
+        by flipped cell, so the choice is deterministic. A group where no row
+        satisfies the cap gets no efficiency winner.
+    """
+    groups: Dict[Tuple[int, int], List[Dict[str, object]]] = {}
+    for row in rows:
+        row["is_worst_optimality"] = False
+        row["is_worst_efficiency"] = False
+        groups.setdefault((int(row["instance_id"]), int(row["budget"])), []).append(row)
+
+    for group in groups.values():
+        best_opt = max(group, key=lambda r: float(r["opt_C1O1"]))
+        best_opt["is_worst_optimality"] = True
+        eligible = [r for r in group if float(r["opt_C1O1"]) <= opt_cap]
+        if eligible:
+            best_exp = max(eligible, key=lambda r: float(r["exp_C1O1"]))
+            best_exp["is_worst_efficiency"] = True
+    return list(rows)
+
+
+def summarize_sweep(rows: Sequence[Dict[str, object]]) -> Dict[str, object]:
+    """Per-instance summary of an exhaustive sweep.
+
+    Args:
+        rows: Rows from `evaluate_alterations`, already tagged by
+            `select_worst_flips`.
+
+    Returns:
+        dict: ``per_instance`` (one entry per instance with the baseline, the
+        worst value under each objective and the share of damaging cells) and
+        ``overall`` aggregates across instances.
+    """
+    by_instance: Dict[int, List[Dict[str, object]]] = {}
+    for row in rows:
+        by_instance.setdefault(int(row["instance_id"]), []).append(row)
+
+    per_instance = []
+    for instance_id in sorted(by_instance):
+        group = by_instance[instance_id]
+        opt = np.array([float(r["opt_C1O1"]) for r in group])
+        exp = np.array([float(r["exp_C1O1"]) for r in group])
+        baseline_opt = float(group[0]["opt_C0O0"])
+        baseline_exp = float(group[0]["exp_C0O0"])
+        eligible = opt <= OPT_CAP_FOR_EFFICIENCY
+        worst_opt_row = next(r for r in group if r.get("is_worst_optimality"))
+        worst_exp_row = next((r for r in group if r.get("is_worst_efficiency")), None)
+        per_instance.append(
+            {
+                "instance_id": instance_id,
+                "n_alterations": len(group),
+                "baseline_opt": baseline_opt,
+                "baseline_exp": baseline_exp,
+                "worst_opt": float(opt.max()),
+                "worst_opt_cell": list(worst_opt_row["flip_cells"][0]),
+                "worst_exp_within_cap": float(exp[eligible].max()) if eligible.any() else np.nan,
+                "worst_exp_cell": (
+                    list(worst_exp_row["flip_cells"][0]) if worst_exp_row else None
+                ),
+                "frac_cells_damaging_opt": float(np.mean(opt > max(baseline_opt, 1.0))),
+                "frac_cells_exp_above_1_5": float(np.mean(exp > 1.5)),
+                "mean_opt": float(opt.mean()),
+                "mean_exp": float(exp.mean()),
+            }
+        )
+
+    worst_opt_values = np.array([p["worst_opt"] for p in per_instance])
+    baselines = np.array([p["baseline_opt"] for p in per_instance])
+    damaging = np.array([p["frac_cells_damaging_opt"] for p in per_instance])
+    optimal_at_baseline = baselines <= 1.0
+    return {
+        "per_instance": per_instance,
+        "overall": {
+            "n_instances": len(per_instance),
+            "n_alterations": int(sum(p["n_alterations"] for p in per_instance)),
+            "frac_instances_with_a_damaging_cell": float(
+                np.mean(worst_opt_values[optimal_at_baseline] > 1.0)
+                if optimal_at_baseline.any()
+                else np.nan
+            ),
+            "n_instances_optimal_at_baseline": int(optimal_at_baseline.sum()),
+            "median_frac_cells_damaging": float(np.median(damaging)),
+            "mean_frac_cells_damaging": float(np.mean(damaging)),
+            "max_worst_opt": float(worst_opt_values.max()),
+            "median_worst_opt": float(np.median(worst_opt_values[optimal_at_baseline]))
+            if optimal_at_baseline.any()
+            else np.nan,
+        },
+    }
+
+
+def greedy_flip_search(
+    planner,
+    instance: MazeInstance,
+    budget: int,
+    objective: str,
+    candidate_pool: Sequence[RC],
+    baselines: Optional[Dict[int, Baseline]] = None,
+    batch_size: int = 128,
+    opt_cap: float = OPT_CAP_FOR_EFFICIENCY,
+) -> List[Dict[str, object]]:
+    """Grow a damaging flip set one cell at a time, keeping the best each round.
+
+    Exhaustive search is only affordable at k=1: the number of cell *sets*
+    grows as ``C(1022, k)``. Greedy search replaces it with ``budget`` rounds of
+    single-cell choices, each conditioned on the cells chosen so far. It is an
+    approximation — a pair of cells that only hurts jointly will be missed —
+    and the random baseline at the same budgets is what keeps that bias
+    visible.
+
+    The candidate pool is supplied by the caller rather than being the whole
+    grid, because the exhaustive k=1 sweep already ranks every cell: passing
+    its top cells turns an 8 x 1022 search into 8 x |pool|. That prunes
+    combinations whose first cell is individually harmless, which is the
+    second approximation and is logged with the results.
+
+    Args:
+        planner: A `NeuralAstar` in eval mode.
+        instance: The instance to attack.
+        budget: Maximum number of cells to flip.
+        objective: ``"optimality"`` (maximise the Opt ratio) or
+            ``"efficiency"`` (maximise the Exp ratio subject to the Opt ratio
+            staying at or below `opt_cap`).
+        candidate_pool: Cells the search may choose from.
+        baselines: Shared `Baseline` cache, as for `evaluate_alterations`.
+        batch_size: Planner batch size per round.
+        opt_cap: Opt ratio cap for the efficiency objective.
+
+    Returns:
+        list[dict]: One results row per round, i.e. the chosen set at budgets
+        1, 2, … up to `budget`. Each row is a normal alteration row with
+        ``method="greedy"`` and the objective recorded, so the rows append
+        directly to the results manifest. Rounds that find no admissible
+        addition stop the search early and shorten the list.
+
+    Raises:
+        ValueError: If `objective` is unknown.
+    """
+    if objective not in ("optimality", "efficiency"):
+        raise ValueError(f"unknown objective {objective!r}")
+    baselines = {} if baselines is None else baselines
+
+    chosen: List[RC] = []
+    history: List[Dict[str, object]] = []
+    pool = [tuple(rc) for rc in candidate_pool]
+
+    for _ in range(budget):
+        requests = []
+        for candidate in pool:
+            if candidate in chosen:
+                continue
+            cells = tuple(sorted(chosen + [candidate]))
+            altered = flip_cells(instance.map_design, cells)
+            if not is_reachable(altered, instance.start_rc, instance.goal_rc):
+                continue
+            requests.append(
+                AlterationRequest(
+                    instance=instance,
+                    flip_cells=cells,
+                    method="greedy",
+                    objective=objective,
+                    extra={"candidate": list(candidate)},
+                )
+            )
+        if not requests:
+            break
+
+        rows = evaluate_alterations(
+            planner, requests, baselines=baselines, batch_size=batch_size
+        )
+        if objective == "optimality":
+            best = max(rows, key=lambda r: float(r["opt_C1O1"]))
+        else:
+            eligible = [r for r in rows if float(r["opt_C1O1"]) <= opt_cap]
+            if not eligible:
+                break
+            best = max(eligible, key=lambda r: float(r["exp_C1O1"]))
+
+        chosen = [tuple(rc) for rc in best["flip_cells"]]
+        best.pop("candidate", None)
+        history.append(best)
+    return history
+
+
+def candidate_pool_from_rows(
+    rows: Sequence[Dict[str, object]],
+    objective: str,
+    size: int = 64,
+) -> List[RC]:
+    """Rank k=1 sweep rows and return the most promising cells.
+
+    Args:
+        rows: Exhaustive k=1 rows for a single instance.
+        objective: ``"optimality"`` or ``"efficiency"``; decides the ranking
+            metric.
+        size: How many cells to keep.
+
+    Returns:
+        list[tuple[int, int]]: The `size` best single cells, best first. Ties
+        break by row order, which is row-major by cell, so the pool is
+        deterministic.
+
+    Raises:
+        ValueError: If `objective` is unknown.
+    """
+    if objective == "optimality":
+        key = "opt_C1O1"
+    elif objective == "efficiency":
+        key = "exp_C1O1"
+    else:
+        raise ValueError(f"unknown objective {objective!r}")
+    ranked = sorted(rows, key=lambda r: -float(r[key]))
+    return [tuple(r["flip_cells"][0]) for r in ranked[:size]]

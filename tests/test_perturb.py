@@ -270,3 +270,149 @@ def test_summarize_by_direction_splits_pillars_from_doors() -> None:
     assert table[0]["frac_newly_suboptimal"] == 0.0
     assert table[1]["frac_newly_suboptimal"] == 1.0
     assert all(abs(entry["share_of_draws"] - 0.5) < 1e-12 for entry in table)
+
+
+# --------------------------------------------------------------------------- #
+# Sweep selection (step 6) and greedy search (step 9)
+# --------------------------------------------------------------------------- #
+
+def _sweep_row(instance_id, cell, opt, exp, base_opt=1.0, base_exp=0.5, budget=1):
+    """A minimal alteration row for the selection and summary helpers."""
+    return {
+        "instance_id": instance_id,
+        "budget": budget,
+        "flip_cells": [cell],
+        "opt_C1O1": opt,
+        "exp_C1O1": exp,
+        "opt_C0O0": base_opt,
+        "exp_C0O0": base_exp,
+    }
+
+
+def test_worst_flip_selection_respects_the_optimality_cap() -> None:
+    """The efficiency winner must not be a flip that wrecks the path.
+
+    Without the cap the efficiency objective would simply pick the most
+    damaging flip, since a wrecked path usually also expands more nodes, and
+    the two objectives would stop being distinct.
+    """
+    from src.perturb import OPT_CAP_FOR_EFFICIENCY, select_worst_flips
+
+    rows = [
+        _sweep_row(0, (1, 1), opt=1.30, exp=9.0),   # huge Exp but way over the cap
+        _sweep_row(0, (2, 2), opt=1.04, exp=3.0),   # best Exp within the cap
+        _sweep_row(0, (3, 3), opt=1.02, exp=2.0),
+    ]
+    select_worst_flips(rows, opt_cap=OPT_CAP_FOR_EFFICIENCY)
+    assert [r["flip_cells"] for r in rows if r["is_worst_optimality"]] == [[(1, 1)]]
+    assert [r["flip_cells"] for r in rows if r["is_worst_efficiency"]] == [[(2, 2)]]
+
+
+def test_selection_is_per_instance_and_per_budget() -> None:
+    """Each (instance, budget) group gets its own winners."""
+    from src.perturb import select_worst_flips
+
+    rows = [
+        _sweep_row(0, (1, 1), 1.2, 1.0),
+        _sweep_row(1, (1, 1), 1.1, 1.0),
+        _sweep_row(1, (2, 2), 1.5, 1.0),
+    ]
+    select_worst_flips(rows)
+    winners = {(r["instance_id"], tuple(r["flip_cells"][0])) for r in rows if r["is_worst_optimality"]}
+    assert winners == {(0, (1, 1)), (1, (2, 2))}
+
+
+def test_selection_leaves_no_efficiency_winner_when_nothing_qualifies() -> None:
+    """If every flip breaks the path, the efficiency objective has no winner."""
+    from src.perturb import select_worst_flips
+
+    rows = [_sweep_row(0, (1, 1), 1.9, 5.0), _sweep_row(0, (2, 2), 1.8, 4.0)]
+    select_worst_flips(rows)
+    assert not any(r["is_worst_efficiency"] for r in rows)
+    assert sum(r["is_worst_optimality"] for r in rows) == 1
+
+
+def test_sweep_summary_counts_damaging_cells() -> None:
+    """The summary reports the share of cells that damage optimality."""
+    from src.perturb import select_worst_flips, summarize_sweep
+
+    rows = [
+        _sweep_row(0, (1, 1), 1.0, 0.5),
+        _sweep_row(0, (2, 2), 1.2, 0.6),
+        _sweep_row(0, (3, 3), 1.0, 0.4),
+        _sweep_row(0, (4, 4), 1.0, 1.6),
+    ]
+    select_worst_flips(rows)
+    summary = summarize_sweep(rows)
+    entry = summary["per_instance"][0]
+    assert entry["n_alterations"] == 4
+    assert abs(entry["frac_cells_damaging_opt"] - 0.25) < 1e-12
+    assert abs(entry["frac_cells_exp_above_1_5"] - 0.25) < 1e-12
+    assert summary["overall"]["frac_instances_with_a_damaging_cell"] == 1.0
+
+
+def test_candidate_pool_ranks_by_the_objective() -> None:
+    """Each objective ranks the k=1 cells by its own metric."""
+    from src.perturb import candidate_pool_from_rows
+
+    rows = [
+        _sweep_row(0, (0, 0), 1.0, 2.0),
+        _sweep_row(0, (1, 1), 1.3, 0.5),
+        _sweep_row(0, (2, 2), 1.1, 3.0),
+    ]
+    assert candidate_pool_from_rows(rows, "optimality", 2) == [(1, 1), (2, 2)]
+    assert candidate_pool_from_rows(rows, "efficiency", 2) == [(2, 2), (0, 0)]
+    with pytest.raises(ValueError, match="unknown objective"):
+        candidate_pool_from_rows(rows, "speed", 2)
+
+
+def test_greedy_search_grows_a_nested_sequence(pretrained_planner, test_split) -> None:
+    """Greedy returns one row per budget, each extending the previous set.
+
+    The nesting is what makes the result usable as budgets 1..k at once, and
+    it is the defining property of a greedy search as opposed to an
+    independent search per budget.
+    """
+    from src.perturb import candidate_cells, greedy_flip_search
+
+    inst = test_split.instance(0, seed=0)
+    pool = candidate_cells(inst.map_design, inst.start_rc, inst.goal_rc)[:6]
+    history = greedy_flip_search(
+        pretrained_planner, inst, budget=3, objective="optimality", candidate_pool=pool
+    )
+    assert 1 <= len(history) <= 3
+    for position, row in enumerate(history, start=1):
+        assert row["budget"] == position
+        assert row["method"] == "greedy" and row["objective"] == "optimality"
+        assert "candidate" not in row
+    for earlier, later in zip(history, history[1:]):
+        assert set(map(tuple, earlier["flip_cells"])) < set(map(tuple, later["flip_cells"]))
+
+
+def test_greedy_optimality_is_monotone(pretrained_planner, test_split) -> None:
+    """Adding a cell can never lower the objective the search is maximising.
+
+    Each round re-evaluates every candidate on top of the set already chosen
+    and keeps the best, so the chosen value is a maximum over a superset of
+    the previous round's options.
+    """
+    from src.perturb import candidate_cells, greedy_flip_search
+
+    inst = test_split.instance(2, seed=0)
+    pool = candidate_cells(inst.map_design, inst.start_rc, inst.goal_rc)[:8]
+    history = greedy_flip_search(
+        pretrained_planner, inst, budget=3, objective="optimality", candidate_pool=pool
+    )
+    values = [float(row["opt_C1O1"]) for row in history]
+    assert values == sorted(values), f"greedy optimality went down: {values}"
+
+
+def test_greedy_rejects_an_unknown_objective(pretrained_planner, test_split) -> None:
+    """A typo in the objective name fails before any computation."""
+    from src.perturb import greedy_flip_search
+
+    inst = test_split.instance(0, seed=0)
+    with pytest.raises(ValueError, match="unknown objective"):
+        greedy_flip_search(
+            pretrained_planner, inst, budget=1, objective="speed", candidate_pool=[(1, 1)]
+        )
