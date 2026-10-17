@@ -61,15 +61,17 @@ If the failure reappears with altered costs on original obstacles, the encoder's
 
 ## Status — 2026-10-17
 
-**Steps 0–8 of the plan are done** (plus the cross-family validity check): the environment is pinned and asserted,
-the upstream numbers are reproduced, the structural premise of the swap design
-is verified in code and under test, the exact solver reproduces upstream's
-search exactly (`make step2`), the random-flip pilot has run with its budget
-decision (`make pilot`), and the E1 feature library is built and spot-checked
-(`make features spotcheck`), and the surrogate fits plus the sufficiency test
-have run (`make surrogate`). The exhaustive single-flip sweep, the mediation
-swap, the attribution study and the cross-family comparison have all completed
-(`make sweep swap attribution families`).
+**Steps 0–9 of the plan are done**, plus the cross-family validity check.
+The environment is pinned and asserted; the published numbers are reproduced;
+the structural premise of the mediation design is verified in code and under
+test; the exact solver reproduces the published search exactly; every one of
+the 102 198 single-cell map alterations has been evaluated; the damage has
+been decomposed into its two routes at four attack budgets; the attribution
+methods have been tested against a bound the architecture makes exact; and the
+findings have been checked against all eight map families.
+
+Step 10 (three training seeds) is running. Everything is reproducible with the
+`make` targets below — `make help` lists them with their runtimes.
 
 > The research plan, the verification record (every premise checked in code,
 > with file and line references), the decision log and the per-step write-ups
@@ -521,11 +523,11 @@ that same map. Classical A\* replanning correctly is not an error.
 - [ ] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] ⬜ · WarCraft [11] only if time allows.
 - [ ] **Final:** E4 if reached [12]; write-up with explicit negative results.
 
-**Next step:** step 9 — greedy search at budgets 2, 4 and 8, repeating the
-mediation decomposition at each to see whether the encoder/search split moves
-with the size of the attack. After that: three training seeds (step 10) to turn
-single-model observations into claims, and per-family training to finish the
-validity check begun in step 7b.
+**Next step:** step 10 — three encoders trained from different seeds, with the
+surrogate fits and the mediation decomposition repeated on each, to turn
+single-model observations into claims with a dispersion attached. After that,
+per-family training finishes the validity check begun in step 7b, and the
+detector of E4 becomes available.
 
 ---
 
