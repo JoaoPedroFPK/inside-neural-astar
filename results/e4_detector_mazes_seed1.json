@@ -1,0 +1,88 @@
+{
+  "split": "test",
+  "seed": 0,
+  "family": "mazes",
+  "model_tag": "mazes_seed1",
+  "surrogate": {
+    "group": "geometric_h1",
+    "kind": "gbm",
+    "r2": 0.29390610805833683
+  },
+  "clean_residual_sd": 0.22561972144943734,
+  "residual_features": [
+    "mean_abs",
+    "std",
+    "max_abs",
+    "p99_abs",
+    "frac_over_2sd",
+    "max_window_share",
+    "signed_mean"
+  ],
+  "map_only_features": [
+    "obstacle_fraction",
+    "isolated_obstacles",
+    "isolated_free_cells",
+    "dead_ends",
+    "optimum_length"
+  ],
+  "conditions": [
+    {
+      "condition": "k1_opt",
+      "n_instances": 100,
+      "n_test_pairs": 50,
+      "residual_auc": 0.7316,
+      "residual_accuracy": 0.68,
+      "map_only_auc": 0.745,
+      "map_only_accuracy": 0.74,
+      "combined_auc": 0.8632000000000001,
+      "combined_minus_map_only": {
+        "gap": 0.11820000000000008,
+        "lo": 0.04079499999999984,
+        "hi": 0.1972199999999997,
+        "p_positive": 0.998
+      },
+      "mahalanobis_auc": 0.784,
+      "mahalanobis_variant": "l5_max",
+      "mahalanobis_auc_by_variant": {
+        "l2_mean": 0.7704,
+        "l2_max": 0.7302000000000001,
+        "l5_mean": 0.7816,
+        "l5_max": 0.784,
+        "l8_mean": 0.748,
+        "l8_max": 0.7023999999999999,
+        "l11_mean": 0.7656,
+        "l11_max": 0.5844
+      },
+      "seconds": 3.791191500000423
+    },
+    {
+      "condition": "k1_eff",
+      "n_instances": 100,
+      "n_test_pairs": 50,
+      "residual_auc": 0.7804,
+      "residual_accuracy": 0.67,
+      "map_only_auc": 0.6308,
+      "map_only_accuracy": 0.58,
+      "combined_auc": 0.8824000000000001,
+      "combined_minus_map_only": {
+        "gap": 0.25160000000000005,
+        "lo": 0.17059499999999986,
+        "hi": 0.328605,
+        "p_positive": 1.0
+      },
+      "mahalanobis_auc": 0.8116,
+      "mahalanobis_variant": "l5_mean",
+      "mahalanobis_auc_by_variant": {
+        "l2_mean": 0.79,
+        "l2_max": 0.8048,
+        "l5_mean": 0.8116,
+        "l5_max": 0.7624,
+        "l8_mean": 0.7776,
+        "l8_max": 0.7163999999999999,
+        "l11_mean": 0.7891999999999999,
+        "l11_max": 0.6244000000000001
+      },
+      "seconds": 4.298255542002153
+    }
+  ]
+}

@@ -39,7 +39,7 @@ The learned cost map approximates two geometric quantities — distance to goal 
 | **E1** | Characterize the cost map: fit an additive model on geometric features (geodesic & Euclidean distance to goal, distance to nearest obstacle, local obstacle density, corridor width); residual analysis by local topology (junction / corridor / dead end / open area); Integrated Gradients from cost cells back to the input; controlled map edits. | H1 |
 | **E2** | Perturbations: flip 1–8 cells, chosen by gradient-guided search through the differentiable module (exhaustive for 1–2 cells, greedy for larger budgets), reachability preserved; random flips as baseline. Two objectives: degrade path optimality / degrade search efficiency. Compare against classical A\* on the same altered maps. | premise |
 | **E3** | Mediation via the 2×2 swap design (see below). Metrics: fraction of ΔOpt and ΔExp reproduced by each off-diagonal cell; ΔCost (L1 and spatial localization). | H2 |
-| **E4** *(stretch)* | Detection: do attacked inputs produce cost maps whose residual from the E1 surrogate is anomalous? Baseline: Mahalanobis distance on encoder activations. | H3 |
+| **E4** ✅ | Detection: do attacked inputs produce cost maps whose residual from the E1 surrogate is anomalous? Baselines: Mahalanobis distance on encoder activations **and** a model-free classifier on grid statistics. | H3 |
 
 ### The swap design (E3)
 
@@ -480,6 +480,47 @@ where every maze model had the search route leading on effort. That is one
 model with a 0.034 margin — exactly the shape of evidence step 10 overturned —
 so it is recorded as a difference worth testing, not a reversal.
 
+### Step 12 — detecting a tampered map from the planner's internals
+
+The planner never signals that its input was altered; it just returns a worse
+route. Can the tampering be seen from inside? Three detectors are compared on a
+paired task — each map's clean and altered version, separate them — scored by
+AUC, where 0.5 is chance.
+
+| detector | what it sees |
+|---|---|
+| surrogate residual | the cost map minus what the step-5 geometry surrogate predicts, in seven summary statistics |
+| Mahalanobis (baseline) | pooled encoder activations, scored against clean maps; best of four layers × two poolings |
+| grid statistics (control) | the map alone: obstacle fraction, isolated obstacles, isolated free cells, dead ends, path length — no model |
+
+**The residual loses to the standard baseline in all ten conditions**, and the
+baseline's own strength is unexplained: its best configuration's dominant
+direction correlates 0.994 with the obstacle count, but constructing
+alterations that hold the obstacle count fixed costs it 0.003 AUC while costing
+the grid control 0.124. Mahalanobis distance discounts the directions that vary
+most among clean examples, so the obvious mechanism is the wrong one.
+
+**What the residual does do is add information the grid does not contain**, and
+the gain tracks how inconspicuous the alteration is:
+
+| alteration | grid control alone | gain from adding the residual |
+|---|---|---|
+| 1 flip, chosen for path damage | 0.779 | **+0.113** [+0.045, +0.178] |
+| 1 flip, chosen for search-effort damage | 0.634 | **+0.238** [+0.142, +0.311] |
+| 2 flips, obstacle count hidden | 0.794 | **+0.146** [+0.083, +0.206] |
+| 2 flips, both blocking | 0.918 | +0.061 [+0.011, +0.125] |
+| 8 flips, chosen for path damage | 0.927 | +0.005 [−0.040, +0.052] |
+
+Every gap carries a bootstrap interval over scoring maps, because step 9's
+retracted conclusion came from a 0.03 margin. The single-flip gains replicate
+in all four maze models (+0.111 to +0.137 on path, +0.228 to +0.252 on effort,
+every interval clear of zero) and **vanish on forest** (−0.001 and −0.046, one
+model). A detector fitted on four-cell flips transfers to every other condition
+for ≤ 0.024 AUC, except two-blocking-cells at 0.046.
+
+Full write-up: `docs/steps/step-12-detector.md`, including the leak that made
+the first transfer run return a flat AUC of 1.000.
+
 ### Negative and corrected results, collected
 
 The plan asks for these to be explicit rather than buried, so they are listed
@@ -493,6 +534,8 @@ together. Each links to the step that produced it.
 | Large distortions steer the search to a worse path | Correlation between the size of the cost-map change and whether the path broke: **+0.04**. Among broken cases, severity correlates **−0.06**. Non-monotone, with the largest distortions *less* damaging. Location predicts damage; magnitude does not. |
 | ~~Search-effort damage is search-mediated~~ | **Reinstated.** The pooled 2.6 : 1 was wrong, and so was the single-model correction (0.23 vs 0.26). Across four models the search route is larger in every one, 0.256–0.363 against 0.040–0.229. |
 | Denser map families would make the plan's cell partition usable | The "dead end" class is empty in **all eight** families, including the densest at 36 % obstacles. |
+| The surrogate residual would beat an out-of-distribution score at detecting tampering | It loses in **all ten** conditions. It is a complement to a model-free grid control, not a replacement for the standard baseline. |
+| The OOD baseline is essentially counting obstacles | Its dominant activation direction correlates 0.994 with the obstacle count, but hiding the count costs it **0.003** AUC (and costs the grid control 0.124). Written down, then tested, then withdrawn. |
 
 **Premises of the project that were wrong**
 
@@ -548,8 +591,8 @@ together. Each links to the step that produced it.
 │   ├── perturb.py             ✅ [3,6,9] flips: random, exhaustive, greedy
 │   ├── swap.py                ✅ [7] the 2×2 cost/obstacle harness + mediation
 │   ├── attribution.py         ✅ [8] integrated gradients, Grad-CAM, sanity checks
-│   └── detect.py              ⬜ [12] residual detector + Mahalanobis baseline
-├── tests/                     ✅ 161 tests across 14 files, including published-tree and manifest-schema guards
+│   └── detect.py              ✅ [12] residual detector, OOD + model-free baselines, bootstrap
+├── tests/                     ✅ 189 tests across 15 files, including published-tree and manifest-schema guards
 ├── notebooks/                 ✅ 01_features_spotcheck.ipynb (display only)
 └── results/
     ├── e0_reproduce.json      ✅ [0]
@@ -686,13 +729,14 @@ that same map. Classical A\* replanning correctly is not an error.
 - [x] **Stage 1 — Proposal** (16 Oct 2026): question, hypothesis, design. ✔ submitted
 - [ ] **Stage 2:** E0 reproduced ✅ · swap premise confirmed in `differentiable_astar.py` ✅ · exact solver + metrics [2] ✅ · random-flip pilot [3] ✅ · feature library [4] ✅ · surrogate fit [5] ✅ · perturbation harness [6] ✅
 - [ ] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] ✅ · WarCraft [11] not started — it needs a third-party dataset download, so it waits for an explicit decision rather than being fetched automatically.
-- [ ] **Final:** E4 if reached [12]; write-up with explicit negative results.
+- [ ] **Final:** E4 detector [12] ✅ · write-up with explicit negative results.
 
-**Next step:** three seeds on `forest`, to settle whether the mediation
+**Next step:** finish the three `forest` seeds, to settle whether the mediation
 difference found there is real or the same single-model artefact step 10
-exposed on mazes — about 45 minutes per seed. After that, step 11 (WarCraft)
-if the dataset download is wanted, and the E4 detector, which should rest on
-the surrogate residual rather than on attribution density.
+exposed on mazes — about 45 minutes per seed, two of them running. After that,
+step 11 (WarCraft) if the dataset download is wanted, and three optional
+extensions to step 12: an unpaired version of the detection task, a
+convolutional map-only control, and a gradient-guided attack to detect.
 
 ---
 

@@ -1,0 +1,88 @@
+{
+  "split": "test",
+  "seed": 0,
+  "family": "forest",
+  "model_tag": "forest_seed0",
+  "surrogate": {
+    "group": "geometric_h1",
+    "kind": "gbm",
+    "r2": 0.20463514517302617
+  },
+  "clean_residual_sd": 0.2045267616802741,
+  "residual_features": [
+    "mean_abs",
+    "std",
+    "max_abs",
+    "p99_abs",
+    "frac_over_2sd",
+    "max_window_share",
+    "signed_mean"
+  ],
+  "map_only_features": [
+    "obstacle_fraction",
+    "isolated_obstacles",
+    "isolated_free_cells",
+    "dead_ends",
+    "optimum_length"
+  ],
+  "conditions": [
+    {
+      "condition": "k1_opt",
+      "n_instances": 100,
+      "n_test_pairs": 50,
+      "residual_auc": 0.582,
+      "residual_accuracy": 0.56,
+      "map_only_auc": 0.7426,
+      "map_only_accuracy": 0.76,
+      "combined_auc": 0.7420000000000001,
+      "combined_minus_map_only": {
+        "gap": -0.0005999999999999339,
+        "lo": -0.0364050000000001,
+        "hi": 0.03600999999999997,
+        "p_positive": 0.461
+      },
+      "mahalanobis_auc": 0.5844,
+      "mahalanobis_variant": "l5_mean",
+      "mahalanobis_auc_by_variant": {
+        "l2_mean": 0.5444,
+        "l2_max": 0.5336,
+        "l5_mean": 0.5844,
+        "l5_max": 0.5391999999999999,
+        "l8_mean": 0.5436,
+        "l8_max": 0.526,
+        "l11_mean": 0.562,
+        "l11_max": 0.5127999999999999
+      },
+      "seconds": 5.616266833996633
+    },
+    {
+      "condition": "k1_eff",
+      "n_instances": 95,
+      "n_test_pairs": 48,
+      "residual_auc": 0.5390625,
+      "residual_accuracy": 0.5520833333333334,
+      "map_only_auc": 0.6955295138888888,
+      "map_only_accuracy": 0.6458333333333334,
+      "combined_auc": 0.6497395833333334,
+      "combined_minus_map_only": {
+        "gap": -0.04578993055555547,
+        "lo": -0.09810112847222223,
+        "hi": 0.004128689236111145,
+        "p_positive": 0.0345
+      },
+      "mahalanobis_auc": 0.552517361111111,
+      "mahalanobis_variant": "l8_mean",
+      "mahalanobis_auc_by_variant": {
+        "l2_mean": 0.5238715277777778,
+        "l2_max": 0.511501736111111,
+        "l5_mean": 0.5203993055555556,
+        "l5_max": 0.5353732638888888,
+        "l8_mean": 0.552517361111111,
+        "l8_max": 0.5069444444444444,
+        "l11_mean": 0.5351562500000001,
+        "l11_max": 0.5247395833333334
+      },
+      "seconds": 5.337059666984715
+    }
+  ]
+}
