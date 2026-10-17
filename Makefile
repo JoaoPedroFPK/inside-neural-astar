@@ -68,7 +68,9 @@ verify:  ## check that figures quoted in the write-ups match the stored results
 	$(PY) scripts/verify_reported_numbers.py
 
 seeds:  ## PLAN.md step 10: compare trained seeds and report dispersion
-	$(PY) scripts/compare_seeds.py --tags "" mazes_seed0 mazes_seed1 mazes_seed2
+	$(PY) scripts/compare_seeds.py --tags "" mazes_seed0 mazes_seed1 mazes_seed2 \
+	    --checkpoints "" results/models/mazes_seed0 results/models/mazes_seed1 results/models/mazes_seed2 \
+	    --shared-flips results/manifest.parquet
 
 pipeline:  ## every experiment in dependency order (~1h15 on a laptop CPU)
 	@echo "==> step 0: reproduction"      && $(MAKE) --no-print-directory e0

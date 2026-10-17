@@ -238,6 +238,58 @@ def cost_map_agreement(tags: List[str]) -> List[Dict[str, object]]:
     return out
 
 
+def mediation_on_shared_flips(
+    tag: str, checkpoint: Optional[Path], seed: int, manifest: Path
+) -> Dict[str, object]:
+    """Decompose the *same* alterations with every model.
+
+    Repeating step 7 per model uses each model's own worst flips, which is the
+    faithful repetition but mixes two sources of variance: the models differ,
+    *and* the alterations differ. Running every model on one fixed set of
+    flips isolates the first.
+
+    The shared set is the alterations tagged in the reference manifest, which
+    were chosen as worst for the shipped checkpoint — so this measurement is
+    "how do other models respond to the flips that break this one", not "how
+    fragile is each model".
+
+    Args:
+        tag: Model tag (empty for the shipped checkpoint).
+        checkpoint: Its checkpoint, or None for the shipped one.
+        seed: Start-selection seed.
+        manifest: Manifest holding the tagged flips.
+
+    Returns:
+        dict: Mediation means per objective over the shared alterations,
+        restricted to those where the optimum did not change.
+    """
+    from src.swap import run_swap, summarize_swaps
+
+    frame = pd.read_parquet(manifest)
+    planner = load_pretrained_neural_astar(checkpoint_path=checkpoint)
+    split = load_split("test")
+    out: Dict[str, object] = {}
+    for objective, column, metric in (
+        ("optimality", "is_worst_optimality", "opt"),
+        ("efficiency", "is_worst_efficiency", "exp"),
+    ):
+        selected = frame[frame[column].fillna(False).astype(bool)]
+        results = []
+        for _, record in selected.iterrows():
+            instance = split.instance(int(record["instance_id"]), seed=seed)
+            cells = [tuple(int(v) for v in cell) for cell in record["flip_cells"]]
+            results.append(run_swap(planner, instance, cells))
+        clean = [r for r in results if not r.optimum_changed]
+        summary = summarize_swaps(clean, metric)
+        if summary["n_with_damage"]:
+            out[f"shared_{objective}"] = {
+                "n": summary["n_with_damage"],
+                "encoder": summary["encoder_mean"],
+                "search": summary["search_mean"],
+            }
+    return out
+
+
 def main() -> int:
     """Compare every requested model and report the dispersion."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -246,6 +298,12 @@ def main() -> int:
         "--checkpoints", nargs="*", default=[], help="checkpoint per tag, in the same order"
     )
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--shared-flips",
+        type=Path,
+        default=None,
+        help="manifest whose tagged flips every model should also be measured on",
+    )
     args = parser.parse_args()
 
     checkpoints: List[Optional[Path]] = [Path(c) for c in args.checkpoints]
@@ -256,7 +314,12 @@ def main() -> int:
     rows = []
     for tag, checkpoint in zip(args.tags, checkpoints):
         print(f"evaluating {tag or 'pretrained'}...", flush=True)
-        rows.append(evaluate_tag(tag, checkpoint, args.seed))
+        row = evaluate_tag(tag, checkpoint, args.seed)
+        if args.shared_flips is not None and args.shared_flips.exists():
+            row.update(
+                mediation_on_shared_flips(tag, checkpoint, args.seed, args.shared_flips)
+            )
+        rows.append(row)
 
     frame = pd.json_normalize(rows)
     numeric = frame.select_dtypes("number")
@@ -319,6 +382,33 @@ def render_markdown(
             f"{planning['h_mean']:.3f} | {fits['geometric_h1_gbm']:.3f} | "
             f"{fits['path_gbm']:.3f} | {fits['all_gbm']:.3f} | {sufficiency['p_opt']:.3f} |"
         )
+    if any("shared_optimality" in row for row in rows):
+        lines += [
+            "",
+            "## The same alterations, decomposed by every model",
+            "",
+            "Repeating step 7 per model uses each model's own worst flips, which mixes "
+            "two sources of variance: the models differ and the alterations differ. "
+            "Here every model is run on one fixed set — the flips chosen as worst for "
+            "the shipped checkpoint — which isolates the model difference.",
+            "",
+            "| model | path: encoder | path: search | effort: encoder | effort: search |",
+            "|-------|---------------|--------------|-----------------|----------------|",
+        ]
+        for row in rows:
+            path_part = row.get("shared_optimality")
+            effort_part = row.get("shared_efficiency")
+            if not path_part:
+                continue
+            lines.append(
+                f"| `{row['tag']}` | {path_part['encoder']:+.3f} | {path_part['search']:+.3f} | "
+                + (
+                    f"{effort_part['encoder']:+.3f} | {effort_part['search']:+.3f} |"
+                    if effort_part
+                    else "— | — |"
+                )
+            )
+        lines.append("")
     if any("mediation_optimality" in row for row in rows):
         lines += [
             "",
