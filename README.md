@@ -348,7 +348,7 @@ per-family training is required before concluding anything about them.
 │   ├── swap.py                ✅ [7] the 2×2 cost/obstacle harness + mediation
 │   ├── attribution.py         ✅ [8] integrated gradients, Grad-CAM, sanity checks
 │   └── detect.py              ⬜ [12] residual detector + Mahalanobis baseline
-├── tests/                     ✅ 146 tests across 12 files, including a published-tree hygiene guard
+├── tests/                     ✅ 154 tests across 13 files, including published-tree and manifest-schema guards
 ├── notebooks/                 ✅ 01_features_spotcheck.ipynb (display only)
 └── results/
     ├── e0_reproduce.json      ✅ [0]
@@ -388,7 +388,7 @@ Check an environment you did not build yourself:
 
 ```bash
 make test-env     # 16 assertions: interpreter, pins, data, checkpoint, clean submodule
-make test         # whole suite, 146 tests, ~16 s
+make test         # whole suite, 154 tests, ~35 s
 ```
 
 ### Data
