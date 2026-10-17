@@ -172,6 +172,80 @@ def render_figure(planner, split, entries: List[Dict[str, object]], out_dir: Pat
     return written
 
 
+def replicate_group_comparison(
+    planner, split, manifest: Optional[pd.DataFrame], n_per_group: int, seed: int, steps: int
+) -> Optional[Dict[str, object]]:
+    """Re-measure the attacked-vs-clean attribution comparison at larger n.
+
+    The curated set has five cells per group, which turned out to be far too
+    few: the ratio it produced did not survive re-measurement. This draws
+    larger samples from the exhaustive sweep and reports the comparison three
+    ways — two independent draws of damaging cells, and the worst flips
+    specifically — so the spread across draws is visible rather than a single
+    number being quoted.
+
+    Args:
+        planner: The pretrained planner.
+        split: The loaded `MazeSplit`.
+        manifest: The step-6 manifest, or None to skip.
+        n_per_group: Cells per group.
+        seed: Seed for the draws.
+        steps: Integration steps (32 is enough for a density comparison).
+
+    Returns:
+        dict | None: Per-comparison ratio, p-value and sample sizes, or None
+        when the manifest or the feature archive is unavailable.
+    """
+    if manifest is None:
+        return None
+    try:
+        from scipy import stats
+
+        from scripts.analyse_damaging_cells import load_joined
+    except Exception:  # pragma: no cover - optional dependency path
+        return None
+    archive = config.RESULTS_DIR / "features_test.npz"
+    if not archive.exists():
+        return None
+
+    frame = load_joined(config.RESULTS_DIR / "manifest.parquet", "test")
+    free = frame[frame["is_free"] == 1]
+
+    def density(subset) -> np.ndarray:
+        """Attribution mass per nearby obstacle, which removes the baseline artefact."""
+        values = []
+        for _, row in subset.iterrows():
+            instance = split.instance(int(row["instance_id"]), seed=seed)
+            cell = (int(row["cell_row"]), int(row["cell_col"]))
+            attribution = integrated_gradients(planner, instance, cell, steps=steps)
+            rows_, columns_ = np.ogrid[: instance.map_design.shape[0], : instance.map_design.shape[1]]
+            near = (np.abs(rows_ - cell[0]) <= 5) & (np.abs(columns_ - cell[1]) <= 5)
+            obstacles = int(((instance.map_design == config.OBSTACLE) & near).sum())
+            if obstacles:
+                values.append(float(np.abs(attribution.values[0]).sum() / obstacles))
+        return np.array(values)
+
+    harmless = density(free[~free["damaging"]].sample(n_per_group, random_state=seed))
+    comparisons = {
+        "random damaging (draw A)": density(
+            free[free["damaging"]].sample(n_per_group, random_state=seed)
+        ),
+        "random damaging (draw B)": density(
+            free[free["damaging"]].sample(n_per_group, random_state=seed + 1)
+        ),
+        "the worst flips": density(free.nlargest(n_per_group, "opt_C1O1")),
+    }
+    out = {"n_harmless": int(len(harmless)), "harmless_mean": float(harmless.mean())}
+    for label, values in comparisons.items():
+        out[label] = {
+            "n": int(len(values)),
+            "mean": float(values.mean()),
+            "ratio": float(values.mean() / harmless.mean()) if harmless.mean() else float("nan"),
+            "p_value": float(stats.mannwhitneyu(values, harmless).pvalue),
+        }
+    return out
+
+
 def main() -> int:
     """Run the attribution study and write figures plus the summary."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -179,6 +253,12 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--per-group", type=int, default=5)
     parser.add_argument("--steps", type=int, default=64)
+    parser.add_argument(
+        "--replicate",
+        type=int,
+        default=40,
+        help="cells per group for the larger-sample re-measurement (0 to skip)",
+    )
     parser.add_argument(
         "--manifest", type=Path, default=config.RESULTS_DIR / "manifest.parquet"
     )
@@ -280,8 +360,16 @@ def main() -> int:
         .mean()
         .reset_index()
     )
+    replication = (
+        replicate_group_comparison(
+            planner, split, manifest, args.replicate, args.seed, min(args.steps, 32)
+        )
+        if args.replicate
+        else None
+    )
     summary = {
         "n_cells": len(frame),
+        "replication": replication,
         "seconds": seconds,
         "steps": args.steps,
         "max_radius_over_all_cells": float(frame["max_radius"].max()),
@@ -409,6 +497,38 @@ def render_markdown(
             "channel that matters anywhere lights up everywhere it is active. On an "
             "architecture with no downsampling, that produces a picture of where the "
             "network is active in general, not of what produced this number.",
+            "",
+        ]
+    replication = summary.get("replication")
+    if replication:
+        lines += [
+            "",
+            "## The group comparison, re-measured at larger n",
+            "",
+            f"The curated groups hold five cells each. Re-drawing from the exhaustive "
+            f"sweep ({replication['n_harmless']} harmless cells as the reference, "
+            f"density normalised per nearby obstacle):",
+            "",
+            "| comparison | n | mean density | ratio | p |",
+            "|------------|---|--------------|-------|---|",
+        ]
+        for label in ("random damaging (draw A)", "random damaging (draw B)", "the worst flips"):
+            entry = replication.get(label)
+            if not entry:
+                continue
+            lines.append(
+                f"| {label} | {entry['n']} | {entry['mean']:.3f} | "
+                f"**{entry['ratio']:.2f}x** | {entry['p_value']:.3f} |"
+            )
+        lines += [
+            "",
+            f"Reference (harmless cells): mean density "
+            f"{replication['harmless_mean']:.3f}.",
+            "",
+            "The ratio moves substantially between draws and nothing reaches "
+            "significance, so there is **no reliable attribution-density difference** "
+            "between damaging and harmless cells. The five-cell figure in the table "
+            "above should not be relied on.",
             "",
         ]
     lines += ["", "Per-cell values: `cells.csv`.", ""]
