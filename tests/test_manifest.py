@@ -111,3 +111,38 @@ def test_swap_columns_are_filled_for_the_tagged_rows(manifest) -> None:
     # The locality bound must hold wherever it was measured.
     measured = manifest["dcost_frac_outside_receptive_field"].dropna()
     assert (measured == 0).all(), "a cost-map change escaped the receptive field"
+
+
+@needs_manifest
+def test_feature_join_is_aligned() -> None:
+    """The manifest-to-feature join indexes the right cell of the right map.
+
+    `scripts/analyse_damaging_cells.py` attaches a cell's features to the
+    alteration that flipped it, by indexing the archive with
+    (instance position, row, column). An off-by-one in any of the three would
+    produce a plausible-looking table of nonsense, so a sample of rows is
+    re-derived from scratch and compared.
+    """
+    import numpy as np
+
+    from scripts.analyse_damaging_cells import load_joined
+    from src.data import load_split
+    from src.features import on_any_optimal_path, wall_zone
+
+    archive = config.RESULTS_DIR / "features_test.npz"
+    if not archive.exists():
+        pytest.skip("feature archive not built; run `make features`")
+
+    frame = load_joined(MANIFEST, "test")
+    split = load_split("test")
+    rng = np.random.default_rng(0)
+    for position in rng.choice(len(frame), 10, replace=False):
+        row = frame.iloc[int(position)]
+        instance = split.instance(int(row["instance_id"]), seed=0)
+        cell = (int(row["cell_row"]), int(row["cell_col"]))
+        assert wall_zone(instance.map_design)[cell] == row["wall_zone"]
+        indicator, _, _ = on_any_optimal_path(
+            instance.map_design, instance.start_rc, instance.goal_rc, instance.optimal_cost
+        )
+        assert indicator[cell] == row["on_any_optimal_path"]
+        assert (instance.map_design[cell] == 1) == (row["is_free"] == 1)
