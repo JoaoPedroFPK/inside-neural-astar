@@ -1,0 +1,102 @@
+{
+  "split": "test",
+  "seed": 0,
+  "n_instances": 3,
+  "n_alterations": 3066,
+  "seconds": 33.21,
+  "ms_per_alteration": 10.83,
+  "exp_threshold": 1.5,
+  "opt_cap_for_efficiency": 1.05,
+  "per_instance": [
+    {
+      "instance_id": 0,
+      "start_rc": [
+        12,
+        19
+      ],
+      "goal_rc": [
+        26,
+        6
+      ],
+      "n_admissible": 1022,
+      "n_rejected_unreachable": 0,
+      "baseline_opt": 1.0,
+      "baseline_exp": 0.3770491803278688,
+      "worst_opt": 1.0526315789473684,
+      "worst_opt_cell": [
+        14,
+        17
+      ],
+      "worst_exp_within_opt_cap": 0.7959183673469388,
+      "worst_exp_cell": [
+        17,
+        10
+      ],
+      "frac_cells_opt_above_1": 0.0009784735812133072,
+      "frac_cells_newly_suboptimal": 0.0009784735812133072,
+      "frac_cells_exp_above_threshold": 0.0,
+      "mean_opt": 1.0000514986095377,
+      "mean_exp": 0.38250090011037785
+    },
+    {
+      "instance_id": 1,
+      "start_rc": [
+        11,
+        24
+      ],
+      "goal_rc": [
+        24,
+        7
+      ],
+      "n_admissible": 1022,
+      "n_rejected_unreachable": 0,
+      "baseline_opt": 1.0,
+      "baseline_exp": 0.2107843137254902,
+      "worst_opt": 1.12,
+      "worst_opt_cell": [
+        24,
+        10
+      ],
+      "worst_exp_within_opt_cap": 0.34444444444444444,
+      "worst_exp_cell": [
+        23,
+        10
+      ],
+      "frac_cells_opt_above_1": 0.0009784735812133072,
+      "frac_cells_newly_suboptimal": 0.0009784735812133072,
+      "frac_cells_exp_above_threshold": 0.0,
+      "mean_opt": 1.0001174168297455,
+      "mean_exp": 0.21003199005428425
+    },
+    {
+      "instance_id": 2,
+      "start_rc": [
+        22,
+        28
+      ],
+      "goal_rc": [
+        28,
+        1
+      ],
+      "n_admissible": 1022,
+      "n_rejected_unreachable": 0,
+      "baseline_opt": 1.0,
+      "baseline_exp": 1.0,
+      "worst_opt": 1.1111111111111112,
+      "worst_opt_cell": [
+        20,
+        14
+      ],
+      "worst_exp_within_opt_cap": 3.75,
+      "worst_exp_cell": [
+        19,
+        21
+      ],
+      "frac_cells_opt_above_1": 0.011741682974559686,
+      "frac_cells_newly_suboptimal": 0.011741682974559686,
+      "frac_cells_exp_above_threshold": 0.00684931506849315,
+      "mean_opt": 1.0006160759585416,
+      "mean_exp": 1.0182415431926195
+    }
+  ]
+}
