@@ -50,6 +50,39 @@ MANIFEST_PARQUET: Path = RESULTS_DIR / "manifest.parquet"
 
 DOCS_DIR: Path = REPO_ROOT / "docs"
 
+#: The eight 32x32 map families shipped by the nested `planning-datasets`
+#: submodule. All share the format, the size and the 8-connected mechanism, so
+#: anything in this project runs on any of them by passing the path to
+#: `src.data.load_split`. `mazes` is the family the shipped checkpoint was
+#: trained on; the others are the validity check of plan step 7b.
+MPD_DIR: Path = SUBMODULE_DIR / "planning-datasets" / "data" / "mpd"
+
+MAP_FAMILIES: Dict[str, str] = {
+    "mazes": "mazes_032_moore_c8",
+    "forest": "forest_032_moore_c8",
+    "single_bugtrap": "single_bugtrap_032_moore_c8",
+    "multiple_bugtraps": "multiple_bugtraps_032_moore_c8",
+    "bugtrap_forest": "bugtrap_forest_032_moore_c8",
+    "alternating_gaps": "alternating_gaps_032_moore_c8",
+    "shifting_gaps": "shifting_gaps_032_moore_c8",
+    "gaps_and_forest": "gaps_and_forest_032_moore_c8",
+}
+
+
+def family_npz(name: str) -> Path:
+    """Path to one map family's dataset file.
+
+    Args:
+        name: A key of `MAP_FAMILIES`, e.g. ``"forest"``.
+
+    Returns:
+        Path: The ``.npz`` inside the nested submodule.
+
+    Raises:
+        KeyError: If the family is unknown.
+    """
+    return MPD_DIR / f"{MAP_FAMILIES[name]}.npz"
+
 
 # --------------------------------------------------------------------------- #
 # Dataset layout

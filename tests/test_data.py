@@ -152,3 +152,29 @@ def test_local_topology_counts_free_neighbours() -> None:
     m_full = np.ones((3, 3), dtype=np.float32)
     assert local_topology_class(m_full)[1, 1] == 8
     assert local_topology_class(m_full)[0, 0] == 3
+
+
+def test_all_map_families_are_present_and_loadable() -> None:
+    """The eight 32x32 families ship with the nested submodule and load.
+
+    They are the validity check of plan step 7b: the step-3 and step-4 findings
+    were measured on one geometry, and these cost nothing to test against.
+    """
+    from src.data import load_split
+
+    assert len(config.MAP_FAMILIES) == 8
+    assert "mazes" in config.MAP_FAMILIES and "forest" in config.MAP_FAMILIES
+    for name in config.MAP_FAMILIES:
+        path = config.family_npz(name)
+        assert path.exists(), f"{name}: {path} missing"
+    # Loading one other family must give the same shape and conventions.
+    forest = load_split("test", npz_path=config.family_npz("forest"))
+    assert len(forest) == config.SPLIT_SIZES["test"]
+    assert forest.map_designs.shape[1:] == (config.MAP_SIZE, config.MAP_SIZE)
+    assert set(np.unique(forest.map_designs).tolist()) == {config.OBSTACLE, config.FREE}
+
+
+def test_family_registry_rejects_unknown_names() -> None:
+    """A typo in a family name fails loudly rather than building a bad path."""
+    with pytest.raises(KeyError):
+        config.family_npz("labyrinth")

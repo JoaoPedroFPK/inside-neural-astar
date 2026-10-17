@@ -1,10 +1,10 @@
 # Convenience targets. Everything runs inside the project venv (.venv).
 PY := .venv/bin/python
 
-.PHONY: help env lock test test-env e0 step2 pilot probe features spotcheck clean
+.PHONY: help env lock test test-env e0 step2 pilot probe features spotcheck surrogate sweep swap attribution budgets families clean
 
 help:  ## show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
 
 env:  ## build .venv reproducibly (submodules, interpreter, pinned deps, checks)
@@ -36,6 +36,24 @@ features:  ## PLAN.md step 4: build results/features_{split}.npz for all splits
 
 spotcheck:  ## step-4 spot-check figure + correlation diagnostic
 	$(PY) scripts/plot_feature_spotcheck.py --split test --instances 0 1 2
+
+surrogate:  ## PLAN.md step 5: surrogate fits, residuals and the sufficiency test
+	$(PY) scripts/fit_surrogate.py
+
+sweep:  ## PLAN.md step 6: exhaustive k=1 flips on every test map (~19 min)
+	$(PY) scripts/sweep_k1.py --split test --seed 0
+
+swap:  ## PLAN.md step 7: 2x2 mediation swap on the worst k=1 flips
+	$(PY) scripts/swap_k1.py --split test --seed 0
+
+attribution:  ## PLAN.md step 8: integrated gradients + randomisation sanity check
+	$(PY) scripts/attribution_study.py --per-group 5
+
+budgets:  ## PLAN.md step 9: greedy search at k<=8 and mediation vs budget
+	$(PY) scripts/greedy_budgets.py --split test --seed 0
+
+families:  ## PLAN.md step 7b(a): maze-trained planner across all 8 map families
+	$(PY) scripts/compare_families.py
 
 clean:  ## remove caches (keeps .venv and results/)
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
