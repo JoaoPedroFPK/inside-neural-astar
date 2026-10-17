@@ -377,6 +377,36 @@ The planner's own numbers are *transfer*, not generalisation — it was trained
 on mazes, and its Hmean falls from 0.573 to 0.272 across families, so
 per-family training is required before concluding anything about them.
 
+### Negative and corrected results, collected
+
+The plan asks for these to be explicit rather than buried, so they are listed
+together. Each links to the step that produced it.
+
+**Hypotheses that did not survive measurement**
+
+| claim | what was measured |
+|---|---|
+| The cost map approximates distance-to-goal in smoothed form | Linear fits on the goal distances reach R² **0.007**; the search's own heuristic reaches **0.002**. The non-linear fit recovers 0.105, so the information is there but not in the stated form. |
+| Large distortions steer the search to a worse path | Correlation between the size of the cost-map change and whether the path broke: **+0.04**. Among broken cases, severity correlates **−0.06**. Non-monotone, with the largest distortions *less* damaging. Location predicts damage; magnitude does not. |
+| Search-effort damage is search-mediated | True of the pooled figure (2.6 : 1), but restricted to genuine planner deviation it is **0.23 vs 0.26** — roughly even. |
+| Denser map families would make the plan's cell partition usable | The "dead end" class is empty in **all eight** families, including the densest at 36 % obstacles. |
+
+**Premises of the project that were wrong**
+
+| assumption | measurement |
+|---|---|
+| Diagonal moves cost √2 | All eight moves cost 1, in both upstream implementations and the dataset generator. |
+| The maps are width-1-corridor mazes | They are ~11 % obstacles: thin walls between ~10-cell-wide rooms. No single flip can disconnect the goal in seven of eight families. |
+| The encoder is four 3×3 convolutions (9×9 receptive field) | It is five, radius 5, verified by measuring where `Δcost` is non-zero. |
+
+**Claims this project made and then corrected**
+
+| first reported | corrected to |
+|---|---|
+| Doors are ~5× more damaging than pillars (25 draws) | **1.85×** over all 11 077 door flips. |
+| Efficiency damage is search-mediated 2.6 : 1 | Roughly even once the shortcut-opening alterations are separated. |
+| Greedy search climbs monotonically | It cannot stay put, so it can step down; 3 of 194 sequences do. |
+
 ---
 
 ## Repository layout
