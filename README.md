@@ -59,102 +59,329 @@ If the failure reappears with altered costs on original obstacles, the encoder's
 
 ---
 
-## Repository layout (planned)
+## Status — 2026-10-17
+
+**Steps 0–4 of the plan are done**: the environment is pinned and asserted,
+the upstream numbers are reproduced, the structural premise of the swap design
+is verified in code and under test, the exact solver reproduces upstream's
+search exactly (`make step2`), the random-flip pilot has run with its budget
+decision (`make pilot`), and the E1 feature library is built and spot-checked
+(`make features spotcheck`).
+
+> The research plan, the verification record (every premise checked in code,
+> with file and line references), the decision log and the per-step write-ups
+> are kept as working notes outside this repository. Code comments and the
+> generated reports refer to them by name; every claim they support is
+> re-checkable here by running the test suite and the `make` targets below.
+
+### E0 — reproduction on the 100 test mazes (CPU, ~2 s)
+
+| | Opt | Exp | Hmean |
+|---|---|---|---|
+| Paper, Table 1 (MP dataset, Neural A\*) | 87.7 % | 40.1 % | 52.0 % |
+| **Ours**, upstream start protocol | **84.0 %** | **43.5 %** | **57.3 %** |
+| Ours, fixed starts (seed 0) | 83.0 % | 43.7 % | 57.3 % |
+
+Mean expansions 60.7 (Neural A\*) vs 133.4 (classical A\*). Within the few-point
+tolerance step 0 asks for. Caveats recorded rather than smoothed over: the
+paper's row aggregates eight environment types (no maze-only breakdown is
+published), and the checkpoint is the one shipped on the `minimal` branch, not
+the paper's model.
+
+### Three findings that changed the plan
+
+1. **The swap design works as specified, with no wrapper needed.** The search
+   module takes `(cost_maps, start_maps, goal_maps, obstacles_maps)` separately
+   and uses the obstacle map *only* as a mask on candidate neighbours. Costs
+   from one instance and obstacles from another plan a valid path
+   (`tests/test_swap_possible.py`).
+2. **Every move costs 1, diagonals included** — not √2, as the project notes
+   originally assumed. Both upstream A\* implementations and the dataset
+   generator agree, and the Chebyshev heuristic is the matching metric. The
+   exact solver and `Opt` use the unit-cost model.
+3. **The cost map enters `f` twice**: once accumulated in `g`, charged at the
+   *parent* node of each expansion, and once added wholesale to `h`. So raising
+   a cell's cost both penalises paths through it and makes it look farther from
+   the goal — directly relevant to how an encoder-mediated failure can arise.
+
+### Step 2 — the exact solver is a replica of upstream's search
+
+`src/exact_solver.py` validated with `make step2`
+(`results/step2_validation.json`):
+
+* geodesic distances equal the dataset's stored distances on **all 1 000 maps**,
+  every free cell — 0 mismatches over 451 447 cells (~1 s);
+* its classical-A\* expansion count and path cost match upstream
+  `VanillaAstar` on **100 %** of test instances;
+* fed Neural A\*'s own cost map, it reproduces the module's expansions *and*
+  path length on **100 %** of them — which is what confirms the cost
+  semantics (charged at the parent, and also added to `h`);
+* the project's `Opt`/`Exp` metrics reproduce the E0 line exactly
+  (`p_opt` 0.830, `p_exp` 0.4373, `h_mean` 0.5728).
+
+Two things fall out of it. Mean `Opt` ratio is **1.0154** — the pretrained
+planner's paths are 1.5 % above optimal on average — and **Neural A\* expands
+more nodes than classical A\* on 13 of 100 instances**, a regression the
+paper's `Exp` floors to zero. So the efficiency objective of E2 has headroom
+before any perturbation is applied.
+
+### Step 3 — random flips barely dent the planner; targeted flips do
+
+`make pilot` (1 200 alterations, 19 s) and `make probe`
+(3 066 exhaustive k=1 alterations, 33 s) → `results/pilot_random.md`:
+
+| k | Opt > 1 | **newly suboptimal** | Exp > 1.5 |
+|---|---------|----------------------|-----------|
+| 1 | 18 % | **1 %** | 1 % |
+| 2 | 19 % | **3 %** | 1 % |
+| 4 | 20 % | **4 %** | 1 % |
+| 8 | 22 % | **9 %** | 1 % |
+
+The raw `Opt > 1` column is mostly the planner's standing 17 % error rate; the
+damage *caused* by a random flip is the second column. At k=1 the optimum
+itself never changed (0 of 300 draws), so those failures are pure planner
+deviation on a map whose optimum it already matched. When damage does occur it
+is not marginal — mean `Opt` 1.08, worst 1.33.
+
+The exhaustive k=1 probe shows this is a **weak attack, not a robust planner**:
+all 3 probed instances have at least one single cell that costs optimality
+(worst `Opt` 1.053 / 1.120 / 1.111), but only 0.1–1.2 % of the ~1 000 candidate
+cells do. Fragility is real and extremely localized, so **step 6's exhaustive
+k=1 sweep is justified and necessary** (≈18 min single-process for the test
+split), greedy k ∈ {2, 4, 8} is justified, and random flips stay as the control.
+
+Two structural findings came out of it, both correcting assumptions:
+
+* **These are thin-wall rooms, not width-1-corridor mazes** — 10.8 % obstacles,
+  one-cell-thick walls, ~10-cell-wide open areas, 68 % of free cells with all
+  eight neighbours free. So *no* single flip can disconnect the goal (0 in
+  9 068 tried), and the two flip directions are different edits: a **pillar**
+  dropped into open space (92 % of draws, 0.9 % damage) versus a **door**
+  opened in a wall (8 % of draws, 4.5 % damage). The plan's tie-heaviness
+  concern survives, but via open space rather than corridors, and step 4's
+  topology classes needed rethinking.
+* **The encoder's response to a k=1 flip is exactly local** — radius 5 (five
+  3×3 convs, *not* four), `|Δcost|` exactly zero outside the 11×11 window, with
+  only 1.7 % of the Δ mass on the flipped cell itself. Any behaviour change
+  farther away travelled through the search, which is a sharp mediation handle
+  independent of the swap design.
+
+### Step 4 — the feature library, and an early signal against H1
+
+`make features` (1 000 instances, 14 features + 7 auxiliary arrays, 9 s) and
+`make spotcheck` → `results/e1_features_spotcheck.{png,md}`, notebook
+`notebooks/01_features_spotcheck.ipynb`.
+
+Correlation of each feature with the cost map over free, reachable cells —
+pooled, and averaged within instances (they agree, so no pooling artefact):
+
+| feature | pooled r | within-instance r |
+|---------|----------|-------------------|
+| `on_any_optimal_path` | **−0.327** | **−0.339** |
+| `on_reference_path` (training target) | **−0.248** | **−0.248** |
+| `on_solver_path` | −0.205 | −0.205 |
+| `corridor_span_min` | 0.086 | 0.062 |
+| `geodesic_to_goal` | 0.033 | 0.022 |
+| `chebyshev_to_goal` (= the heuristic) | 0.018 | 0.020 |
+| `euclidean_to_goal` | 0.007 | 0.010 |
+
+The path indicators are the strongest linear correlates; **every
+distance-to-goal feature is essentially uncorrelated with the cost map**
+(|r| ≤ 0.03). Cells on optimal paths carry *lower* cost, which is what steering
+a search toward them requires. That is the direction of the plan's *competing*
+hypothesis — a path-prediction map — rather than H1's smoothed geometric
+heuristic. It is not the verdict: these are single-feature correlations, and
+step 5's joint fits (geometric-only / path-only / both, train → test R²) are
+the actual test. Recorded as it came out, per the project's working rules.
+
+The cost map's spread is almost entirely within instances (sd 0.288 vs 0.033
+between), and spans 0.000–1.000, so the sigmoid is neither saturated nor
+reduced to a per-instance level shift.
+
+One definition had to change: step 5 groups residuals by local
+topology, but that partition is degenerate here (70 % "open", 0 % "dead end").
+`src.features.wall_zone` — distance to the nearest wall, bucketed — is balanced
+(43 / 31 / 26 %) and is what step 5 will group by; both are stored.
+
+---
+
+## Repository layout
+
+✅ exists · ⬜ planned (plan step in brackets)
 
 ```
 .
 ├── README.md
-├── docs/
-│   ├── proposal.md            # answers to the course questionnaire (PT-BR)
-│   └── references.md
-├── neural-astar/              # git submodule: omron-sinicx/neural-astar (minimal branch)
+├── Makefile                   ✅ make env | test | test-env | e0 | lock
+├── .python-version            ✅ 3.10.18
+├── requirements.txt           ✅ direct pins, one comment per non-obvious pin
+├── requirements.lock.txt      ✅ full transitive closure (174 packages)
+├── neural-astar/              ✅ git submodule, `minimal` branch (never edited)
+│   └── planning-datasets/     ✅ nested submodule: ships the .npz data
 ├── data/
-│   ├── mazes_032_moore_c8.npz # from the submodule / planning-datasets
-│   └── generated/             # extra instances from planning-datasets scripts
+│   └── mazes_032_moore_c8.npz ✅ symlink into the nested submodule
+├── scripts/
+│   ├── setup_env.sh           ✅ idempotent, self-verifying env build
+│   ├── e0_reproduce.py        ✅ [0] E0 numbers, both start protocols
+│   ├── validate_step2.py      ✅ [2] solver-vs-dataset + metrics-vs-E0 gate
+│   ├── pilot_random.py        ✅ [3] random-flip pilot + budget decision
+│   ├── probe_exhaustive_k1.py ✅ [3] worst-case probe (also step-6 timing)
+│   ├── build_features.py      ✅ [4] feature archives for all splits
+│   └── plot_feature_spotcheck.py ✅ [4] spot-check figure + correlations
 ├── src/
-│   ├── features.py            # geometric feature library (E1)
-│   ├── surrogate.py           # additive model fit + residual analysis (E1)
-│   ├── attribution.py         # IG / Grad-CAM hooks (E1)
-│   ├── perturb.py             # cell-flip search: gradient-guided, exhaustive, greedy, random (E2)
-│   ├── swap.py                # 2×2 cost/obstacle cross runs (E3)
-│   ├── detect.py              # residual-based detector + Mahalanobis baseline (E4)
-│   └── metrics.py             # Opt, Exp, Hmean, ΔOpt, ΔExp, ΔCost
-├── notebooks/
-│   ├── 00_reproduce.ipynb
-│   ├── 01_cost_map_analysis.ipynb
-│   ├── 02_perturbations.ipynb
-│   └── 03_mediation.ipynb
-├── results/
-└── requirements.txt
+│   ├── config.py              ✅ paths, device, dataset layout, seeding
+│   ├── grid.py                ✅ 8-connected geometry, BFS, flips, path validation
+│   ├── data.py                ✅ split loading with fixed, stored start cells
+│   ├── planner.py             ✅ checkpoint loading, cost maps, the swap primitive
+│   ├── metrics.py             ✅ paper metrics + Opt/Exp ratios + mediation fraction
+│   ├── exact_solver.py        ✅ [2] Dijkstra ground truth + classical-A* control
+│   ├── features.py            ✅ [4] geometric + path features, two partitions
+│   ├── surrogate.py           ⬜ [5] additive model fit + residual analysis
+│   ├── perturb.py             ✅ [3] random flips + k=1 enumeration + evaluation harness
+│   │                          ⬜ [6,9] exhaustive sweep, greedy, gradient
+│   ├── swap.py                ⬜ [7] the 2×2 cost/obstacle harness
+│   ├── attribution.py         ⬜ [8] Integrated Gradients / Grad-CAM
+│   └── detect.py              ⬜ [12] residual detector + Mahalanobis baseline
+├── tests/                     ✅ 97 tests: env, data, swap premise, planner, solver, metrics, perturbations, features
+├── notebooks/                 ✅ 01_features_spotcheck.ipynb (display only)
+└── results/
+    ├── e0_reproduce.json      ✅ [0]
+    ├── step2_validation.json  ✅ [2]
+    ├── pilot_random.md        ✅ [3] the step-3 table and the budget decision
+    ├── pilot_random.parquet   ✅ [3] 1 200 alterations, manifest-compatible schema
+    ├── probe_k1.json          ✅ [3] exhaustive k=1 on 3 instances
+    ├── features_{split}.npz   ✅ [4] 14 features + 7 aux arrays, 1 000 instances
+    └── e1_features_spotcheck.{png,md} ✅ [4]
 ```
 
 ---
 
 ## Setup
 
-Tested on Ubuntu ≥ 20.04 / WSL2, Python ≥ 3.9. Planning runs on CPU; a single free-tier GPU (Colab/Kaggle T4) is enough for training. Total GPU budget for the whole project is well under 10 hours.
+Python 3.10 (pinned in `.python-version`), CPU-only. One command from a fresh
+clone:
 
 ```bash
-git clone --recursive https://github.com/<org>/<repo>.git
-cd <repo>
-
-python -m venv .venv
+git clone --recursive https://github.com/<org>/inside-neural-astar.git
+cd inside-neural-astar
+bash scripts/setup_env.sh      # or: make env
 source .venv/bin/activate
+```
 
-# Neural A* (pinned to the minimal branch)
-pip install -e "./neural-astar[dev]"
+The script fetches the submodules, installs the interpreter via pyenv if it is
+missing, builds `.venv`, installs the pinned dependencies in a single pip
+invocation, and then **asserts** the result with `tests/test_env.py`. Re-run it
+any time; it is idempotent. `--recreate`, `--lock` and `--no-test` are
+available. Every pin carries a comment in `requirements.txt`; the two that are
+easy to get wrong are `numpy==1.26.4` (2.x is ABI-incompatible with torch
+1.12.1, and upstream's `numpy>=1.19.2` would resolve to it) and
+`setuptools==69.5.1` (≥ 81 removed the `pkg_resources` that
+pytorch-lightning 1.8.5 imports at startup).
 
-# project dependencies
-pip install -r requirements.txt
+Check an environment you did not build yourself:
+
+```bash
+make test-env     # 16 assertions: interpreter, pins, data, checkpoint, clean submodule
+make test         # whole suite, 97 tests, ~16 s
 ```
 
 ### Data
 
-- **Mazes (32×32).** `mazes_032_moore_c8.npz` ships with the Neural A\* repo: 800 train / 100 val / 100 test instances. Each instance includes the binary map, the one-hot goal map, optimal directions, and the **true geodesic distance of every cell** — the latter is the ground truth for the E1 probes. Extra instances are generated with [`planning-datasets`](https://github.com/omron-sinicx/planning-datasets).
-- **WarCraft 12×12 (conditional).** Download `warcraft_maps.tar.gz` from the [Blackbox Combinatorial Solvers page](https://edmond.mpdl.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.YJCQ5S) and extract `12x12/` to the repo root. True per-tile costs are available in the dataset. Only used if E1–E3 on mazes are finished before stage 3.
+Nothing to download or generate. `data/mazes_032_moore_c8.npz` is a symlink
+into the nested `planning-datasets` submodule, which ships the file (800 train
+/ 100 val / 100 test, 32×32, 8-connected). Each instance carries the binary
+map, the one-hot goal map, the optimal 8-direction policy, and the **true
+geodesic distance of every cell** — the ground truth for the E1 probes and for
+the step-2 solver test. Seven more 32×32 map families (`forest`,
+`single_bugtrap`, `shifting_gaps`, …) sit next to it, which is the planned
+control for "mazes may not be representative".
 
-### Running
+The pretrained maze checkpoint also ships with the submodule, so **no training
+is needed for steps 0–9**.
+
+**WarCraft 12×12 (conditional).** Download `warcraft_maps.tar.gz` from the
+[Blackbox Combinatorial Solvers page](https://edmond.mpdl.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.YJCQ5S)
+and extract `12x12/` to the repo root. Only if E1–E3 on mazes finish before
+stage 3.
+
+---
+
+## Running
+
+Available now:
 
 ```bash
-# E0 — reproduce
-python neural-astar/scripts/train.py            # or use the pretrained checkpoint
-python -m src.metrics --ckpt <path> --split test
-
-# E1 — cost map analysis
-python -m src.features  --out results/features.npz
-python -m src.surrogate --features results/features.npz --ckpt <path>
-
-# E2 — perturbations
-python -m src.perturb --ckpt <path> --budget 1 2 4 8 --method exhaustive greedy random \
-                      --objective optimality efficiency --out results/perturb/
-
-# E3 — swap design
-python -m src.swap --ckpt <path> --perturb results/perturb/ --out results/swap/
+make e0                 # E0: Opt/Exp/Hmean on the test split, both start protocols
+make step2              # step-2 gate: solver vs dataset (1000 maps) + metrics vs E0
+make pilot              # step-3 random-flip pilot (k = 1, 2, 4, 8), ~20 s
+make probe              # step-3 worst-case probe: exhaustive k=1 on 3 instances
+make features           # step-4 feature archives for all 1 000 instances, ~9 s
+make spotcheck          # step-4 figure + correlation diagnostic
+make test               # the full suite
+python scripts/pilot_random.py --instances 3 --timing-only   # extrapolate first
 ```
 
-Scripts and flags are placeholders until stage 2; see the notebooks for the current state.
+Planned (the module exists in the layout above only when ✅):
+
+```bash
+python -m src.features  --out results/features_test.npz          # [4]
+python -m src.surrogate --features results/features_test.npz     # [5]
+python -m src.perturb   --budget 1 --method exhaustive           # [6]
+python -m src.swap      --perturb results/perturb/               # [7]
+```
+
+Every script seeds numpy and torch at the top and accepts `--seed`; everything
+runs on CPU (`src.config.get_device()` is the only place a device is chosen).
 
 ---
 
 ## Metrics
 
-- **Opt** — fraction of instances where the found path is optimal (or path-cost ratio to the true optimum *of the altered map*).
-- **Exp** — reduction in expanded nodes relative to classical A\*.
-- **Hmean** — harmonic mean of Opt and Exp (as in the paper).
-- **ΔOpt / ΔExp** — change under perturbation, always measured against the exact solver on the altered map.
-- **ΔCost** — L1 change in the cost map and its spatial localization (under the flipped cells vs. spread).
-- **Mediation fraction** — share of ΔOpt / ΔExp reproduced by each off-diagonal swap condition.
+Two families, deliberately kept apart in `src/metrics.py`:
 
-A perturbation counts as an *error* only when Neural A\* deviates from the altered map's optimum or expands substantially more than classical A\* does on that same map. Classical A\* replanning correctly is not an error.
+**The paper's metrics**, replicated line for line from upstream's
+`validation_step` so that E0 is comparable to published numbers:
+
+- **Opt** — *fraction* of instances whose path is as short as classical A\*'s.
+- **Exp** — *reduction* in expanded nodes vs. classical A\*, `max((E* − E)/E*, 0)`.
+- **Hmean** — harmonic mean of the two.
+
+**This project's metrics**, which is what the perturbation analysis uses:
+
+- **Opt (ratio)** — planner path cost ÷ true optimal cost on the **same** map
+  (1.0 = optimal). After a flip, always against the *altered* map's optimum.
+- **Exp (ratio)** — planner expansions ÷ classical A\* expansions on the same
+  map. Above 1.0 means worse than classical, which the paper's `Exp` floors away.
+- **ΔCost** — L1 change in the cost map and its spatial localization (mass
+  under the flipped cells vs. spread).
+- **Mediation fraction** — `(M[C1O0] − M[C0O0]) / (M[C1O1] − M[C0O0])` for the
+  encoder route, the same with `C0O1` for the search route. Both reported; they
+  need not sum to 1.
+
+Path costs are counted under the **unit-cost** model (every one of the eight
+moves costs 1), which is what upstream and the dataset do — see
+A path map with *n* cells is a path of *n − 1* moves.
+
+A perturbation counts as an *error* only when Neural A\* deviates from the
+altered map's optimum or expands substantially more than classical A\* does on
+that same map. Classical A\* replanning correctly is not an error.
 
 ---
 
 ## Roadmap (course stages)
 
-- [ ] **Stage 1 — Proposal** (16 Oct 2026): question, hypothesis, design. ✔ submitted
-- [ ] **Stage 2:** E0 reproduced; E1 results; perturbation harness working for at least one objective; confirm in `differentiable_astar.py` that cost map and obstacle mask are separate inputs.
-- [ ] **Stage 3:** E2 + E3 complete on mazes; three training seeds; WarCraft started if time allows.
-- [ ] **Final:** E4 if reached; write-up with explicit negative results.
+- [x] **Stage 1 — Proposal** (16 Oct 2026): question, hypothesis, design. ✔ submitted
+- [ ] **Stage 2:** E0 reproduced ✅ · swap premise confirmed in `differentiable_astar.py` ✅ · exact solver + metrics [2] ✅ · random-flip pilot [3] ✅ · feature library [4] ✅ · surrogate fit [5] ⬜ · perturbation harness for one objective [6] ⬜
+- [ ] **Stage 3:** E2 + E3 complete on mazes [6–9]; three training seeds [10]; WarCraft started if time allows [11].
+- [ ] **Final:** E4 if reached [12]; write-up with explicit negative results.
+
+**Next step:** step 5 — the surrogate fit. Ridge (and optionally a
+small GBM) from features to cost, fit on train and scored on test, in three
+variants: geometric-only, path-indicator-only, and both. Plus residual
+heatmaps and residual magnitude grouped by `wall_zone`. The step-4 correlations
+already point at the answer, and the plan is explicit about what to do if it
+holds: if path-only ≈ both ≫ geometric-only, the competing hypothesis is
+winning, and that gets recorded as the result. 
 
 ---
 
