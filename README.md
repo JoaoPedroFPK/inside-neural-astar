@@ -487,7 +487,7 @@ together. Each links to the step that produced it.
 │   ├── swap.py                ✅ [7] the 2×2 cost/obstacle harness + mediation
 │   ├── attribution.py         ✅ [8] integrated gradients, Grad-CAM, sanity checks
 │   └── detect.py              ⬜ [12] residual detector + Mahalanobis baseline
-├── tests/                     ✅ 160 tests across 14 files, including published-tree and manifest-schema guards
+├── tests/                     ✅ 161 tests across 14 files, including published-tree and manifest-schema guards
 ├── notebooks/                 ✅ 01_features_spotcheck.ipynb (display only)
 └── results/
     ├── e0_reproduce.json      ✅ [0]
@@ -527,7 +527,7 @@ Check an environment you did not build yourself:
 
 ```bash
 make test-env     # 16 assertions: interpreter, pins, data, checkpoint, clean submodule
-make test         # whole suite, 160 tests, ~45 s
+make test         # whole suite, 161 tests, ~35 s
 ```
 
 ### Data
