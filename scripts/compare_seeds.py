@@ -153,7 +153,39 @@ def evaluate_tag(tag: str, checkpoint: Optional[Path], seed: int) -> Dict[str, o
         ),
     }
     out.update(mediation_for(tag))
+    out.update(fragility_for(tag))
     return out
+
+
+def fragility_for(tag: str) -> Dict[str, object]:
+    """Read this model's exhaustive-sweep summary, if its sweep has been run.
+
+    Separated from the mediation numbers because the two behave very
+    differently across models: how fragile a planner is turns out to be stable,
+    while how the damage decomposes does not.
+
+    Args:
+        tag: Model tag (empty for the shipped checkpoint).
+
+    Returns:
+        dict: Share of baseline-optimal maps with a damaging cell, the median
+        and mean share of damaging cells, and the worst single-flip damage.
+        Empty when the model's sweep output is absent.
+    """
+    suffix = f"_{tag}" if tag else ""
+    path = config.RESULTS_DIR / f"e2_k1_sweep{suffix}.json"
+    if not path.exists():
+        return {}
+    overall = json.loads(path.read_text())["overall"]
+    return {
+        "fragility": {
+            "maps_with_a_damaging_cell": overall["frac_instances_with_a_damaging_cell"],
+            "median_damaging_cells": overall["median_frac_cells_damaging"],
+            "mean_damaging_cells": overall["mean_frac_cells_damaging"],
+            "worst_opt": overall["max_worst_opt"],
+            "median_worst_opt": overall["median_worst_opt"],
+        }
+    }
 
 
 def mediation_for(tag: str) -> Dict[str, object]:
@@ -385,6 +417,26 @@ def render_markdown(
             f"{planning['h_mean']:.3f} | {fits['geometric_h1_gbm']:.3f} | "
             f"{fits['path_gbm']:.3f} | {fits['all_gbm']:.3f} | {sufficiency['p_opt']:.3f} |"
         )
+    if any("fragility" in row for row in rows):
+        lines += [
+            "",
+            "## Is the planner equally fragile, model to model?",
+            "",
+            "From each model's own exhaustive sweep of all ~102 000 single-cell "
+            "alterations.",
+            "",
+            "| model | maps with a damaging cell | median damaging cells | worst Opt |",
+            "|-------|---------------------------|-----------------------|-----------|",
+        ]
+        for row in rows:
+            part = row.get("fragility")
+            if not part:
+                continue
+            lines.append(
+                f"| `{row['tag']}` | {part['maps_with_a_damaging_cell']:.1%} | "
+                f"{part['median_damaging_cells']:.2%} | {part['worst_opt']:.3f} |"
+            )
+        lines.append("")
     if any("shared_optimality" in row for row in rows):
         lines += [
             "",
