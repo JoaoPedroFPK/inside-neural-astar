@@ -1,0 +1,473 @@
+{
+  "seed": 0,
+  "models": [
+    {
+      "tag": "pretrained",
+      "checkpoint_epoch": 33,
+      "planning": {
+        "p_opt": 0.83,
+        "mean_opt": 1.0153876654825627,
+        "mean_exp": 0.5778953162599954,
+        "h_mean": 0.5728486719683568
+      },
+      "surrogate_r2": {
+        "geometric_h1_gbm": 0.24033362263760927,
+        "path_gbm": 0.12283779291774055,
+        "all_gbm": 0.40827345148933913
+      },
+      "sufficiency_all": {
+        "p_opt": 0.92,
+        "mean_opt": 1.0073884897828862,
+        "mean_exp": 0.6269066016330966,
+        "h_mean": 0.5520931329762103
+      },
+      "mediation_optimality": {
+        "n": 70,
+        "encoder": 0.49285714285714294,
+        "search": 0.2843253968253969
+      },
+      "mediation_efficiency": {
+        "n": 55,
+        "encoder": 0.22909687798354594,
+        "search": 0.25555716477686763
+      },
+      "fragility": {
+        "maps_with_a_damaging_cell": 0.8554216867469879,
+        "median_damaging_cells": 0.007827788649706457,
+        "mean_damaging_cells": 0.019960899428264452,
+        "worst_opt": 1.3529411764705883,
+        "median_worst_opt": 1.0666666666666667
+      },
+      "shared_optimality": {
+        "n": 70,
+        "encoder": 0.49285714285714294,
+        "search": 0.2843253968253969
+      },
+      "shared_efficiency": {
+        "n": 55,
+        "encoder": 0.22909687798354594,
+        "search": 0.25555716477686763
+      }
+    },
+    {
+      "tag": "mazes_seed0",
+      "checkpoint_epoch": 23,
+      "planning": {
+        "p_opt": 0.8,
+        "mean_opt": 1.0183304487798657,
+        "mean_exp": 0.6046016432142511,
+        "h_mean": 0.5529931855926138
+      },
+      "surrogate_r2": {
+        "geometric_h1_gbm": 0.27376505263567186,
+        "path_gbm": 0.11889549140610967,
+        "all_gbm": 0.4370426923130122
+      },
+      "sufficiency_all": {
+        "p_opt": 0.93,
+        "mean_opt": 1.0059771939427113,
+        "mean_exp": 0.6193137222736204,
+        "h_mean": 0.5543399937632225
+      },
+      "mediation_optimality": {
+        "n": 70,
+        "encoder": 0.46309523809523817,
+        "search": 0.4367346938775511
+      },
+      "mediation_efficiency": {
+        "n": 49,
+        "encoder": 0.14998327592367203,
+        "search": 0.3273755144862466
+      },
+      "fragility": {
+        "maps_with_a_damaging_cell": 0.875,
+        "median_damaging_cells": 0.007827788649706457,
+        "mean_damaging_cells": 0.02140948160085952,
+        "worst_opt": 1.3103448275862069,
+        "median_worst_opt": 1.063508064516129
+      },
+      "shared_optimality": {
+        "n": 36,
+        "encoder": 0.4606481481481482,
+        "search": 0.6385582010582009
+      },
+      "shared_efficiency": {
+        "n": 44,
+        "encoder": 0.27571798063505465,
+        "search": 0.3853437537484169
+      }
+    },
+    {
+      "tag": "mazes_seed1",
+      "checkpoint_epoch": 26,
+      "planning": {
+        "p_opt": 0.83,
+        "mean_opt": 1.016433016514222,
+        "mean_exp": 0.5795651173590436,
+        "h_mean": 0.5719520896155084
+      },
+      "surrogate_r2": {
+        "geometric_h1_gbm": 0.29390610805833683,
+        "path_gbm": 0.13010599841254578,
+        "all_gbm": 0.44479101154898615
+      },
+      "sufficiency_all": {
+        "p_opt": 0.91,
+        "mean_opt": 1.0064530572396952,
+        "mean_exp": 0.6058609934399989,
+        "h_mean": 0.555348953337253
+      },
+      "mediation_optimality": {
+        "n": 69,
+        "encoder": 0.5978260869565217,
+        "search": 0.3043478260869564
+      },
+      "mediation_efficiency": {
+        "n": 58,
+        "encoder": 0.160058680927106,
+        "search": 0.29764711558278545
+      },
+      "fragility": {
+        "maps_with_a_damaging_cell": 0.8192771084337349,
+        "median_damaging_cells": 0.007338551859099804,
+        "mean_damaging_cells": 0.019070757069951268,
+        "worst_opt": 1.3703703703703705,
+        "median_worst_opt": 1.0588235294117647
+      },
+      "shared_optimality": {
+        "n": 34,
+        "encoder": 0.5588235294117645,
+        "search": 0.553921568627451
+      },
+      "shared_efficiency": {
+        "n": 48,
+        "encoder": 0.48696003712597213,
+        "search": 0.3381693494408125
+      }
+    },
+    {
+      "tag": "mazes_seed2",
+      "checkpoint_epoch": 27,
+      "planning": {
+        "p_opt": 0.79,
+        "mean_opt": 1.0194530446802188,
+        "mean_exp": 0.5802670180635013,
+        "h_mean": 0.5627688016050675
+      },
+      "surrogate_r2": {
+        "geometric_h1_gbm": 0.308006362276962,
+        "path_gbm": 0.10817125195071087,
+        "all_gbm": 0.4805386297194483
+      },
+      "sufficiency_all": {
+        "p_opt": 0.9,
+        "mean_opt": 1.0090993887976645,
+        "mean_exp": 0.6209449468071311,
+        "h_mean": 0.5550216691912
+      },
+      "mediation_optimality": {
+        "n": 67,
+        "encoder": 0.627280265339967,
+        "search": 0.29187396351575456
+      },
+      "mediation_efficiency": {
+        "n": 56,
+        "encoder": 0.03962173463370205,
+        "search": 0.3632838157931536
+      },
+      "fragility": {
+        "maps_with_a_damaging_cell": 0.810126582278481,
+        "median_damaging_cells": 0.005870841487279843,
+        "mean_damaging_cells": 0.018571658800506503,
+        "worst_opt": 1.35,
+        "median_worst_opt": 1.0588235294117647
+      },
+      "shared_optimality": {
+        "n": 40,
+        "encoder": 0.46527777777777785,
+        "search": 0.4613888888888888
+      },
+      "shared_efficiency": {
+        "n": 39,
+        "encoder": 0.3157598797108474,
+        "search": 0.6006875220493121
+      }
+    }
+  ],
+  "dispersion": {
+    "checkpoint_epoch": {
+      "mean": 27.25,
+      "std": 4.193248541803041,
+      "min": 23.0,
+      "max": 33.0
+    },
+    "planning.p_opt": {
+      "mean": 0.8125,
+      "std": 0.020615528128088256,
+      "min": 0.79,
+      "max": 0.83
+    },
+    "planning.mean_opt": {
+      "mean": 1.0174010438642174,
+      "std": 0.0018316905037110364,
+      "min": 1.0153876654825627,
+      "max": 1.0194530446802188
+    },
+    "planning.mean_exp": {
+      "mean": 0.5855822737241979,
+      "std": 0.01271854085337506,
+      "min": 0.5778953162599954,
+      "max": 0.6046016432142511
+    },
+    "planning.h_mean": {
+      "mean": 0.5651406871953866,
+      "std": 0.009291499136883347,
+      "min": 0.5529931855926138,
+      "max": 0.5728486719683568
+    },
+    "surrogate_r2.geometric_h1_gbm": {
+      "mean": 0.279002786402145,
+      "std": 0.029360145839619156,
+      "min": 0.24033362263760927,
+      "max": 0.308006362276962
+    },
+    "surrogate_r2.path_gbm": {
+      "mean": 0.12000263367177672,
+      "std": 0.009152840441833475,
+      "min": 0.10817125195071087,
+      "max": 0.13010599841254578
+    },
+    "surrogate_r2.all_gbm": {
+      "mean": 0.44266144626769643,
+      "std": 0.02973953964788598,
+      "min": 0.40827345148933913,
+      "max": 0.4805386297194483
+    },
+    "sufficiency_all.p_opt": {
+      "mean": 0.915,
+      "std": 0.012909944487358068,
+      "min": 0.9,
+      "max": 0.93
+    },
+    "sufficiency_all.mean_opt": {
+      "mean": 1.0072295324407392,
+      "std": 0.0013775456052505378,
+      "min": 1.0059771939427113,
+      "max": 1.0090993887976645
+    },
+    "sufficiency_all.mean_exp": {
+      "mean": 0.6182565660384618,
+      "std": 0.008884786740924057,
+      "min": 0.6058609934399989,
+      "max": 0.6269066016330966
+    },
+    "sufficiency_all.h_mean": {
+      "mean": 0.5542009373169714,
+      "std": 0.0014667103129535816,
+      "min": 0.5520931329762103,
+      "max": 0.555348953337253
+    },
+    "mediation_optimality.n": {
+      "mean": 69.0,
+      "std": 1.4142135623730951,
+      "min": 67.0,
+      "max": 70.0
+    },
+    "mediation_optimality.encoder": {
+      "mean": 0.5452646833122174,
+      "std": 0.07955632150082191,
+      "min": 0.46309523809523817,
+      "max": 0.627280265339967
+    },
+    "mediation_optimality.search": {
+      "mean": 0.32932047007641474,
+      "std": 0.0720838537008274,
+      "min": 0.2843253968253969,
+      "max": 0.4367346938775511
+    },
+    "mediation_efficiency.n": {
+      "mean": 54.5,
+      "std": 3.872983346207417,
+      "min": 49.0,
+      "max": 58.0
+    },
+    "mediation_efficiency.encoder": {
+      "mean": 0.1446901423670065,
+      "std": 0.07837532894428421,
+      "min": 0.03962173463370205,
+      "max": 0.22909687798354594
+    },
+    "mediation_efficiency.search": {
+      "mean": 0.3109659026597633,
+      "std": 0.04565799571417236,
+      "min": 0.25555716477686763,
+      "max": 0.3632838157931536
+    },
+    "fragility.maps_with_a_damaging_cell": {
+      "mean": 0.8399563443648009,
+      "std": 0.030466813202214147,
+      "min": 0.810126582278481,
+      "max": 0.875
+    },
+    "fragility.median_damaging_cells": {
+      "mean": 0.0072162426614481405,
+      "std": 0.0009261102977495553,
+      "min": 0.005870841487279843,
+      "max": 0.007827788649706457
+    },
+    "fragility.mean_damaging_cells": {
+      "mean": 0.019753199224895435,
+      "std": 0.0012447457240629216,
+      "min": 0.018571658800506503,
+      "max": 0.02140948160085952
+    },
+    "fragility.worst_opt": {
+      "mean": 1.3459140936067913,
+      "std": 0.025359788925308633,
+      "min": 1.3103448275862069,
+      "max": 1.3703703703703705
+    },
+    "fragility.median_worst_opt": {
+      "mean": 1.061955447501581,
+      "std": 0.0038394455961753655,
+      "min": 1.0588235294117647,
+      "max": 1.0666666666666667
+    },
+    "shared_optimality.n": {
+      "mean": 45.0,
+      "std": 16.852299546352718,
+      "min": 34.0,
+      "max": 70.0
+    },
+    "shared_optimality.encoder": {
+      "mean": 0.4944016495487084,
+      "std": 0.04524033182068683,
+      "min": 0.4606481481481482,
+      "max": 0.5588235294117645
+    },
+    "shared_optimality.search": {
+      "mean": 0.48454851384998443,
+      "std": 0.15183024435479506,
+      "min": 0.2843253968253969,
+      "max": 0.6385582010582009
+    },
+    "shared_efficiency.n": {
+      "mean": 46.5,
+      "std": 6.757711644237764,
+      "min": 39.0,
+      "max": 55.0
+    },
+    "shared_efficiency.encoder": {
+      "mean": 0.326883693863855,
+      "std": 0.11244015665188764,
+      "min": 0.22909687798354594,
+      "max": 0.48696003712597213
+    },
+    "shared_efficiency.search": {
+      "mean": 0.39493944750385224,
+      "std": 0.1472804719914631,
+      "min": 0.25555716477686763,
+      "max": 0.6006875220493121
+    }
+  },
+  "cost_map_agreement": [
+    {
+      "pair": "pretrained vs mazes_seed0",
+      "pooled_r": 0.8478326475768428,
+      "within_map_r": 0.8419751271838795,
+      "mean_abs_difference": 0.11390617359734166
+    },
+    {
+      "pair": "pretrained vs mazes_seed1",
+      "pooled_r": 0.8009527460463841,
+      "within_map_r": 0.7922151583838533,
+      "mean_abs_difference": 0.12556541011003283
+    },
+    {
+      "pair": "pretrained vs mazes_seed2",
+      "pooled_r": 0.8411233882963255,
+      "within_map_r": 0.8379914655514259,
+      "mean_abs_difference": 0.11632218590980449
+    },
+    {
+      "pair": "mazes_seed0 vs mazes_seed1",
+      "pooled_r": 0.8698885217005683,
+      "within_map_r": 0.8658216942248277,
+      "mean_abs_difference": 0.09993449991806762
+    },
+    {
+      "pair": "mazes_seed0 vs mazes_seed2",
+      "pooled_r": 0.8835061988079103,
+      "within_map_r": 0.8808336110460004,
+      "mean_abs_difference": 0.09887792245113881
+    },
+    {
+      "pair": "mazes_seed1 vs mazes_seed2",
+      "pooled_r": 0.8329609853829062,
+      "within_map_r": 0.8287212437764108,
+      "mean_abs_difference": 0.1186990339939991
+    }
+  ],
+  "vulnerability_overlap": [
+    {
+      "pair": "pretrained vs mazes_seed0",
+      "damaging_first": 2040,
+      "damaging_second": 2188,
+      "damaging_both": 920,
+      "share_of_first_shared": 0.45098039215686275,
+      "enrichment_over_chance": 21.064576836218947,
+      "same_worst_flip_maps": 32,
+      "n_maps": 100
+    },
+    {
+      "pair": "pretrained vs mazes_seed1",
+      "damaging_first": 2040,
+      "damaging_second": 1949,
+      "damaging_both": 1007,
+      "share_of_first_shared": 0.4936274509803922,
+      "enrichment_over_chance": 25.883908791838948,
+      "same_worst_flip_maps": 30,
+      "n_maps": 100
+    },
+    {
+      "pair": "pretrained vs mazes_seed2",
+      "damaging_first": 2040,
+      "damaging_second": 1898,
+      "damaging_both": 1037,
+      "share_of_first_shared": 0.5083333333333333,
+      "enrichment_over_chance": 27.371259220231824,
+      "same_worst_flip_maps": 37,
+      "n_maps": 100
+    },
+    {
+      "pair": "mazes_seed0 vs mazes_seed1",
+      "damaging_first": 2188,
+      "damaging_second": 1949,
+      "damaging_both": 797,
+      "share_of_first_shared": 0.3642595978062157,
+      "enrichment_over_chance": 19.100360377937214,
+      "same_worst_flip_maps": 34,
+      "n_maps": 100
+    },
+    {
+      "pair": "mazes_seed0 vs mazes_seed2",
+      "damaging_first": 2188,
+      "damaging_second": 1898,
+      "damaging_both": 802,
+      "share_of_first_shared": 0.36654478976234006,
+      "enrichment_over_chance": 19.736640897856496,
+      "same_worst_flip_maps": 32,
+      "n_maps": 100
+    },
+    {
+      "pair": "mazes_seed1 vs mazes_seed2",
+      "damaging_first": 1949,
+      "damaging_second": 1898,
+      "damaging_both": 976,
+      "share_of_first_shared": 0.5007696254489482,
+      "enrichment_over_chance": 26.9639906120293,
+      "same_worst_flip_maps": 33,
+      "n_maps": 100
+    }
+  ]
+}

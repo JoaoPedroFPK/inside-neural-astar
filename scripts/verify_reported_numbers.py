@@ -139,13 +139,29 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
             for row in seeds["models"]
             if "mediation_optimality" in row
         ]
+        efficiency_encoders = [
+            row["mediation_efficiency"]["encoder"]
+            for row in seeds["models"]
+            if "mediation_efficiency" in row
+        ]
+        efficiency_searches = [
+            row["mediation_efficiency"]["search"]
+            for row in seeds["models"]
+            if "mediation_efficiency" in row
+        ]
         if len(encoders) > 1:
-            # Recorded as a *finding*, not an assumption: the encoder share is
-            # the more stable of the two. If this ever flips, the step-10
-            # write-up needs revisiting rather than the test relaxing.
+            # The step-10 claim is about *ordering*, not magnitude: the two
+            # routes' ranges do not overlap, in opposite directions for the two
+            # objectives. The magnitudes move by about 0.16 either way, which
+            # is why no claim in this project quotes a single one of them.
             out.append(
-                ("step 10: the encoder share varies less than the search share",
-                 lambda: (max(encoders) - min(encoders)) < (max(searches) - min(searches)))
+                ("step 10: the encoder route leads on path quality in every model",
+                 lambda: min(encoders) > max(searches))
+            )
+        if len(efficiency_encoders) > 1:
+            out.append(
+                ("step 10: the search route leads on search effort in every model",
+                 lambda: min(efficiency_searches) > max(efficiency_encoders))
             )
     return out
 

@@ -61,7 +61,7 @@ If the failure reappears with altered costs on original obstacles, the encoder's
 
 ## Status — 2026-10-17
 
-**Steps 0–9 of the plan are done**, plus the cross-family validity check.
+**Steps 0–10 of the plan are done**, plus the cross-family validity check.
 The environment is pinned and asserted; the published numbers are reproduced;
 the structural premise of the mediation design is verified in code and under
 test; the exact solver reproduces the published search exactly; every one of
@@ -70,8 +70,9 @@ been decomposed into its two routes at four attack budgets; the attribution
 methods have been tested against a bound the architecture makes exact; and the
 findings have been checked against all eight map families.
 
-Step 10 (three training seeds) is running. Everything is reproducible with the
-`make` targets below — `make help` lists them with their runtimes.
+Three encoders were trained from different seeds and every per-model
+measurement repeated on each. Everything is reproducible with the `make`
+targets below — `make help` lists them with their runtimes.
 
 > The research plan, the verification record (every premise checked in code,
 > with file and line references), the decision log and the per-step write-ups
@@ -378,6 +379,45 @@ The planner's own numbers are *transfer*, not generalisation — it was trained
 on mazes, and its Hmean falls from 0.573 to 0.272 across families, so
 per-family training is required before concluding anything about them.
 
+### Step 10 — what survives a change of training seed
+
+Three encoders trained from scratch (50 epochs each, ~23 min on CPU) plus the
+shipped checkpoint, with the surrogate fits, the exhaustive sweep and the
+mediation swap repeated on every one.
+
+**What replicates.** Fragility: 81–88 % of baseline-optimal maps have a
+damaging cell, median 0.59–0.78 % of cells, worst single flip 1.31–1.37.
+Surrogate: the ordering all (0.41–0.48) > geometry (0.24–0.31) > path
+(0.11–0.13) holds in every model, with gaps four to five times the spread
+between models. And in all four, a surrogate plans **more optimally than the
+network it imitates** (0.90–0.93 against 0.79–0.83).
+
+**The mediation split holds in both halves, with ranges that do not overlap:**
+
+| | encoder route | search route |
+|---|---|---|
+| path quality | **0.463 – 0.627** | 0.284 – 0.437 |
+| search effort | 0.040 – 0.229 | **0.256 – 0.363** |
+
+The lowest encoder value for path quality is above the highest search value;
+for search effort the ordering is reversed and equally clean. Both halves of
+the project's hypothesis are confirmed.
+
+**This reversed a conclusion the project had reached twice.** Step 7 read the
+pooled efficiency numbers as search-dominated 2.6 : 1; step 9 corrected that to
+"roughly even, not confirmed" from the restricted figures of a single model
+whose margin was 0.03 — the narrowest of the four. Reading a direction from one
+model was the error. The sequence is left in the write-ups rather than tidied
+away.
+
+**What does not replicate.** The cost map itself: two models trained
+identically but for a seed agree at within-map r ≈ 0.85, differing by about a
+tenth of the output range per cell. Vulnerable cells overlap only 45–51 %
+between models — 21–27× chance, so largely a property of the map, but the
+single worst cell per map agrees in only about a third of them. Aggregate
+findings travel between models; specific cost values and specific vulnerable
+cells do not.
+
 ### Negative and corrected results, collected
 
 The plan asks for these to be explicit rather than buried, so they are listed
@@ -389,7 +429,7 @@ together. Each links to the step that produced it.
 |---|---|
 | The cost map approximates distance-to-goal in smoothed form | Linear fits on the goal distances reach R² **0.007**; the search's own heuristic reaches **0.002**. The non-linear fit recovers 0.105, so the information is there but not in the stated form. |
 | Large distortions steer the search to a worse path | Correlation between the size of the cost-map change and whether the path broke: **+0.04**. Among broken cases, severity correlates **−0.06**. Non-monotone, with the largest distortions *less* damaging. Location predicts damage; magnitude does not. |
-| Search-effort damage is search-mediated | True of the pooled figure (2.6 : 1), but restricted to genuine planner deviation it is **0.23 vs 0.26** — roughly even. |
+| ~~Search-effort damage is search-mediated~~ | **Reinstated.** The pooled 2.6 : 1 was wrong, and so was the single-model correction (0.23 vs 0.26). Across four models the search route is larger in every one, 0.256–0.363 against 0.040–0.229. |
 | Denser map families would make the plan's cell partition usable | The "dead end" class is empty in **all eight** families, including the densest at 36 % obstacles. |
 
 **Premises of the project that were wrong**
@@ -405,7 +445,7 @@ together. Each links to the step that produced it.
 | first reported | corrected to |
 |---|---|
 | Doors are ~5× more damaging than pillars (25 draws) | **1.85×** over all 11 077 door flips. |
-| Efficiency damage is search-mediated 2.6 : 1 | Roughly even once the shortcut-opening alterations are separated. |
+| Efficiency damage is search-mediated 2.6 : 1 | Roughly even once the shortcut-opening alterations are separated — then **confirmed after all** once four models were measured, since one model's 0.03 margin was not a direction. |
 | Greedy search climbs monotonically | It cannot stay put, so it can step down; 3 of 194 sequences do. |
 | Damaging cells carry ~1.7× the attribution density (5 cells per group) | Re-measured at ~35 per group: **0.80×, 1.05×, 0.79×**, none significant. No reliable effect. |
 
@@ -583,14 +623,14 @@ that same map. Classical A\* replanning correctly is not an error.
 
 - [x] **Stage 1 — Proposal** (16 Oct 2026): question, hypothesis, design. ✔ submitted
 - [ ] **Stage 2:** E0 reproduced ✅ · swap premise confirmed in `differentiable_astar.py` ✅ · exact solver + metrics [2] ✅ · random-flip pilot [3] ✅ · feature library [4] ✅ · surrogate fit [5] ✅ · perturbation harness [6] ✅
-- [ ] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] 🏃 · WarCraft [11] not started — it needs a third-party dataset download, so it waits for an explicit decision rather than being fetched automatically.
+- [ ] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] ✅ · WarCraft [11] not started — it needs a third-party dataset download, so it waits for an explicit decision rather than being fetched automatically.
 - [ ] **Final:** E4 if reached [12]; write-up with explicit negative results.
 
-**Next step:** step 10 — three encoders trained from different seeds, with the
-surrogate fits and the mediation decomposition repeated on each, to turn
-single-model observations into claims with a dispersion attached. After that,
-per-family training finishes the validity check begun in step 7b, and the
-detector of E4 becomes available.
+**Next step:** per-family training (step 7b part b) finishes the validity
+check — the planner transfers poorly across map families, so nothing about
+them can be concluded from a maze-trained model. After that, step 11 (WarCraft)
+if the dataset download is wanted, and the E4 detector, which should rest on
+the surrogate residual rather than on attribution density.
 
 ---
 
