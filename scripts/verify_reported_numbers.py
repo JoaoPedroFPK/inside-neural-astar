@@ -54,6 +54,12 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
     damaging = load("e2_damaging_cells.json")
     attribution = load("e1_attribution/summary.json")
     seeds = load("seeds.json")
+    detector = load("e4_detector.json")
+    transfer = load("e4_detector_from_greedy_opt_b4.json")
+    detector_models = [
+        load(f"e4_detector_{tag}.json")
+        for tag in ("mazes_seed0", "mazes_seed1", "mazes_seed2")
+    ]
 
     out: List[Tuple[str, Callable[[], bool]]] = []
 
@@ -163,11 +169,94 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
                 ("step 10: the search route leads on search effort in every model",
                  lambda: min(efficiency_searches) > max(efficiency_encoders))
             )
+    if detector:
+        conditions = {row["condition"]: row for row in detector["conditions"]}
+        out.extend(
+            [
+                ("step 12: the model-free control already reaches 0.779 on single flips",
+                 lambda: near(conditions["k1_opt"]["map_only_auc"], 0.779, 1e-3)),
+                ("step 12: the residual alone never beats the activation baseline",
+                 lambda: all(
+                     row["residual_auc"] < row["mahalanobis_auc"]
+                     for row in detector["conditions"]
+                 )),
+                ("step 12: on single flips the residual adds 0.113 over the control",
+                 lambda: near(
+                     conditions["k1_opt"]["combined_minus_map_only"]["gap"], 0.113, 1e-3
+                 )),
+                ("step 12: that gain's interval excludes zero",
+                 lambda: conditions["k1_opt"]["combined_minus_map_only"]["lo"] > 0),
+                ("step 12: at budget 8 on path quality the residual adds nothing",
+                 lambda: conditions["greedy_opt_b8"]["combined_minus_map_only"]["lo"] < 0),
+                # Holding the number of flips at two, hiding the obstacle count
+                # costs the model-free control 0.124 AUC and the activation
+                # baseline nothing. Both halves matter: the first shows the
+                # control counts obstacles, the second shows the baseline does
+                # not, which is what § 4.2 of the write-up had to be corrected to.
+                ("step 12: hiding the obstacle count costs the control 0.124 AUC",
+                 lambda: near(
+                     conditions["blocked_2"]["map_only_auc"]
+                     - conditions["balanced_2"]["map_only_auc"],
+                     0.124,
+                     1e-3,
+                 )),
+                ("step 12: hiding the obstacle count costs the activation baseline nothing",
+                 lambda: abs(
+                     conditions["blocked_2"]["mahalanobis_auc"]
+                     - conditions["balanced_2"]["mahalanobis_auc"]
+                 ) < 0.01),
+                ("step 12: the residual helps more against the stealthier attack",
+                 lambda: conditions["balanced_2"]["combined_minus_map_only"]["gap"]
+                 > conditions["blocked_2"]["combined_minus_map_only"]["hi"]),
+            ]
+        )
+
+    if transfer:
+        moved = {row["condition"]: row for row in transfer["conditions"]}
+        # PLAN.md's design: one detector fitted on k=4 optimality flips, scored
+        # across budgets and objectives. The claim is that transfer is nearly
+        # free, so the comparison is against the per-condition fits.
+        out.extend(
+            [
+                ("step 12: a transferred detector loses at most 0.05 AUC per condition",
+                 lambda: max(
+                     conditions[name]["residual_auc"] - moved[name]["residual_auc"]
+                     for name in moved
+                     if name in conditions
+                 ) < 0.05),
+                ("step 12: the transferred detector still beats the control on single flips",
+                 lambda: moved["k1_opt"]["combined_minus_map_only"]["lo"] > 0),
+                ("step 12: the stealth ordering survives transfer",
+                 lambda: moved["balanced_2"]["combined_minus_map_only"]["gap"]
+                 > moved["blocked_2"]["combined_minus_map_only"]["gap"]),
+            ]
+        )
+
+    present = [payload for payload in detector_models if payload]
+    if len(present) > 1:
+        # The step-12 claim that travels between models is the *sign* of the
+        # gain, not its size — the same standard step 10 imposed on mediation.
+        gains = [
+            row["combined_minus_map_only"]["lo"]
+            for payload in present
+            for row in payload["conditions"]
+        ]
+        out.append(
+            ("step 12: the residual's gain over the control holds in every maze model",
+             lambda: min(gains) > 0)
+        )
     return out
 
 
 def main() -> int:
     """Run every check and return a non-zero code if any quoted figure is stale."""
+    import argparse
+
+    # This script is also exercised by `tests/test_repo_hygiene.py`, which runs
+    # every script with `--help` and expects exit code 0. Without an argument
+    # parser, `--help` ran the checks instead, so one stale figure surfaced as
+    # "this script has a broken command line".
+    argparse.ArgumentParser(description=__doc__).parse_args()
     results = checks()
     if not results:
         print("no result files found; run the experiments first", file=sys.stderr)
