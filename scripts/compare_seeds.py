@@ -395,8 +395,8 @@ def render_markdown(
             "Here every model is run on one fixed set — the flips chosen as worst for "
             "the shipped checkpoint — which isolates the model difference.",
             "",
-            "| model | path: encoder | path: search | effort: encoder | effort: search |",
-            "|-------|---------------|--------------|-----------------|----------------|",
+            "| model | n damaged | path: encoder | path: search | n damaged | effort: encoder | effort: search |",
+            "|-------|-----------|---------------|--------------|-----------|-----------------|----------------|",
         ]
         for row in rows:
             path_part = row.get("shared_optimality")
@@ -404,14 +404,25 @@ def render_markdown(
             if not path_part:
                 continue
             lines.append(
-                f"| `{row['tag']}` | {path_part['encoder']:+.3f} | {path_part['search']:+.3f} | "
+                f"| `{row['tag']}` | {path_part['n']} | {path_part['encoder']:+.3f} | "
+                f"{path_part['search']:+.3f} | "
                 + (
-                    f"{effort_part['encoder']:+.3f} | {effort_part['search']:+.3f} |"
+                    f"{effort_part['n']} | {effort_part['encoder']:+.3f} | "
+                    f"{effort_part['search']:+.3f} |"
                     if effort_part
-                    else "— | — |"
+                    else "— | — | — |"
                 )
             )
-        lines.append("")
+        lines += [
+            "",
+            "**Read the `n` columns before the fractions.** The alterations are the "
+            "same, but how many of them actually damage each model is not: a flip "
+            "chosen as worst for one model often leaves another untouched. So the "
+            "fractions are still averages over different subsets, and only the "
+            "comparison of *which route dominates* is meaningful — not the exact "
+            "values.",
+            "",
+        ]
     if any("mediation_optimality" in row for row in rows):
         lines += [
             "",
