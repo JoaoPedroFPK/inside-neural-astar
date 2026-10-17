@@ -1,0 +1,45 @@
+{
+  "split": "test",
+  "seed": 0,
+  "checks": {
+    "distance_fields_vs_dataset": {
+      "maps": 1000,
+      "cells": 451447,
+      "mismatches": [],
+      "n_mismatches": 0,
+      "ok": true,
+      "seconds": 1.02
+    },
+    "dijkstra_vs_dataset_at_fixed_starts": {
+      "ok": true,
+      "n": 100
+    },
+    "solver_replicates_upstream": {
+      "classical_expansions_match": 1.0,
+      "classical_costs_match": 1.0,
+      "neural_expansions_match": 1.0,
+      "neural_path_moves_match": 1.0,
+      "seconds_for_3_solves_per_instance": 0.16,
+      "ok": true
+    },
+    "project_metrics": {
+      "n": 100,
+      "mean_opt_ratio": 1.0153876654825627,
+      "p_opt": 0.83,
+      "mean_exp_ratio": 0.5778953162599954,
+      "p_exp": 0.4373488633414951,
+      "h_mean": 0.5728486719683568,
+      "n_worse_than_classical": 13
+    },
+    "metrics_match_e0": {
+      "available": true,
+      "e0_p_opt": 0.83,
+      "solver_p_opt": 0.83,
+      "p_opt_ok": true,
+      "e0_p_exp": 0.4373488633414951,
+      "solver_p_exp": 0.4373488633414951,
+      "p_exp_ok": true,
+      "ok": true
+    }
+  }
+}
