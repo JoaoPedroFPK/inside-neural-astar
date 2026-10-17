@@ -221,6 +221,68 @@ def mediation_for(tag: str) -> Dict[str, object]:
     return out
 
 
+def vulnerability_overlap(tags: List[str]) -> List[Dict[str, object]]:
+    """Do different models break on the same cells?
+
+    Each model's exhaustive sweep labels every one of the ~102 000 single-cell
+    alterations as damaging or not. Comparing those labels across models
+    separates a property of the *map* — this cell is dangerous for any planner
+    — from a property of the *model*.
+
+    Args:
+        tags: Model tags whose manifests to compare pairwise.
+
+    Returns:
+        list[dict]: Per pair, how many cells damage each model, how many damage
+        both, the enrichment over what independence would predict, and how
+        often the per-map worst flip is the same cell.
+    """
+    frames = {}
+    for tag in tags:
+        suffix = f"_{tag}" if tag else ""
+        path = config.RESULTS_DIR / f"manifest{suffix}.parquet"
+        if not path.exists():
+            continue
+        frame = pd.read_parquet(path)
+        frame = frame[(frame["method"] == "exhaustive") & (frame["budget"] == 1)].copy()
+        frame["cell"] = frame["flip_cells"].apply(
+            lambda cells: (int(cells[0][0]), int(cells[0][1]))
+        )
+        frame["damaging"] = frame["opt_C1O1"] > frame["opt_C0O0"]
+        frames[tag] = frame
+
+    out = []
+    names = list(frames)
+    for i, first in enumerate(names):
+        for second in names[i + 1 :]:
+            a, b = frames[first], frames[second]
+            merged = a[["instance_id", "cell", "damaging", "is_worst_optimality"]].merge(
+                b[["instance_id", "cell", "damaging", "is_worst_optimality"]],
+                on=["instance_id", "cell"],
+                suffixes=("_a", "_b"),
+            )
+            both = int((merged["damaging_a"] & merged["damaging_b"]).sum())
+            n_a, n_b = int(merged["damaging_a"].sum()), int(merged["damaging_b"].sum())
+            expected = n_a * n_b / max(len(merged), 1)
+            worst_a = merged[merged["is_worst_optimality_a"].fillna(False).astype(bool)]
+            same_worst = int(
+                worst_a["is_worst_optimality_b"].fillna(False).astype(bool).sum()
+            )
+            out.append(
+                {
+                    "pair": f"{first or 'pretrained'} vs {second or 'pretrained'}",
+                    "damaging_first": n_a,
+                    "damaging_second": n_b,
+                    "damaging_both": both,
+                    "share_of_first_shared": both / n_a if n_a else float("nan"),
+                    "enrichment_over_chance": both / expected if expected else float("nan"),
+                    "same_worst_flip_maps": same_worst,
+                    "n_maps": int(len(worst_a)),
+                }
+            )
+    return out
+
+
 def cost_map_agreement(tags: List[str]) -> List[Dict[str, object]]:
     """How much do two models' cost maps agree, cell by cell?
 
@@ -362,17 +424,19 @@ def main() -> int:
         {"mean": numeric.mean(), "std": numeric.std(), "min": numeric.min(), "max": numeric.max()}
     )
     agreement = cost_map_agreement(list(args.tags))
+    overlap = vulnerability_overlap(list(args.tags))
     report = {
         "seed": args.seed,
         "models": rows,
         "dispersion": dispersion.to_dict("index"),
         "cost_map_agreement": agreement,
+        "vulnerability_overlap": overlap,
     }
     (config.RESULTS_DIR / "seeds.json").write_text(
         json.dumps(report, indent=2, default=float) + "\n"
     )
     (config.RESULTS_DIR / "seeds.md").write_text(
-        render_markdown(rows, dispersion, agreement) + "\n"
+        render_markdown(rows, dispersion, agreement, overlap) + "\n"
     )
 
     print()
@@ -385,6 +449,7 @@ def render_markdown(
     rows: List[Dict[str, object]],
     dispersion: pd.DataFrame,
     agreement: Optional[List[Dict[str, object]]] = None,
+    overlap: Optional[List[Dict[str, object]]] = None,
 ) -> str:
     """Render the seed comparison.
 
@@ -392,6 +457,7 @@ def render_markdown(
         rows: Per-model results.
         dispersion: Mean / std / min / max per numeric field.
         agreement: Pairwise cost-map agreement.
+        overlap: Pairwise agreement on which cells are dangerous.
 
     Returns:
         str: Markdown document.
@@ -516,6 +582,27 @@ def render_markdown(
                 f"| {entry['pair']} | {entry['pooled_r']:.3f} | "
                 f"{entry['within_map_r']:.3f} | {entry['mean_abs_difference']:.3f} |"
             )
+    if overlap:
+        lines += [
+            "",
+            "## Do the models break on the same cells?",
+            "",
+            "Every model's sweep labels all ~102 000 single-cell alterations as "
+            "damaging or not. Comparing the labels separates a property of the map — "
+            "this cell is dangerous for any planner — from a property of the model.",
+            "",
+            "| pair | damaging for each | damaging for both | share | vs chance | same worst flip |",
+            "|------|-------------------|-------------------|-------|-----------|-----------------|",
+        ]
+        for entry in overlap:
+            lines.append(
+                f"| {entry['pair']} | {entry['damaging_first']:,} / "
+                f"{entry['damaging_second']:,} | {entry['damaging_both']:,} | "
+                f"{entry['share_of_first_shared']:.0%} | "
+                f"**{entry['enrichment_over_chance']:.0f}x** | "
+                f"{entry['same_worst_flip_maps']}/{entry['n_maps']} maps |"
+            )
+        lines.append("")
     lines += ["", "## Dispersion", "", "| quantity | mean | std | min | max |", "|---|---|---|---|---|"]
     for name, row in dispersion.iterrows():
         lines.append(
