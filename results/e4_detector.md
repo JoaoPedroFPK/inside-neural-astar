@@ -23,6 +23,8 @@ Paired task: the detector sees each instance's clean and altered map and must se
 
 A small convolutional network given the raw grid, trained on **random** single obstacle-additions to the 800 training maps — never on a selected damaging flip and never on a map it is scored on. This is the hardest model-free bar: it discovers whatever local pattern a flip leaves without being told to look for it, and a defender really could build it, since random flips cost nothing to generate.
 
+It is trained on 1600 examples and detects a random flip on held-out maps with AUC 1.000.
+
 | condition | convolutional control | + residual | gap, 95 % CI |
 |-----------|-----------------------|------------|--------------|
 | `k1_opt` | 0.919 | 0.975 | +0.056 [+0.012, +0.105] |

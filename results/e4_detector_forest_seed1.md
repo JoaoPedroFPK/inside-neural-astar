@@ -11,6 +11,17 @@ Paired task: the detector sees each instance's clean and altered map and must se
 | `k1_opt` | 100 | 50 | 0.607 | 0.580 | 0.595 | `l8_mean` | 0.855 | 0.848 | -0.007 [-0.041, +0.021] |
 | `k1_eff` | 93 | 47 | 0.595 | 0.543 | 0.567 | `l2_max` | 0.709 | 0.718 | +0.009 [-0.026, +0.049] |
 
+## Against the convolutional map-only control
+
+A small convolutional network given the raw grid, trained on **random** single obstacle-additions to the 800 training maps — never on a selected damaging flip and never on a map it is scored on. This is the hardest model-free bar: it discovers whatever local pattern a flip leaves without being told to look for it, and a defender really could build it, since random flips cost nothing to generate.
+
+It is trained on 1600 examples and detects a random flip on held-out maps with AUC 0.985.
+
+| condition | convolutional control | + residual | gap, 95 % CI |
+|-----------|-----------------------|------------|--------------|
+| `k1_opt` | 0.923 | 0.918 | -0.006 [-0.032, +0.017] |
+| `k1_eff` | 0.857 | 0.835 | -0.023 [-0.071, +0.034] |
+
 ## The harder version: no clean twin
 
 Each evaluation map contributes either its clean map or its altered one, never both, so the detector cannot compare a map against itself. This is what a deployed monitor faces, and these are the realistic numbers.

@@ -512,26 +512,33 @@ route. Can the tampering be seen from inside? Four detectors are compared on
 | grid statistics (weak control) | the map alone: obstacle fraction, isolated obstacles, isolated free cells, dead ends, path length |
 | convolutional net (strong control) | the raw grid, trained on **random** flips of the 800 training maps — never a selected flip, never a scored map |
 
-**The claim, at the strength the measurements support: for a single flipped
-cell, the planner's internals carry information that even a convolutional
-network reading the raw grid does not have. For two or more, they do not.**
+**The claim, at the strength seven trained models support: for a single flipped
+cell on a maze map, chosen to make the search work harder, the planner's
+internals carry information a convolutional network reading the raw grid does
+not have. Everywhere else, no.**
 
-| alteration | convolutional control | + residual | gain, 95 % CI |
+| model | effort: control | + residual | gain, 95 % CI |
 |---|---|---|---|
-| 1 flip, path damage | 0.919 | 0.975 | **+0.056** [+0.012, +0.105] |
-| 1 flip, search-effort damage | 0.797 | 0.902 | **+0.106** [+0.024, +0.182] |
-| 2 flips, obstacle count hidden | 0.966 | 0.981 | +0.016 [−0.018, +0.050] |
-| 2 flips, both blocking | **1.000** | 1.000 | +0.000 |
-| 8 flips, path damage | 0.990 | 0.977 | −0.012 [−0.044, +0.013] |
+| shipped | 0.797 | 0.902 | **+0.106** [+0.024, +0.182] |
+| `mazes_seed0` | 0.817 | 0.897 | **+0.080** [+0.019, +0.142] |
+| `mazes_seed1` | 0.788 | 0.903 | **+0.115** [+0.048, +0.179] |
+| `mazes_seed2` | 0.786 | 0.866 | **+0.079** [+0.012, +0.141] |
 
-That is the narrow claim, and the narrowing is itself a result. Against the
-*weak* control the gains look like +0.113 and +0.238 and look like they depend
-on the attacker's objective; they replicate in all four maze models and vanish
-on forest. Against the *strong* control they are +0.056 and +0.106 and depend
-only on how many cells were flipped. Five hand-picked statistics were measuring
-their own weakness as much as the residual's strength. Since the single-cell
-regime is what steps 3, 6 and 7 are all built on, the surviving claim is about
-exactly the case this project cares about.
+Four of four maze models, every interval clear of zero. What does *not* survive:
+
+| measurement | outcome |
+|---|---|
+| single flip, path damage | 2 of 4 maze models clear zero → **withdrawn** |
+| 2, 4 or 8 flips, either objective | nothing; the grid gives those away by itself (control 0.966–1.000) |
+| forest maps, either objective | 0 of 6 against this control; 1 of 6 marginally (+0.036) against the weaker one |
+
+The control is near-perfect at its own training task — AUC 1.000 on held-out
+maze maps, 0.985 on forest — and it **beats the hand-feature detector
+outright** in most conditions (0.919 vs 0.892 at `k=1`, a perfect 1.000 on two
+added obstacles). Against the weaker five-statistic control the gains look
+three times larger (+0.113 and +0.238) and replicate everywhere; that column is
+kept in the write-up marked as such, because the gap between the two controls is
+the methodological finding.
 
 **As a standalone detector the residual loses** to the out-of-distribution
 score in all ten conditions, and that score's own strength is unexplained: its
@@ -574,7 +581,7 @@ together. Each links to the step that produced it.
 | The surrogate residual would beat an out-of-distribution score at detecting tampering | It loses in **all ten** conditions. It is a complement to a map-only control, not a replacement for the standard baseline. |
 | The OOD baseline is essentially counting obstacles | Its dominant activation direction correlates 0.994 with the obstacle count, but hiding the count costs it **0.003** AUC (and costs the hand-feature control 0.124). Written down, then tested, then withdrawn. |
 | Detecting tampering without a clean reference would be harder | The opposite. Dropping the clean twin costs map-based detectors AUC and the residual nothing; the grid statistics fall to **0.449** on stealthy effort flips. Predicted, measured, corrected. |
-| The residual's gain depends on which objective the attacker chose | Against a convolutional control it depends only on **how many cells were flipped**: present at one, absent at two or more, on both objectives. The objective pattern was an artefact of a weak control. |
+| The residual's gain survives on both objectives at one flipped cell | Drawn from one model, withdrawn one model later. Across four maze models the search-effort gain replicates (4/4) and the path gain does not (2/4). **Both** the objective and the number of flipped cells are load-bearing. |
 
 **Premises of the project that were wrong**
 

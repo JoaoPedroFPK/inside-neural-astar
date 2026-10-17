@@ -210,31 +210,46 @@ def train_grid_control(
         limit: Optional cap on instances, for probes.
 
     Returns:
-        GridCnn: The fitted control, in eval mode.
+        tuple: ``(model, scores)`` — the fitted control in eval mode, and its
+        AUC on the random-flip task for the training split and for a held-out
+        split. The held-out figure is what says whether the control is a real
+        bar or an overfitted one, so it is stored with the results rather than
+        measured once by hand.
     """
-    from src.detect import grid_cnn_inputs, train_grid_cnn
+    import torch
+    from sklearn.metrics import roc_auc_score
+
+    from src.detect import grid_cnn_inputs, score_grid_cnn, train_grid_cnn
     from src.perturb import sample_random_flips
 
-    instances = load_split(split_name, npz_path=config.family_npz(family)).instances(seed=seed)
-    if limit is not None:
-        instances = instances[:limit]
-    rng = np.random.default_rng(seed)
-    paired_instances, designs, labels = [], [], []
-    for instance in instances:
-        cells = sample_random_flips(instance, 1, rng, free_only=True)
-        if cells is None:
-            continue
-        paired_instances += [instance, instance]
-        designs += [instance.map_design, flip_cells(instance.map_design, cells)]
-        labels += [0.0, 1.0]
-    import torch
+    def random_flip_examples(name: str):
+        """One clean and one randomly-flipped example per instance of a split."""
+        instances = load_split(name, npz_path=config.family_npz(family)).instances(seed=seed)
+        if limit is not None:
+            instances = instances[:limit]
+        rng = np.random.default_rng(seed)
+        paired_instances, designs, labels = [], [], []
+        for instance in instances:
+            cells = sample_random_flips(instance, 1, rng, free_only=True)
+            if cells is None:
+                continue
+            paired_instances += [instance, instance]
+            designs += [instance.map_design, flip_cells(instance.map_design, cells)]
+            labels += [0.0, 1.0]
+        return grid_cnn_inputs(paired_instances, designs), np.asarray(labels)
 
-    return train_grid_cnn(
-        grid_cnn_inputs(paired_instances, designs),
-        torch.tensor(labels),
-        epochs=epochs,
-        seed=seed,
-    )
+    inputs, labels = random_flip_examples(split_name)
+    model = train_grid_cnn(inputs, torch.tensor(labels, dtype=torch.float32), epochs=epochs, seed=seed)
+
+    held_out_inputs, held_out_labels = random_flip_examples("valid")
+    scores = {
+        "n_train_examples": int(len(labels)),
+        "random_flip_auc_train": float(roc_auc_score(labels, score_grid_cnn(model, inputs))),
+        "random_flip_auc_valid": float(
+            roc_auc_score(held_out_labels, score_grid_cnn(model, held_out_inputs))
+        ),
+    }
+    return model, scores
 
 
 def clean_residual_sd(
@@ -320,13 +335,17 @@ def main() -> int:
     print(f"clean residual sd = {spread:.4f} (validation split)")
 
     grid_control = None
+    grid_control_scores: Dict[str, object] = {}
     if args.grid_cnn:
         started = time.perf_counter()
-        grid_control = train_grid_control(
+        grid_control, grid_control_scores = train_grid_control(
             "train", args.family, args.seed, args.grid_cnn_epochs, limit=args.instances
         )
         print(
-            f"convolutional map-only control trained on random train-split flips "
+            f"convolutional map-only control: trained on "
+            f"{grid_control_scores['n_train_examples']} random-flip examples, "
+            f"random-flip AUC {grid_control_scores['random_flip_auc_train']:.3f} train / "
+            f"{grid_control_scores['random_flip_auc_valid']:.3f} held out "
             f"({time.perf_counter() - started:.0f} s)"
         )
 
@@ -582,6 +601,7 @@ def main() -> int:
         "transfer_from": args.transfer_from,
         "surrogate": {"group": args.group, "kind": args.kind, "r2": surrogate.r2},
         "clean_residual_sd": spread,
+        "grid_cnn_control": grid_control_scores,
         "residual_features": list(RESIDUAL_FEATURES),
         "map_only_features": list(MAP_ONLY_FEATURES),
         "conditions": rows,
@@ -641,6 +661,10 @@ def main() -> int:
                 "model-free bar: it discovers whatever local pattern a flip leaves without "
                 "being told to look for it, and a defender really could build it, since "
                 "random flips cost nothing to generate.",
+                "",
+                f"It is trained on {grid_control_scores.get('n_train_examples', 0)} examples "
+                f"and detects a random flip on held-out maps with AUC "
+                f"{grid_control_scores.get('random_flip_auc_valid', float('nan')):.3f}.",
                 "",
                 "| condition | convolutional control | + residual | gap, 95 % CI |",
                 "|-----------|-----------------------|------------|--------------|",

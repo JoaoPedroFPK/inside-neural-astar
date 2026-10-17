@@ -62,7 +62,8 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
     ]
     seeds_forest = load("seeds_forest.json")
     detector_forest = [
-        load(f"e4_detector_{tag}.json") for tag in ("forest_seed0", "forest_seed1")
+        load(f"e4_detector_{tag}.json")
+        for tag in ("forest_seed0", "forest_seed1", "forest_seed2")
     ]
 
     out: List[Tuple[str, Callable[[], bool]]] = []
@@ -222,15 +223,18 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
                 ("step 12: without a clean twin the grid control falls below chance "
                  "on stealthy effort flips",
                  lambda: conditions["greedy_eff_b1"]["unpaired"]["map_only"] < 0.5),
-                # The claim the step actually reports: measured against a
-                # convolutional map-only control, the residual's contribution
-                # survives at one flipped cell and vanishes at two or more.
-                ("step 12: against the convolutional control the residual still helps "
-                 "at one flipped cell",
+                # The claim the step actually reports, after § 4.8.1 withdrew
+                # the path-objective half: against a convolutional map-only
+                # control the residual helps for a single flip aimed at search
+                # effort, and nothing else survives.
+                ("step 12: against the convolutional control the residual helps on "
+                 "single effort flips",
                  lambda: all(
                      conditions[name]["grid_cnn"]["gap"]["lo"] > 0
-                     for name in ("k1_opt", "k1_eff", "greedy_eff_b1")
+                     for name in ("k1_eff", "greedy_eff_b1")
                  )),
+                ("step 12: the convolutional control is near-perfect at its own task",
+                 lambda: detector["grid_cnn_control"]["random_flip_auc_valid"] > 0.99),
                 ("step 12: against the convolutional control it adds nothing at two cells "
                  "or more",
                  lambda: all(
@@ -329,6 +333,31 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
             for payload in present
             for row in payload["conditions"]
         ]
+        cnn_effort = [
+            payload["conditions"][index]["grid_cnn"]["gap"]
+            for payload in present
+            for index, row in enumerate(payload["conditions"])
+            if row["condition"] == "k1_eff" and row.get("grid_cnn")
+        ]
+        cnn_path = [
+            row["grid_cnn"]["gap"]
+            for payload in present
+            for row in payload["conditions"]
+            if row["condition"] == "k1_opt" and row.get("grid_cnn")
+        ]
+        if len(cnn_effort) > 2:
+            out.append(
+                # The step's one surviving positive claim.
+                ("step 12: the search-effort gain clears zero in every maze model",
+                 lambda: min(row["lo"] for row in cnn_effort) > 0)
+            )
+        if len(cnn_path) > 2:
+            out.append(
+                # And the one it withdrew: this check asserts the *failure* to
+                # replicate, so a rerun cannot quietly reinstate the claim.
+                ("step 12: the path-quality gain fails to replicate (withdrawn)",
+                 lambda: min(row["lo"] for row in cnn_path) <= 0)
+            )
         unpaired_gains = [
             row["unpaired_combined_minus_map_only"]["lo"]
             for payload in present
@@ -352,6 +381,18 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
             for payload in forest
             for row in payload["conditions"]
         ]
+        cnn_forest = [
+            row["grid_cnn"]["gap"]
+            for payload in forest
+            for row in payload["conditions"]
+            if row.get("grid_cnn")
+        ]
+        if len(cnn_forest) > 2:
+            out.append(
+                ("step 12: on forest nothing clears zero against the convolutional "
+                 "control either",
+                 lambda: all(row["lo"] <= 0 <= row["hi"] for row in cnn_forest))
+            )
         unpaired_intervals = [
             row["unpaired_combined_minus_map_only"]
             for payload in forest
@@ -359,8 +400,13 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
         ]
         out.extend(
             [
-                ("step 12: on forest the residual adds nothing, in every model",
-                 lambda: all(row["lo"] <= 0 <= row["hi"] for row in intervals)),
+                # Against the hand-feature control one forest measurement of
+                # six does clear zero, marginally (forest_seed2, effort,
+                # +0.036). Stated as a count so the exception stays visible
+                # instead of being rounded into "nothing".
+                ("step 12: on forest at most one of six measurements clears zero "
+                 "against the hand-feature control",
+                 lambda: sum(row["lo"] > 0 for row in intervals) <= 1),
                 ("step 12: the forest null holds on the unpaired task too",
                  lambda: all(
                      row["lo"] <= 0 <= row["hi"] for row in unpaired_intervals
