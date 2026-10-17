@@ -61,7 +61,8 @@ If the failure reappears with altered costs on original obstacles, the encoder's
 
 ## Status — 2026-10-17
 
-**Steps 0–10 of the plan are done**, plus the cross-family validity check.
+**Steps 0–10 of the plan are done**, plus both halves of the cross-family
+validity check (step 7b).
 The environment is pinned and asserted; the published numbers are reproduced;
 the structural premise of the mediation design is verified in code and under
 test; the exact solver reproduces the published search exactly; every one of
@@ -418,6 +419,67 @@ single worst cell per map agrees in only about a third of them. Aggregate
 findings travel between models; specific cost values and specific vulnerable
 cells do not.
 
+### Step 7b part b — one family trained for, not merely transferred to
+
+Part (a) ran the maze-trained planner on seven other families, which could not
+separate "does this finding depend on geometry" from "does this model cope with
+unfamiliar inputs". Training an encoder on `forest` — scattered obstacles, no
+walls — removes the confound for one family.
+
+| planner, on forest maps | exactly optimal | mean Exp |
+|---|---|---|
+| maze-trained (transfer) | 0.430 | 0.860 |
+| **forest-trained** | **0.540** | 0.816 |
+| maze-trained on mazes, for reference | 0.800 | 0.605 |
+
+Training on the family buys 11 points; the remaining 26-point gap is the family
+being **harder**, which part (a) could not have told apart.
+
+**What the cost map encodes is family-dependent.** Surrogate R², both models
+trained identically:
+
+| feature group | mazes | forest |
+|---|---|---|
+| H1 geometry | 0.274 | 0.205 |
+| **path indicators** | **0.119** | **0.035** |
+| everything | 0.437 | 0.315 |
+
+The path component — a third of the explained variance on mazes — nearly
+vanishes on forest. Step 5's answer needs the family attached, just as step
+10's needs the seed spread attached.
+
+**And on forest the surrogate is strictly the better planner:**
+
+| cost map driving the search | exactly optimal | mean Exp |
+|---|---|---|
+| the forest-trained network | 0.540 | 0.816 |
+| **its surrogate** (R² 0.315) | **0.810** | **0.723** |
+
+On mazes the surrogate traded optimality for search effort. Here it is better
+on **both** axes at once. On a family the encoder fits poorly, what it has
+learned beyond the interpretable part is not merely unhelpful but costly.
+
+**The pillar/door prediction, written in advance, is confirmed and then some.**
+Over every single-cell flip of both families:
+
+| | pillar flips | door flips | ratio |
+|---|---|---|---|
+| mazes | 1.83 % damage (n = 91 121) | **3.38 %** (n = 11 077) | **1.85×** |
+| forest | 1.99 % (n = 84 677) | **1.18 %** (n = 17 523) | **0.59×** |
+
+The asymmetry does not merely disappear without walls — it **inverts**.
+
+**Fragility is a property of the planner, not the geometry**: 85.5 % of maps
+with a damaging cell on mazes against 85.2 % on forest; median damaging cells
+0.78 % against 0.73 %. The concentration of damage on optimal routes replicates
+too (5.3 % vs 1.6 % off-route on mazes; 5.0 % vs 1.4 % on forest).
+
+**The mediation split does not fully carry over.** On forest the encoder route
+leads on *both* objectives (+0.41 vs +0.31 on path, +0.52 vs +0.49 on effort),
+where every maze model had the search route leading on effort. That is one
+model with a 0.034 margin — exactly the shape of evidence step 10 overturned —
+so it is recorded as a difference worth testing, not a reversal.
+
 ### Negative and corrected results, collected
 
 The plan asks for these to be explicit rather than buried, so they are listed
@@ -626,9 +688,9 @@ that same map. Classical A\* replanning correctly is not an error.
 - [ ] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] ✅ · WarCraft [11] not started — it needs a third-party dataset download, so it waits for an explicit decision rather than being fetched automatically.
 - [ ] **Final:** E4 if reached [12]; write-up with explicit negative results.
 
-**Next step:** per-family training (step 7b part b) finishes the validity
-check — the planner transfers poorly across map families, so nothing about
-them can be concluded from a maze-trained model. After that, step 11 (WarCraft)
+**Next step:** three seeds on `forest`, to settle whether the mediation
+difference found there is real or the same single-model artefact step 10
+exposed on mazes — about 45 minutes per seed. After that, step 11 (WarCraft)
 if the dataset download is wanted, and the E4 detector, which should rest on
 the surrogate residual rather than on attribution density.
 

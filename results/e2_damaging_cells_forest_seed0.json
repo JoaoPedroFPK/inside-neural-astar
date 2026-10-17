@@ -1,0 +1,143 @@
+{
+  "n_alterations": 102200,
+  "n_damaging": 1895,
+  "overall_rate": 0.018542074363992172,
+  "by_wall_zone": [
+    {
+      "group": "obstacle",
+      "n": 17523,
+      "damage_rate": 0.011755977857672772
+    },
+    {
+      "group": "wall_adjacent",
+      "n": 28598,
+      "damage_rate": 0.01297293517029163
+    },
+    {
+      "group": "near_wall",
+      "n": 24621,
+      "damage_rate": 0.016530603955972542
+    },
+    {
+      "group": "interior",
+      "n": 31458,
+      "damage_rate": 0.02895924725030199
+    }
+  ],
+  "by_on_optimal_path": [
+    {
+      "group": "on some optimal path",
+      "n": 13151,
+      "damage_rate": 0.05026233746483157
+    },
+    {
+      "group": "off every optimal path",
+      "n": 89049,
+      "damage_rate": 0.013857539107682287
+    }
+  ],
+  "by_direction": [
+    {
+      "group": "free -> wall (pillar)",
+      "n": 84677,
+      "damage_rate": 0.01994638449638036
+    },
+    {
+      "group": "wall -> free (door)",
+      "n": 17523,
+      "damage_rate": 0.011755977857672772
+    }
+  ],
+  "crossed": [
+    {
+      "group": "on path, wall_adjacent",
+      "n": 3092,
+      "damage_rate": 0.059508408796895215
+    },
+    {
+      "group": "on path, near_wall",
+      "n": 3781,
+      "damage_rate": 0.04178788680243322
+    },
+    {
+      "group": "on path, interior",
+      "n": 6278,
+      "damage_rate": 0.050812360624402676
+    },
+    {
+      "group": "off path, wall_adjacent",
+      "n": 25506,
+      "damage_rate": 0.007331608249039442
+    },
+    {
+      "group": "off path, near_wall",
+      "n": 20840,
+      "damage_rate": 0.011948176583493283
+    },
+    {
+      "group": "off path, interior",
+      "n": 25180,
+      "damage_rate": 0.02351072279586974
+    }
+  ],
+  "distortion": {
+    "corr_dcost_with_damage": 0.1142819862415431,
+    "corr_dcost_with_severity": 0.08090836989668374,
+    "mean_dcost_damaging": 10.812438499078272,
+    "mean_dcost_intact": 7.536616747273886,
+    "by_bin": [
+      {
+        "bin": 1,
+        "n": 20440,
+        "mean_dcost": 3.0330660309285333,
+        "damage_rate": 0.005234833659491194
+      },
+      {
+        "bin": 2,
+        "n": 20440,
+        "mean_dcost": 4.971327312328578,
+        "damage_rate": 0.00812133072407045
+      },
+      {
+        "bin": 3,
+        "n": 20440,
+        "mean_dcost": 6.82858099256243,
+        "damage_rate": 0.012426614481409002
+      },
+      {
+        "bin": 4,
+        "n": 20440,
+        "mean_dcost": 9.362142937780593,
+        "damage_rate": 0.021379647749510764
+      },
+      {
+        "bin": 5,
+        "n": 20440,
+        "mean_dcost": 13.791669115394996,
+        "damage_rate": 0.04554794520547945
+      }
+    ],
+    "by_bin_on_optimal_path": [
+      {
+        "bin": 1,
+        "n": 3288,
+        "damage_rate": 0.034367396593673966
+      },
+      {
+        "bin": 2,
+        "n": 3288,
+        "damage_rate": 0.05626520681265207
+      },
+      {
+        "bin": 3,
+        "n": 3287,
+        "damage_rate": 0.05141466382719805
+      },
+      {
+        "bin": 4,
+        "n": 3288,
+        "damage_rate": 0.05900243309002433
+      }
+    ]
+  }
+}
