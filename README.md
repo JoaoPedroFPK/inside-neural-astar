@@ -406,6 +406,7 @@ together. Each links to the step that produced it.
 | Doors are ~5× more damaging than pillars (25 draws) | **1.85×** over all 11 077 door flips. |
 | Efficiency damage is search-mediated 2.6 : 1 | Roughly even once the shortcut-opening alterations are separated. |
 | Greedy search climbs monotonically | It cannot stay put, so it can step down; 3 of 194 sequences do. |
+| Damaging cells carry ~1.7× the attribution density (5 cells per group) | Re-measured at 40 per group the ratio lands anywhere from **0.8× to 1.5×** with no significance — underpowered, no reliable effect. |
 
 ---
 
