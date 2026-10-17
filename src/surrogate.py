@@ -133,13 +133,17 @@ class DesignMatrix:
         )
 
 
-def load_archive(split: str, results_dir: Optional[Path] = None) -> Dict[str, np.ndarray]:
+def load_archive(
+    split: str, results_dir: Optional[Path] = None, tag: str = ""
+) -> Dict[str, np.ndarray]:
     """Load a feature archive built by `scripts/build_features.py`.
 
     Args:
         split: Canonical split name.
         results_dir: Directory holding the archives; defaults to
             `src.config.RESULTS_DIR`.
+        tag: Model tag, for archives built from a retrained encoder. Empty
+            means the archive from the shipped pretrained checkpoint.
 
     Returns:
         dict[str, np.ndarray]: Every array in the archive.
@@ -148,7 +152,8 @@ def load_archive(split: str, results_dir: Optional[Path] = None) -> Dict[str, np
         FileNotFoundError: If the archive is missing.
     """
     base = results_dir or config.RESULTS_DIR
-    path = Path(base) / f"features_{config.canonical_split(split)}.npz"
+    suffix = f"_{tag}" if tag else ""
+    path = Path(base) / f"features_{config.canonical_split(split)}{suffix}.npz"
     if not path.exists():
         raise FileNotFoundError(
             f"{path} missing; run `make features` (scripts/build_features.py) first"
@@ -157,7 +162,9 @@ def load_archive(split: str, results_dir: Optional[Path] = None) -> Dict[str, np
         return {key: handle[key] for key in handle.files}
 
 
-def build_design_matrix(split: str, archive: Optional[Dict[str, np.ndarray]] = None) -> DesignMatrix:
+def build_design_matrix(
+    split: str, archive: Optional[Dict[str, np.ndarray]] = None, tag: str = ""
+) -> DesignMatrix:
     """Flatten a split's archive into rows, keeping only usable cells.
 
     Only **free and reachable** cells become rows. Obstacles have no meaningful
@@ -168,11 +175,12 @@ def build_design_matrix(split: str, archive: Optional[Dict[str, np.ndarray]] = N
     Args:
         split: Canonical split name.
         archive: Pre-loaded archive; loaded from disk when omitted.
+        tag: Model tag passed to `load_archive` when loading from disk.
 
     Returns:
         DesignMatrix: Rows for every usable cell of the split.
     """
-    archive = archive if archive is not None else load_archive(split)
+    archive = archive if archive is not None else load_archive(split, tag=tag)
     mask = (archive["is_free"] > 0) & (archive["reachable"] > 0)
     X = np.stack([archive[name][mask] for name in FEATURE_NAMES], axis=1).astype(np.float64)
     y = archive["cost_map"][mask].astype(np.float64)

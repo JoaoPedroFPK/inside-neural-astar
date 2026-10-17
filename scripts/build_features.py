@@ -30,7 +30,12 @@ from src.planner import encode_cost_map, load_pretrained_neural_astar  # noqa: E
 
 
 def build_split(
-    split_name: str, seed: int, planner, limit: int | None = None, batch_size: int = 50
+    split_name: str,
+    seed: int,
+    planner,
+    limit: int | None = None,
+    batch_size: int = 50,
+    tag: str = "",
 ) -> Dict[str, np.ndarray]:
     """Compute cost maps and features for one split.
 
@@ -40,6 +45,8 @@ def build_split(
         planner: Pretrained `NeuralAstar`.
         limit: Optional cap on the number of instances (for timing probes).
         batch_size: Instances per encoder forward pass.
+        tag: Label for the model that produced the cost maps, recorded in the
+            archive. Empty means the shipped pretrained checkpoint.
 
     Returns:
         dict[str, np.ndarray]: Arrays ready for `np.savez_compressed` —
@@ -80,6 +87,7 @@ def build_split(
     archive["goal_rc"] = np.array([i.goal_rc for i in instances], dtype=np.int16)
     archive["optimal_cost"] = np.array([i.optimal_cost for i in instances], dtype=np.float32)
     archive["feature_names"] = np.array(FEATURE_NAMES)
+    archive["model_tag"] = np.array(tag)
     archive["split"] = np.array(split_name)
     archive["seed"] = np.array(seed)
     return archive
@@ -97,16 +105,32 @@ def main() -> int:
     parser.add_argument(
         "--timing-only", action="store_true", help="time and extrapolate, write nothing"
     )
+    parser.add_argument(
+        "--checkpoint",
+        type=Path,
+        default=None,
+        help="encoder checkpoint; defaults to the shipped pretrained one",
+    )
+    parser.add_argument(
+        "--tag",
+        default="",
+        help="suffix for the archive filename, e.g. seed1 -> features_test_seed1.npz",
+    )
     args = parser.parse_args()
 
     config.set_global_seeds(args.seed)
-    planner = load_pretrained_neural_astar()
+    planner = load_pretrained_neural_astar(checkpoint_path=args.checkpoint)
 
     for split_name in args.splits:
         canonical = config.canonical_split(split_name)
         started = time.perf_counter()
         archive = build_split(
-            canonical, args.seed, planner, limit=args.instances, batch_size=args.batch_size
+            canonical,
+            args.seed,
+            planner,
+            limit=args.instances,
+            batch_size=args.batch_size,
+            tag=args.tag,
         )
         seconds = time.perf_counter() - started
         n = len(archive["instance_ids"])
@@ -125,7 +149,8 @@ def main() -> int:
             )
             continue
 
-        out = config.RESULTS_DIR / f"features_{canonical}.npz"
+        suffix = f"_{args.tag}" if args.tag else ""
+        out = config.RESULTS_DIR / f"features_{canonical}{suffix}.npz"
         out.parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(out, **archive)
         size_mb = out.stat().st_size / 1e6
