@@ -258,23 +258,58 @@ costs 35 % extra path length.
 
 The mediation split, over the worst flip per map:
 
+Both objectives have to be split by failure mode first. In some alterations
+the flip *opened a new shortcut*: the optimum dropped and the planner was
+scored as damaged for not taking a route that exists only under the altered
+mask — which the search route varies by definition. Pooling those with genuine
+planner deviation inverts the reading.
+
 | | encoder route | search route |
 |---|---|---|
-| **search effort** (91 alterations) | +0.19 | **+0.50** |
-| **path quality**, pooled (88) | +0.40 | +0.40 |
-| path quality, *optimum unchanged* (70) | **+0.49** | +0.28 |
-| path quality, *flip opened a shortcut* (18) | +0.02 | **+0.84** |
+| path quality, pooled (88) | +0.40 | +0.40 |
+| **path quality, optimum unchanged (70)** | **+0.49** | +0.28 |
+| path quality, shortcut opened (18) | +0.02 | +0.84 |
+| search effort, pooled (91) | +0.19 | +0.50 |
+| **search effort, optimum unchanged (55)** | **+0.23** | **+0.26** |
+| search effort, shortcut opened (36) | +0.14 | +0.87 |
 
-Search effort is dominated by the search route, 2.6 : 1, as predicted. Path
-quality looks like parity until you separate two failure modes that were being
-pooled: in 18 cases the flip opened a new shortcut, the optimum dropped, and
-the planner was scored as damaged for not taking a route that exists only under
-the altered mask — which the search route varies by definition. On genuine
-planner deviation the **encoder route dominates**, and the raw-count
-decomposition agrees (0.51 vs 0.28).
+On genuine planner deviation, **path-quality damage is encoder-mediated**
+(0.49 vs 0.28, and the raw-count decomposition agrees at 0.51 vs 0.28), while
+**search-effort damage is roughly even** (0.23 vs 0.26) rather than
+search-dominated as the pooled number suggests.
 
 The locality bound held on all 200 swaps: no cost-map change fell outside the
 encoder's 11×11 receptive field.
+
+### Step 9 — the split moves with the size of the attack
+
+`make budgets`: greedy search at k ≤ 8, with the step-3 random draws as the
+control.
+
+| budget | greedy mean Opt | random mean Opt | greedy mean Exp | random mean Exp |
+|---|---|---|---|---|
+| 1 | 1.110 | 1.017 | 1.152 | 0.587 |
+| 8 | **1.167** | 1.020 | **1.981** | 0.599 |
+
+Targeting is worth about eight times the path damage of random flipping, and
+it *inverts* the efficiency effect: a randomly perturbed map still leaves the
+planner expanding 41 % fewer cells than classical A\*, while eight targeted
+flips leave it expanding twice as many — up to 7.4× in the worst case. The
+learned guidance stops helping and becomes a liability.
+
+The mediation split, restricted to the clean failure mode, **moves with the
+budget and crosses over**:
+
+| budget | encoder | search | interaction |
+|---|---|---|---|
+| 1 | **+0.49** | +0.28 | 24 % |
+| 4 | +0.42 | +0.39 | 44 % |
+| 8 | +0.38 | **+0.42** | 45 % |
+
+A single targeted cell damages the planner mainly through the encoder; eight
+cells mainly through the search, with interaction rising throughout. So "which
+route mediates the damage?" has no single answer — it depends on how large the
+perturbation is.
 
 ### Step 8 — an attribution method that fails its own test
 
@@ -483,7 +518,7 @@ that same map. Classical A\* replanning correctly is not an error.
 
 - [x] **Stage 1 — Proposal** (16 Oct 2026): question, hypothesis, design. ✔ submitted
 - [ ] **Stage 2:** E0 reproduced ✅ · swap premise confirmed in `differentiable_astar.py` ✅ · exact solver + metrics [2] ✅ · random-flip pilot [3] ✅ · feature library [4] ✅ · surrogate fit [5] ✅ · perturbation harness [6] ✅
-- [ ] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] in progress · three training seeds [10] ⬜ · WarCraft [11] only if time allows.
+- [ ] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] ⬜ · WarCraft [11] only if time allows.
 - [ ] **Final:** E4 if reached [12]; write-up with explicit negative results.
 
 **Next step:** step 9 — greedy search at budgets 2, 4 and 8, repeating the
