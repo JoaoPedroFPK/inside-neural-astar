@@ -117,7 +117,18 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--timing-only", action="store_true")
     parser.add_argument(
-        "--out", type=Path, default=config.RESULTS_DIR / "manifest.parquet"
+        "--checkpoint",
+        type=Path,
+        default=None,
+        help="encoder checkpoint; defaults to the shipped pretrained one",
+    )
+    parser.add_argument(
+        "--tag",
+        default="",
+        help="suffix for the manifest and report, e.g. mazes_seed1",
+    )
+    parser.add_argument(
+        "--out", type=Path, default=None, help="manifest path; derived from --tag if omitted"
     )
     args = parser.parse_args()
 
@@ -129,7 +140,10 @@ def main() -> int:
     if args.instances is not None:
         instances = instances[: args.instances]
 
-    planner = load_pretrained_neural_astar()
+    suffix = f"_{args.tag}" if args.tag else ""
+    if args.out is None:
+        args.out = config.RESULTS_DIR / f"manifest{suffix}.parquet"
+    planner = load_pretrained_neural_astar(checkpoint_path=args.checkpoint)
     baselines: Dict[int, Baseline] = {}
     rows: List[Dict[str, object]] = []
     started = time.perf_counter()
@@ -187,10 +201,12 @@ def main() -> int:
         "minutes": seconds / 60,
         "ms_per_alteration": ms_each,
     }
-    (config.RESULTS_DIR / "e2_k1_sweep.json").write_text(
+    (config.RESULTS_DIR / f"e2_k1_sweep{suffix}.json").write_text(
         json.dumps({"meta": meta, **summary}, indent=2, default=float) + "\n"
     )
-    (config.RESULTS_DIR / "e2_k1_sweep.md").write_text(render_markdown(summary, meta) + "\n")
+    (config.RESULTS_DIR / f"e2_k1_sweep{suffix}.md").write_text(
+        render_markdown(summary, meta) + "\n"
+    )
 
     overall = summary["overall"]
     print(

@@ -245,10 +245,20 @@ def main() -> int:
         "--objective", default="both", choices=["both", "optimality", "efficiency"]
     )
     parser.add_argument(
-        "--manifest", type=Path, default=config.RESULTS_DIR / "manifest.parquet"
+        "--checkpoint",
+        type=Path,
+        default=None,
+        help="encoder checkpoint; must match the one the manifest was swept with",
+    )
+    parser.add_argument("--tag", default="", help="suffix for the manifest and reports")
+    parser.add_argument(
+        "--manifest", type=Path, default=None, help="derived from --tag if omitted"
     )
     args = parser.parse_args()
 
+    suffix = f"_{args.tag}" if args.tag else ""
+    if args.manifest is None:
+        args.manifest = config.RESULTS_DIR / f"manifest{suffix}.parquet"
     if not args.manifest.exists():
         print(f"{args.manifest} not found; run scripts/sweep_k1.py first", file=sys.stderr)
         return 1
@@ -257,7 +267,7 @@ def main() -> int:
     config.set_global_seeds(args.seed)
     frame = pd.read_parquet(args.manifest)
     split = load_split(split_name)
-    planner = load_pretrained_neural_astar()
+    planner = load_pretrained_neural_astar(checkpoint_path=args.checkpoint)
 
     objectives = (
         list(OBJECTIVES) if args.objective == "both" else [args.objective]
@@ -318,14 +328,14 @@ def main() -> int:
         frame.loc[additions.index, column] = additions[column]
     frame.to_parquet(args.manifest, index=False)
 
-    figure = render_plot(results, config.RESULTS_DIR / "e3_k1_mediation.png")
+    figure = render_plot(results, config.RESULTS_DIR / f"e3_k1_mediation{suffix}.png")
     meta = {
         "split": split_name,
         "seed": args.seed,
         "n_swaps": sum(len(r) for r in results.values()),
         "seconds": seconds,
     }
-    (config.RESULTS_DIR / "e3_k1.json").write_text(
+    (config.RESULTS_DIR / f"e3_k1{suffix}.json").write_text(
         json.dumps(
             {
                 "meta": meta,
@@ -338,7 +348,7 @@ def main() -> int:
         )
         + "\n"
     )
-    (config.RESULTS_DIR / "e3_k1.md").write_text(
+    (config.RESULTS_DIR / f"e3_k1{suffix}.md").write_text(
         render_markdown(summaries, results, meta, figure, summaries_raw, summaries_split)
         + "\n"
     )
