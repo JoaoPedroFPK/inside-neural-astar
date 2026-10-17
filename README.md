@@ -320,6 +320,29 @@ cells mainly through the search, with interaction rising throughout. So "which
 route mediates the damage?" has no single answer — it depends on how large the
 perturbation is.
 
+### Where the damaging cells are — and a falsified mechanism
+
+Joining all 102 198 flips to the feature library (`make damaging`): **2.00 %**
+damage the planner relative to its own baseline, and the rate varies six-fold
+with location.
+
+| | damage rate |
+|---|---|
+| on an optimal route, in open space | **6.16 %** |
+| on an optimal route, touching a wall | 3.47 % |
+| off every route, in open space | 1.56 % |
+| off every route, touching a wall | **1.05 %** |
+
+The dangerous cell is the one *on a route the planner might take, in open
+space* — which fits what the cost map was found to encode.
+
+The hypothesis also says large cost-map distortions are what steer the search
+to a worse path. Measured, that is **false**: the correlation between the size
+of the distortion and whether the path broke is **+0.04**, among broken cases
+the severity correlates **−0.06**, and the relationship is non-monotone — the
+largest distortions are *less* damaging than mid-sized ones, even restricted to
+on-route cells. Location predicts damage; magnitude does not.
+
 ### Step 8 — an attribution method that fails its own test
 
 Because the encoder is five 3×3 convolutions, we know *exactly* which input
