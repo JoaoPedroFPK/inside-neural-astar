@@ -1,0 +1,17 @@
+# internal working notes, kept outside the public repository
+PLAN.md
+docs/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# artifacts
+results/**/*.npz
+results/**/*.parquet
+results/**/*.png
+data/*.npz

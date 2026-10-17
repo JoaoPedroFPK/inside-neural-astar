@@ -1,0 +1,4 @@
+[submodule "neural-astar"]
+	path = neural-astar
+	url = https://github.com/omron-sinicx/neural-astar
+	branch = minimal

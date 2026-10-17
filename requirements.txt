@@ -1,0 +1,32 @@
+# ---------------------------------------------------------------------------
+# Project dependencies (inside-neural-astar)
+#
+# Install together with the submodule, in ONE pip invocation, so the resolver
+# sees both dependency sets at once:
+#
+#     pip install -e "./neural-astar[dev]" -r requirements.txt
+#
+# `./neural-astar` (upstream, minimal branch) pins the heavy stack itself:
+#   torch==1.12.1, torchvision==0.13.1, pytorch-lightning==1.8.5.post0,
+#   segmentation-models-pytorch==0.3.1, hydra-core==1.2.0, pqdict==1.2.0.
+# Those pins are the reason this project runs on Python 3.10 (torch 1.12.1
+# publishes no wheels for 3.11+). See docs/setup.md.
+# ---------------------------------------------------------------------------
+
+# numpy 2.x is ABI-incompatible with torch 1.12.1; upstream only asks for
+# numpy>=1.19.2, which would resolve to 2.x and break at `import torch`.
+numpy==1.26.4
+
+scipy==1.14.1            # distance transforms for the E1 feature library
+scikit-learn==1.5.2      # ridge / GBM surrogate (E1), Mahalanobis baseline (E4)
+pandas==2.2.3            # results manifest
+pyarrow==17.0.0          # parquet backend for results/manifest.parquet
+tqdm==4.66.5             # progress on the exhaustive flip sweeps
+pytest==8.3.3            # tests/
+
+# --- build/runtime pins that are easy to get wrong -------------------------- #
+# setuptools >= 81 removed `pkg_resources`, which pytorch_lightning 1.8.5
+# imports at module load time (`lightning_lite/__init__.py`), so a fresh venv
+# with a current setuptools fails at `import pytorch_lightning`.
+setuptools==69.5.1
+wheel==0.43.0
