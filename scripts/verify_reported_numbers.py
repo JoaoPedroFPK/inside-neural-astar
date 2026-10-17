@@ -53,6 +53,7 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
     swap = load("e3_k1.json")
     damaging = load("e2_damaging_cells.json")
     attribution = load("e1_attribution/summary.json")
+    seeds = load("seeds.json")
 
     out: List[Tuple[str, Callable[[], bool]]] = []
 
@@ -116,6 +117,36 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
             ("step 8: saliency stays inside the field",
              lambda: locality["saliency"]["max_radius"] <= 5.0),
         ]
+    if seeds:
+        models = {row["tag"]: row for row in seeds["models"]}
+        fragility = [
+            row["fragility"]["median_damaging_cells"]
+            for row in seeds["models"]
+            if "fragility" in row
+        ]
+        if len(fragility) > 1:
+            out.append(
+                ("step 10: fragility replicates across models (median damaging cells)",
+                 lambda: max(fragility) - min(fragility) < 0.005)
+            )
+        encoders = [
+            row["mediation_optimality"]["encoder"]
+            for row in seeds["models"]
+            if "mediation_optimality" in row
+        ]
+        searches = [
+            row["mediation_optimality"]["search"]
+            for row in seeds["models"]
+            if "mediation_optimality" in row
+        ]
+        if len(encoders) > 1:
+            # Recorded as a *finding*, not an assumption: the encoder share is
+            # the more stable of the two. If this ever flips, the step-10
+            # write-up needs revisiting rather than the test relaxing.
+            out.append(
+                ("step 10: the encoder share varies less than the search share",
+                 lambda: (max(encoders) - min(encoders)) < (max(searches) - min(searches)))
+            )
     return out
 
 
