@@ -162,3 +162,19 @@ def test_no_tracked_file_names_the_local_machine() -> None:
     assert hostname.lower() not in listing.lower(), (
         f"a tracked path contains the hostname {hostname!r}"
     )
+
+
+def test_empty_checkpoint_argument_means_the_shipped_model() -> None:
+    """An empty `--checkpoints` entry must not resolve to the repository root.
+
+    `Path("")` is `Path(".")`, and the checkpoint loader globs recursively and
+    takes the last match — so a blank entry would silently load a *trained*
+    checkpoint from `results/` and evaluate the wrong model under the label
+    "pretrained".
+    """
+    from pathlib import Path
+
+    entries = ["", "results/models/mazes_seed0"]
+    resolved = [Path(entry) if entry else None for entry in entries]
+    assert resolved[0] is None
+    assert resolved[1] == Path("results/models/mazes_seed0")

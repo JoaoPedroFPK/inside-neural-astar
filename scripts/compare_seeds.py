@@ -306,7 +306,10 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    checkpoints: List[Optional[Path]] = [Path(c) for c in args.checkpoints]
+    # An empty string means "the shipped checkpoint". Converting it to Path("")
+    # would yield Path("."), whose recursive glob would pick up a *trained*
+    # checkpoint from results/ and silently evaluate the wrong model.
+    checkpoints: List[Optional[Path]] = [Path(c) if c else None for c in args.checkpoints]
     while len(checkpoints) < len(args.tags):
         checkpoints.append(None)
 
