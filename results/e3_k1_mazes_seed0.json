@@ -1,0 +1,229 @@
+{
+  "meta": {
+    "split": "test",
+    "seed": 0,
+    "n_swaps": 200,
+    "seconds": 10.864355041994713
+  },
+  "summaries": {
+    "optimality": {
+      "metric": "opt",
+      "raw": false,
+      "n": 100,
+      "labels": {
+        "search": 39,
+        "encoder": 30,
+        "interaction": 19,
+        "no damage": 11,
+        "both": 1
+      },
+      "n_with_damage": 89,
+      "encoder_mean": 0.3835244045312817,
+      "encoder_median": 0.0,
+      "encoder_q25": 0.0,
+      "encoder_q75": 1.0,
+      "encoder_share_dominant": 0.34831460674157305,
+      "encoder_share_absent": 0.5842696629213483,
+      "search_mean": 0.5012707330123061,
+      "search_median": 0.5000000000000017,
+      "search_q25": 0.0,
+      "search_q75": 1.0,
+      "search_share_dominant": 0.449438202247191,
+      "search_share_absent": 0.449438202247191,
+      "route_sum_mean": 0.8847951375435879,
+      "route_sum_median": 1.0
+    },
+    "efficiency": {
+      "metric": "exp",
+      "raw": false,
+      "n": 100,
+      "labels": {
+        "interaction": 40,
+        "search": 35,
+        "encoder": 12,
+        "no damage": 12,
+        "both": 1
+      },
+      "n_with_damage": 88,
+      "encoder_mean": 0.2073697859069587,
+      "encoder_median": 0.0192079980851418,
+      "encoder_q25": 0.0,
+      "encoder_q75": 0.2578730896441607,
+      "encoder_share_dominant": 0.14772727272727273,
+      "encoder_share_absent": 0.75,
+      "search_mean": 0.5668281826156049,
+      "search_median": 0.5609630921326998,
+      "search_q25": 0.09972292664600352,
+      "search_q75": 1.0,
+      "search_share_dominant": 0.4090909090909091,
+      "search_share_absent": 0.3181818181818182,
+      "route_sum_mean": 0.7741979685225636,
+      "route_sum_median": 0.9782790743747423
+    }
+  },
+  "summaries_raw": {
+    "optimality": {
+      "metric": "opt",
+      "raw": true,
+      "n": 100,
+      "labels": {
+        "search": 28,
+        "no damage": 28,
+        "encoder": 32,
+        "interaction": 12
+      },
+      "n_with_damage": 72,
+      "encoder_mean": 0.47800925925925924,
+      "encoder_median": 0.41666666666666663,
+      "encoder_q25": 0.0,
+      "encoder_q75": 1.0,
+      "encoder_share_dominant": 0.4444444444444444,
+      "encoder_share_absent": 0.4861111111111111,
+      "search_mean": 0.42460317460317465,
+      "search_median": 0.0,
+      "search_q25": 0.0,
+      "search_q75": 1.0,
+      "search_share_dominant": 0.3888888888888889,
+      "search_share_absent": 0.5416666666666666,
+      "route_sum_mean": 0.902612433862434,
+      "route_sum_median": 1.0
+    },
+    "efficiency": {
+      "metric": "exp",
+      "raw": true,
+      "n": 100,
+      "labels": {
+        "search": 16,
+        "no damage": 32,
+        "interaction": 39,
+        "encoder": 11,
+        "both": 2
+      },
+      "n_with_damage": 68,
+      "encoder_mean": 0.5946801423567556,
+      "encoder_median": 0.032407407407407406,
+      "encoder_q25": 0.0,
+      "encoder_q75": 0.5455128205128205,
+      "encoder_share_dominant": 0.19117647058823528,
+      "encoder_share_absent": 0.6911764705882353,
+      "search_mean": 0.24212170923628734,
+      "search_median": 0.40408163265306124,
+      "search_q25": 0.0,
+      "search_q75": 0.7783333333333333,
+      "search_share_dominant": 0.2647058823529412,
+      "search_share_absent": 0.4117647058823529,
+      "route_sum_mean": 0.836801851593043,
+      "route_sum_median": 0.7735042735042735
+    }
+  },
+  "summaries_by_failure_mode": {
+    "optimality": {
+      "optimum unchanged": {
+        "metric": "opt",
+        "raw": false,
+        "n": 81,
+        "labels": {
+          "search": 28,
+          "encoder": 30,
+          "interaction": 12,
+          "no damage": 11
+        },
+        "n_with_damage": 70,
+        "encoder_mean": 0.46309523809523817,
+        "encoder_median": 0.16666666666666666,
+        "encoder_q25": 0.0,
+        "encoder_q75": 1.0,
+        "encoder_share_dominant": 0.42857142857142855,
+        "encoder_share_absent": 0.5,
+        "search_mean": 0.4367346938775511,
+        "search_median": 0.0,
+        "search_q25": 0.0,
+        "search_q75": 1.0,
+        "search_share_dominant": 0.4,
+        "search_share_absent": 0.5285714285714286,
+        "route_sum_mean": 0.8998299319727892,
+        "route_sum_median": 1.0
+      },
+      "optimum changed": {
+        "metric": "opt",
+        "raw": false,
+        "n": 19,
+        "labels": {
+          "search": 11,
+          "both": 1,
+          "interaction": 7
+        },
+        "n_with_damage": 19,
+        "encoder_mean": 0.09036870192723183,
+        "encoder_median": 0.0,
+        "encoder_q25": 0.0,
+        "encoder_q75": 0.0,
+        "encoder_share_dominant": 0.05263157894736842,
+        "encoder_share_absent": 0.8947368421052632,
+        "search_mean": 0.7390350877192984,
+        "search_median": 1.0,
+        "search_q25": 0.41666666666666696,
+        "search_q75": 1.0,
+        "search_share_dominant": 0.631578947368421,
+        "search_share_absent": 0.15789473684210525,
+        "route_sum_mean": 0.8294037896465302,
+        "route_sum_median": 1.0
+      }
+    },
+    "efficiency": {
+      "optimum unchanged": {
+        "metric": "exp",
+        "raw": false,
+        "n": 59,
+        "labels": {
+          "interaction": 33,
+          "no damage": 10,
+          "search": 11,
+          "encoder": 5
+        },
+        "n_with_damage": 49,
+        "encoder_mean": 0.14998327592367203,
+        "encoder_median": 0.0,
+        "encoder_q25": 0.0,
+        "encoder_q75": 0.12783053323593865,
+        "encoder_share_dominant": 0.10204081632653061,
+        "encoder_share_absent": 0.8163265306122449,
+        "search_mean": 0.3273755144862466,
+        "search_median": 0.2295379537953795,
+        "search_q25": 0.0,
+        "search_q75": 0.6692837686268229,
+        "search_share_dominant": 0.22448979591836735,
+        "search_share_absent": 0.5102040816326531,
+        "route_sum_mean": 0.4773587904099185,
+        "route_sum_median": 0.5955483170466883
+      },
+      "optimum changed": {
+        "metric": "exp",
+        "raw": false,
+        "n": 41,
+        "labels": {
+          "search": 24,
+          "encoder": 7,
+          "interaction": 7,
+          "both": 1,
+          "no damage": 2
+        },
+        "n_with_damage": 39,
+        "encoder_mean": 0.2794707856295497,
+        "encoder_median": 0.04373240961247036,
+        "encoder_q25": 0.0,
+        "encoder_q75": 0.46536713710375366,
+        "encoder_share_dominant": 0.20512820512820512,
+        "encoder_share_absent": 0.6666666666666666,
+        "search_mean": 0.8676789707781318,
+        "search_median": 1.0,
+        "search_q25": 0.5290119555758154,
+        "search_q75": 1.1112350298113554,
+        "search_share_dominant": 0.6410256410256411,
+        "search_share_absent": 0.07692307692307693,
+        "route_sum_mean": 1.1471497564076818,
+        "route_sum_median": 1.1909101060859852
+      }
+    }
+  }
+}

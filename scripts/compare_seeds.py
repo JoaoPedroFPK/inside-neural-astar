@@ -90,6 +90,29 @@ def planning_metrics(planner, instances, cost_maps: Optional[np.ndarray] = None)
     }
 
 
+def checkpoint_epoch(checkpoint: Optional[Path]) -> Optional[int]:
+    """Epoch recorded in a checkpoint's filename, if it says.
+
+    Worth reporting: the shipped checkpoint stopped at epoch 33 while models
+    trained here run to 50, so a difference between it and the retrained set
+    is not purely seed variance.
+
+    Args:
+        checkpoint: Checkpoint file or directory; None means the shipped one.
+
+    Returns:
+        int | None: The epoch number, or None if it cannot be read.
+    """
+    import re
+
+    base = Path(checkpoint) if checkpoint is not None else config.PRETRAINED_CKPT_DIR
+    files = sorted(base.glob("**/*.ckpt")) if base.is_dir() else [base]
+    if not files:
+        return None
+    match = re.search(r"epoch=(\d+)", files[-1].name)
+    return int(match.group(1)) if match else None
+
+
 def evaluate_tag(tag: str, checkpoint: Optional[Path], seed: int) -> Dict[str, object]:
     """Run every per-seed measurement for one model.
 
@@ -122,6 +145,7 @@ def evaluate_tag(tag: str, checkpoint: Optional[Path], seed: int) -> Dict[str, o
             full = result
     out = {
         "tag": tag or "pretrained",
+        "checkpoint_epoch": checkpoint_epoch(checkpoint),
         "planning": planning_metrics(planner, instances),
         "surrogate_r2": fits,
         "sufficiency_all": planning_metrics(
@@ -281,15 +305,17 @@ def render_markdown(
         "A difference between conditions is only a result if it is larger than the "
         "difference between seeds.",
         "",
-        "| model | exactly optimal | mean Exp | Hmean | R² geometry | R² path | R² all | sufficiency Opt |",
-        "|-------|-----------------|----------|-------|-------------|---------|--------|-----------------|",
+        "| model | epoch | exactly optimal | mean Exp | Hmean | R² geometry | R² path | R² all | sufficiency Opt |",
+        "|-------|-------|-----------------|----------|-------|-------------|---------|--------|-----------------|",
     ]
     for row in rows:
         planning = row["planning"]
         fits = row["surrogate_r2"]
         sufficiency = row["sufficiency_all"]
+        epoch = row.get("checkpoint_epoch")
         lines.append(
-            f"| `{row['tag']}` | {planning['p_opt']:.3f} | {planning['mean_exp']:.3f} | "
+            f"| `{row['tag']}` | {epoch if epoch is not None else '—'} | "
+            f"{planning['p_opt']:.3f} | {planning['mean_exp']:.3f} | "
             f"{planning['h_mean']:.3f} | {fits['geometric_h1_gbm']:.3f} | "
             f"{fits['path_gbm']:.3f} | {fits['all_gbm']:.3f} | {sufficiency['p_opt']:.3f} |"
         )
