@@ -165,6 +165,55 @@ def mediation_for(tag: str) -> Dict[str, object]:
     return out
 
 
+def cost_map_agreement(tags: List[str]) -> List[Dict[str, object]]:
+    """How much do two models' cost maps agree, cell by cell?
+
+    The cost map is the object this whole project interprets. If two models
+    trained the same way produce very different ones, then statements about
+    "the" cost map are statements about one optimisation run.
+
+    Correlations are computed over free, reachable cells only — the ones the
+    search can actually visit — and also within each instance, since the
+    pooled figure could be carried by between-map differences.
+
+    Args:
+        tags: Model tags to compare pairwise.
+
+    Returns:
+        list[dict]: One entry per pair with the pooled and mean within-map
+        correlation and the mean absolute difference.
+    """
+    archives = {}
+    for tag in tags:
+        try:
+            archives[tag] = load_archive("test", tag=tag)
+        except FileNotFoundError:
+            continue
+    out = []
+    names = list(archives)
+    for i, first in enumerate(names):
+        for second in names[i + 1 :]:
+            a, b = archives[first], archives[second]
+            mask = (a["is_free"] > 0) & (a["reachable"] > 0)
+            x, y = a["cost_map"][mask].astype(np.float64), b["cost_map"][mask].astype(np.float64)
+            per_instance = []
+            for index in range(a["cost_map"].shape[0]):
+                cells = mask[index]
+                u = a["cost_map"][index][cells].astype(np.float64)
+                v = b["cost_map"][index][cells].astype(np.float64)
+                if u.std() > 0 and v.std() > 0:
+                    per_instance.append(float(np.corrcoef(u, v)[0, 1]))
+            out.append(
+                {
+                    "pair": f"{first or 'pretrained'} vs {second or 'pretrained'}",
+                    "pooled_r": float(np.corrcoef(x, y)[0, 1]),
+                    "within_map_r": float(np.mean(per_instance)) if per_instance else float("nan"),
+                    "mean_abs_difference": float(np.abs(x - y).mean()),
+                }
+            )
+    return out
+
+
 def main() -> int:
     """Compare every requested model and report the dispersion."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -190,11 +239,19 @@ def main() -> int:
     dispersion = pd.DataFrame(
         {"mean": numeric.mean(), "std": numeric.std(), "min": numeric.min(), "max": numeric.max()}
     )
-    report = {"seed": args.seed, "models": rows, "dispersion": dispersion.to_dict("index")}
+    agreement = cost_map_agreement(list(args.tags))
+    report = {
+        "seed": args.seed,
+        "models": rows,
+        "dispersion": dispersion.to_dict("index"),
+        "cost_map_agreement": agreement,
+    }
     (config.RESULTS_DIR / "seeds.json").write_text(
         json.dumps(report, indent=2, default=float) + "\n"
     )
-    (config.RESULTS_DIR / "seeds.md").write_text(render_markdown(rows, dispersion) + "\n")
+    (config.RESULTS_DIR / "seeds.md").write_text(
+        render_markdown(rows, dispersion, agreement) + "\n"
+    )
 
     print()
     print(dispersion.round(4).to_string())
@@ -202,12 +259,17 @@ def main() -> int:
     return 0
 
 
-def render_markdown(rows: List[Dict[str, object]], dispersion: pd.DataFrame) -> str:
+def render_markdown(
+    rows: List[Dict[str, object]],
+    dispersion: pd.DataFrame,
+    agreement: Optional[List[Dict[str, object]]] = None,
+) -> str:
     """Render the seed comparison.
 
     Args:
         rows: Per-model results.
         dispersion: Mean / std / min / max per numeric field.
+        agreement: Pairwise cost-map agreement.
 
     Returns:
         str: Markdown document.
@@ -254,6 +316,23 @@ def render_markdown(rows: List[Dict[str, object]], dispersion: pd.DataFrame) -> 
                     if effort_part
                     else "— | — |"
                 )
+            )
+    if agreement:
+        lines += [
+            "",
+            "## Do the models agree on the cost map itself?",
+            "",
+            "The cost map is the object this project interprets. Correlations over "
+            "free, reachable cells; the within-map column removes any contribution "
+            "from models simply disagreeing about which maps are hard.",
+            "",
+            "| pair | pooled r | within-map r | mean \\|difference\\| |",
+            "|------|----------|--------------|---------------------|",
+        ]
+        for entry in agreement:
+            lines.append(
+                f"| {entry['pair']} | {entry['pooled_r']:.3f} | "
+                f"{entry['within_map_r']:.3f} | {entry['mean_abs_difference']:.3f} |"
             )
     lines += ["", "## Dispersion", "", "| quantity | mean | std | min | max |", "|---|---|---|---|---|"]
     for name, row in dispersion.iterrows():
