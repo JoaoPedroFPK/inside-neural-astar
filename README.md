@@ -461,6 +461,7 @@ stage 3.
 Available now:
 
 ```bash
+make pipeline           # every experiment in dependency order, ~1h15
 make e0                 # E0: Opt/Exp/Hmean on the test split, both start protocols
 make step2              # step-2 gate: solver vs dataset (1000 maps) + metrics vs E0
 make pilot              # step-3 random-flip pilot (k = 1, 2, 4, 8), ~20 s

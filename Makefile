@@ -1,7 +1,7 @@
 # Convenience targets. Everything runs inside the project venv (.venv).
 PY := .venv/bin/python
 
-.PHONY: help env lock test test-env e0 step2 pilot probe features spotcheck surrogate sweep swap attribution budgets families damaging train seed-pipeline verify seeds clean
+.PHONY: help env lock test test-env e0 step2 pilot probe features spotcheck surrogate sweep swap attribution budgets families damaging train seed-pipeline verify seeds pipeline clean
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -69,6 +69,20 @@ verify:  ## check that figures quoted in the write-ups match the stored results
 
 seeds:  ## PLAN.md step 10: compare trained seeds and report dispersion
 	$(PY) scripts/compare_seeds.py --tags "" mazes_seed0 mazes_seed1 mazes_seed2
+
+pipeline:  ## every experiment in dependency order (~1h15 on a laptop CPU)
+	@echo "==> step 0: reproduction"      && $(MAKE) --no-print-directory e0
+	@echo "==> step 2: solver gate"       && $(MAKE) --no-print-directory step2
+	@echo "==> step 3: random pilot"      && $(MAKE) --no-print-directory probe pilot
+	@echo "==> step 4: feature library"   && $(MAKE) --no-print-directory features spotcheck
+	@echo "==> step 5: surrogate"         && $(MAKE) --no-print-directory surrogate
+	@echo "==> step 6: exhaustive sweep"  && $(MAKE) --no-print-directory sweep
+	@echo "==> step 6: damaging cells"    && $(MAKE) --no-print-directory damaging
+	@echo "==> step 7: mediation swap"    && $(MAKE) --no-print-directory swap
+	@echo "==> step 7b: map families"     && $(MAKE) --no-print-directory families
+	@echo "==> step 8: attribution"       && $(MAKE) --no-print-directory attribution
+	@echo "==> step 9: greedy budgets"    && $(MAKE) --no-print-directory budgets
+	@echo "==> checking the quoted figures" && $(MAKE) --no-print-directory verify
 
 clean:  ## remove caches (keeps .venv and results/)
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
