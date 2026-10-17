@@ -80,6 +80,7 @@ def train_one(family: str, seed: int, epochs: int, logdir: Path, tmax: float) ->
         "seconds": seconds,
         "returncode": completed.returncode,
         "checkpoint_dir": str(logdir / config.MAP_FAMILIES[family]),
+        "tag": f"{family}_seed{seed}",
     }
 
 
@@ -98,8 +99,14 @@ def main() -> int:
     args.logdir.mkdir(parents=True, exist_ok=True)
     results: List[Dict[str, object]] = []
     for seed in args.seeds:
+        # One directory per (family, seed). Upstream appends the dataset name
+        # and a run-numbered subdirectory, so without this every seed would
+        # land in the same tree and the checkpoint loader - which globs and
+        # takes the last match - would silently mix them.
+        run_dir = (args.logdir / f"{args.family}_seed{seed}").resolve()
+        run_dir.mkdir(parents=True, exist_ok=True)
         print(f"training {args.family} seed={seed} for {args.epochs} epoch(s)...", flush=True)
-        outcome = train_one(args.family, seed, args.epochs, args.logdir.resolve(), args.tmax)
+        outcome = train_one(args.family, seed, args.epochs, run_dir, args.tmax)
         results.append(outcome)
         status = "ok" if outcome["returncode"] == 0 else f"FAILED ({outcome['returncode']})"
         per_epoch = outcome["seconds"] / max(args.epochs, 1)
