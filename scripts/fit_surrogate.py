@@ -276,7 +276,10 @@ def main() -> int:
     (config.RESULTS_DIR / f"e1_surrogate{suffix}.md").write_text(
         render_markdown(report, figure) + "\n"
     )
-    print(f"\nwrote {out_json.relative_to(config.REPO_ROOT)}, e1_surrogate.md and {figure.name}")
+    print(
+        f"\nwrote {out_json.relative_to(config.REPO_ROOT)}, "
+        f"e1_surrogate{suffix}.md and {figure.name}"
+    )
     return 0
 
 
