@@ -299,8 +299,9 @@ control.
 | 1 | 1.110 | 1.017 | 1.152 | 0.587 |
 | 8 | **1.167** | 1.020 | **1.981** | 0.599 |
 
-Targeting is worth about eight times the path damage of random flipping, and
-it *inverts* the efficiency effect: a randomly perturbed map still leaves the
+Measured as excess over the optimum, targeting is worth 6.5× the path damage
+of random flipping at k=1 and 8.4× at k=8, and it *inverts* the efficiency
+effect: a randomly perturbed map still leaves the
 planner expanding 41 % fewer cells than classical A\*, while eight targeted
 flips leave it expanding twice as many — up to 7.4× in the worst case. The
 learned guidance stops helping and becomes a liability.
