@@ -1,7 +1,7 @@
 # Convenience targets. Everything runs inside the project venv (.venv).
 PY := .venv/bin/python
 
-.PHONY: help env lock test test-env e0 step2 pilot probe features spotcheck surrogate sweep swap attribution budgets families damaging train seed-pipeline verify seeds pipeline clean
+.PHONY: help env lock test test-env e0 step2 pilot probe features spotcheck figures surrogate sweep swap attribution budgets families damaging train seed-pipeline verify seeds pipeline clean
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -36,6 +36,9 @@ features:  ## PLAN.md step 4: build results/features_{split}.npz for all splits
 
 spotcheck:  ## step-4 spot-check figure + correlation diagnostic
 	$(PY) scripts/plot_feature_spotcheck.py --split test --instances 0 1 2
+
+figures:  ## README figures: dataset samples and the search animation (~6 s)
+	$(PY) scripts/render_readme_figures.py --seed 0
 
 surrogate:  ## PLAN.md step 5: surrogate fits, residuals and the sufficiency test
 	$(PY) scripts/fit_surrogate.py
