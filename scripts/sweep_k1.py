@@ -116,6 +116,13 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--timing-only", action="store_true")
     parser.add_argument(
+        "--family",
+        default="mazes",
+        choices=list(config.MAP_FAMILIES),
+        help="map family; all eight ship with the nested dataset submodule",
+    )
+
+    parser.add_argument(
         "--checkpoint",
         type=Path,
         default=None,
@@ -133,7 +140,7 @@ def main() -> int:
 
     split_name = config.canonical_split(args.split)
     config.set_global_seeds(args.seed)
-    split = load_split(split_name)
+    split = load_split(split_name, npz_path=config.family_npz(args.family))
     instances = split.instances(seed=args.seed)
     n_total = len(instances)
     if args.instances is not None:

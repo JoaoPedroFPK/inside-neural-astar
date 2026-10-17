@@ -13,7 +13,9 @@
 # seconds for the swap.
 set -euo pipefail
 
-TAG="${1:?usage: seed_pipeline.sh <tag>, e.g. mazes_seed0}"
+TAG="${1:?usage: seed_pipeline.sh <tag> [family], e.g. mazes_seed0}"
+# The tag is "<family>_seed<N>", so the family is its prefix unless given.
+FAMILY="${2:-${TAG%%_seed*}}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
@@ -25,13 +27,13 @@ if [ ! -d "$CHECKPOINT" ]; then
   exit 1
 fi
 
-echo "==> [$TAG] feature archives"
-"$PY" scripts/build_features.py --checkpoint "$CHECKPOINT" --tag "$TAG"
+echo "==> [$TAG] feature archives (family: $FAMILY)"
+"$PY" scripts/build_features.py --checkpoint "$CHECKPOINT" --tag "$TAG" --family "$FAMILY"
 
 echo "==> [$TAG] exhaustive k=1 sweep"
-"$PY" scripts/sweep_k1.py --checkpoint "$CHECKPOINT" --tag "$TAG"
+"$PY" scripts/sweep_k1.py --checkpoint "$CHECKPOINT" --tag "$TAG" --family "$FAMILY"
 
 echo "==> [$TAG] mediation swap"
-"$PY" scripts/swap_k1.py --checkpoint "$CHECKPOINT" --tag "$TAG"
+"$PY" scripts/swap_k1.py --checkpoint "$CHECKPOINT" --tag "$TAG" --family "$FAMILY"
 
 echo "==> [$TAG] done"

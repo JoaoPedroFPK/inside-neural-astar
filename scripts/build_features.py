@@ -36,6 +36,7 @@ def build_split(
     limit: int | None = None,
     batch_size: int = 50,
     tag: str = "",
+    family: str = "mazes",
 ) -> Dict[str, np.ndarray]:
     """Compute cost maps and features for one split.
 
@@ -47,6 +48,7 @@ def build_split(
         batch_size: Instances per encoder forward pass.
         tag: Label for the model that produced the cost maps, recorded in the
             archive. Empty means the shipped pretrained checkpoint.
+        family: Map family to load; all eight ship with the dataset submodule.
 
     Returns:
         dict[str, np.ndarray]: Arrays ready for `np.savez_compressed` —
@@ -54,7 +56,7 @@ def build_split(
         plus ``instance_ids``, ``start_rc``, ``goal_rc``, ``optimal_cost``,
         ``feature_names``, ``split`` and ``seed``.
     """
-    split = load_split(split_name)
+    split = load_split(split_name, npz_path=config.family_npz(family))
     instances = split.instances(seed=seed)
     if limit is not None:
         instances = instances[:limit]
@@ -88,6 +90,7 @@ def build_split(
     archive["optimal_cost"] = np.array([i.optimal_cost for i in instances], dtype=np.float32)
     archive["feature_names"] = np.array(FEATURE_NAMES)
     archive["model_tag"] = np.array(tag)
+    archive["family"] = np.array(family)
     archive["split"] = np.array(split_name)
     archive["seed"] = np.array(seed)
     return archive
@@ -102,6 +105,13 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--instances", type=int, default=None, help="cap, for probes")
     parser.add_argument("--batch-size", type=int, default=50)
+    parser.add_argument(
+        "--family",
+        default="mazes",
+        choices=list(config.MAP_FAMILIES),
+        help="map family; all eight ship with the nested dataset submodule",
+    )
+
     parser.add_argument(
         "--timing-only", action="store_true", help="time and extrapolate, write nothing"
     )
@@ -131,6 +141,7 @@ def main() -> int:
             limit=args.instances,
             batch_size=args.batch_size,
             tag=args.tag,
+            family=args.family,
         )
         seconds = time.perf_counter() - started
         n = len(archive["instance_ids"])

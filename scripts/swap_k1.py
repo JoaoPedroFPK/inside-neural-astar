@@ -252,6 +252,13 @@ def main() -> int:
     )
     parser.add_argument("--tag", default="", help="suffix for the manifest and reports")
     parser.add_argument(
+        "--family",
+        default="mazes",
+        choices=list(config.MAP_FAMILIES),
+        help="map family; all eight ship with the nested dataset submodule",
+    )
+
+    parser.add_argument(
         "--manifest", type=Path, default=None, help="derived from --tag if omitted"
     )
     args = parser.parse_args()
@@ -266,7 +273,7 @@ def main() -> int:
     split_name = config.canonical_split(args.split)
     config.set_global_seeds(args.seed)
     frame = pd.read_parquet(args.manifest)
-    split = load_split(split_name)
+    split = load_split(split_name, npz_path=config.family_npz(args.family))
     planner = load_pretrained_neural_astar(checkpoint_path=args.checkpoint)
 
     objectives = (

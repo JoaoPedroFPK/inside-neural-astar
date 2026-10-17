@@ -25,5 +25,14 @@
     "returncode": 0,
     "checkpoint_dir": "/Users/joaopedroferreirapereira/Documents/GitHub/inside-neural-astar/results/models/mazes_seed2/mazes_032_moore_c8",
     "tag": "mazes_seed2"
+  },
+  {
+    "family": "forest",
+    "seed": 0,
+    "epochs": 50,
+    "seconds": 942.7952596250107,
+    "returncode": 0,
+    "checkpoint_dir": "/Users/joaopedroferreirapereira/Documents/GitHub/inside-neural-astar/results/models/forest_seed0/forest_032_moore_c8",
+    "tag": "forest_seed0"
   }
 ]
