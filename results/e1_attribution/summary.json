@@ -22,33 +22,33 @@
       "p_value": 0.2619012167518133
     }
   },
-  "seconds": 19.711260707990732,
+  "seconds": 21.527626499999315,
   "steps": 64,
   "max_radius_over_all_cells": 5.0,
-  "min_share_within_5": 0.9999999403953552,
-  "mean_completeness_error": 0.005759110022336244,
+  "min_share_within_5": 0.9999998807907104,
+  "mean_completeness_error": 0.0053836976177990435,
   "randomization": {
-    "mean_pearson": 0.025900677201945,
-    "max_abs_pearson": 0.8065843645968179,
-    "mean_spearman": 0.0070562640785128816,
-    "mean_abs_cosine": 0.6600144455830256
+    "mean_pearson": 0.041761174041801664,
+    "max_abs_pearson": 0.6913564463228523,
+    "mean_spearman": 0.051576229616278085,
+    "mean_abs_cosine": 0.6594435274600983
   },
   "by_group": [
     {
       "group": "attacked",
-      "attr_abs_total": 2.538609027862549,
-      "obstacles_within_5": 17.0,
-      "attr_per_nearby_obstacle": 0.14932994281544404,
-      "max_radius": 5.0,
-      "randomization_pearson": -0.43737703293429037
+      "attr_abs_total": 3.925084686279297,
+      "obstacles_within_5": 16.0,
+      "attr_per_nearby_obstacle": 0.24881038185385299,
+      "max_radius": 4.0,
+      "randomization_pearson": -0.13793785182268614
     },
     {
       "group": "clean",
-      "attr_abs_total": 2.138981342315674,
-      "obstacles_within_5": 9.4,
-      "attr_per_nearby_obstacle": 0.203534607608597,
-      "max_radius": 5.0,
-      "randomization_pearson": 0.22927808956524057
+      "attr_abs_total": 2.2331791162490844,
+      "obstacles_within_5": 13.2,
+      "attr_per_nearby_obstacle": 0.14944285878113336,
+      "max_radius": 3.0,
+      "randomization_pearson": -0.10951262952082981
     },
     {
       "group": "interior",
@@ -70,19 +70,19 @@
   "locality_by_method": [
     {
       "method": "grad_cam",
-      "share_within_5": 0.10609143590554596,
-      "max_radius": 25.75
+      "share_within_5": 0.10947952661663293,
+      "max_radius": 24.6
     },
     {
       "method": "integrated_gradients",
-      "share_within_5": 0.999999980131785,
-      "max_radius": 4.5
+      "share_within_5": 0.999999984105428,
+      "max_radius": 3.75
     },
     {
       "method": "saliency",
-      "share_within_5": 0.9999999970197677,
+      "share_within_5": 1.0000000059604646,
       "max_radius": 5.0
     }
   ],
-  "mass_vs_local_obstacles_r": 0.708262904800097
+  "mass_vs_local_obstacles_r": 0.8245772679284729
 }

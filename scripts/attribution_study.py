@@ -65,7 +65,13 @@ def curate(
     chosen: List[Dict[str, object]] = []
 
     if manifest is not None:
-        damaging = manifest[manifest["opt_C1O1"] > manifest["opt_C0O0"]]
+        # Single-cell alterations only. The manifest also holds greedy rows at
+        # budgets up to 8, and taking `flip_cells[0]` from one of those would
+        # explain a cost value by a cell that is not the only thing that
+        # changed — which is how this group silently shifted between runs once
+        # step 9 appended its rows.
+        single = manifest[(manifest["method"] == "exhaustive") & (manifest["budget"] == 1)]
+        damaging = single[single["opt_C1O1"] > single["opt_C0O0"]]
         worst = damaging.sort_values("opt_C1O1", ascending=False).head(per_group)
         for _, row in worst.iterrows():
             chosen.append(
@@ -76,9 +82,9 @@ def curate(
                     "opt_after_flip": float(row["opt_C1O1"]),
                 }
             )
-        harmless = manifest[
-            (manifest["opt_C1O1"] <= manifest["opt_C0O0"])
-            & (manifest["instance_id"].isin([c["instance_id"] for c in chosen]))
+        harmless = single[
+            (single["opt_C1O1"] <= single["opt_C0O0"])
+            & (single["instance_id"].isin([c["instance_id"] for c in chosen]))
         ]
         for _, row in harmless.sample(n=min(per_group, len(harmless)), random_state=seed).iterrows():
             chosen.append(

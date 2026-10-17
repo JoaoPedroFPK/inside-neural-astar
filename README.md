@@ -362,10 +362,9 @@ rather than what produced one value — and the picture is persuasive, because i
 highlights the route band that steps 4 and 5 identified. The figures are kept
 to document the failure; no conclusion rests on them.
 
-The randomisation sanity check passes on average (r = +0.03) but not
-uniformly: wall-adjacent cells average +0.33 and the maximum is 0.81, so near
-walls a sizeable part of the attribution is input geometry rather than learned
-weights.
+The randomisation sanity check passes overall (r = +0.04) but not uniformly:
+wall-adjacent cells average +0.33, so near walls a sizeable part of the
+attribution is input geometry rather than learned weights.
 
 ### Step 7b — the findings across all eight map families
 
@@ -408,7 +407,7 @@ together. Each links to the step that produced it.
 | Doors are ~5× more damaging than pillars (25 draws) | **1.85×** over all 11 077 door flips. |
 | Efficiency damage is search-mediated 2.6 : 1 | Roughly even once the shortcut-opening alterations are separated. |
 | Greedy search climbs monotonically | It cannot stay put, so it can step down; 3 of 194 sequences do. |
-| Damaging cells carry ~1.7× the attribution density (5 cells per group) | Re-measured at ~35 per group: **0.80×, 1.05×, 0.79×**, none significant. The five-cell figure does not even keep its sign on a re-draw. |
+| Damaging cells carry ~1.7× the attribution density (5 cells per group) | Re-measured at ~35 per group: **0.80×, 1.05×, 0.79×**, none significant. No reliable effect. |
 
 ---
 
