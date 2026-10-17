@@ -61,13 +61,15 @@ If the failure reappears with altered costs on original obstacles, the encoder's
 
 ## Status — 2026-10-17
 
-**Steps 0–5 of the plan are done**: the environment is pinned and asserted,
+**Steps 0–8 of the plan are done** (plus the cross-family validity check): the environment is pinned and asserted,
 the upstream numbers are reproduced, the structural premise of the swap design
 is verified in code and under test, the exact solver reproduces upstream's
 search exactly (`make step2`), the random-flip pilot has run with its budget
 decision (`make pilot`), and the E1 feature library is built and spot-checked
 (`make features spotcheck`), and the surrogate fits plus the sufficiency test
-have run (`make surrogate`).
+have run (`make surrogate`). The exhaustive single-flip sweep, the mediation
+swap, the attribution study and the cross-family comparison have all completed
+(`make sweep swap attribution families`).
 
 > The research plan, the verification record (every premise checked in code,
 > with file and line references), the decision log and the per-step write-ups
@@ -242,6 +244,72 @@ network it imitates*, buying that with search effort and landing at 96 % of its
 combined score. So the unexplained 59 % is not where planning competence lives
 — it is what makes the network cut corners.
 
+### Steps 6–7 — where the damage comes from
+
+`make sweep` evaluated **102 198 single-cell alterations** across the 100 test
+maps in 21 minutes, then `make swap` decomposed the worst one per map per
+objective.
+
+**86 %** of the maps that were optimal beforehand have at least one cell whose
+flip costs them optimality — but only a median **0.78 %** of candidate cells
+are damaging. Fragility is near-universal and very thin, which is exactly why
+random perturbation finds almost nothing. The worst single flip in the split
+costs 35 % extra path length.
+
+The mediation split, over the worst flip per map:
+
+| | encoder route | search route |
+|---|---|---|
+| **search effort** (91 alterations) | +0.19 | **+0.50** |
+| **path quality**, pooled (88) | +0.40 | +0.40 |
+| path quality, *optimum unchanged* (70) | **+0.49** | +0.28 |
+| path quality, *flip opened a shortcut* (18) | +0.02 | **+0.84** |
+
+Search effort is dominated by the search route, 2.6 : 1, as predicted. Path
+quality looks like parity until you separate two failure modes that were being
+pooled: in 18 cases the flip opened a new shortcut, the optimum dropped, and
+the planner was scored as damaged for not taking a route that exists only under
+the altered mask — which the search route varies by definition. On genuine
+planner deviation the **encoder route dominates**, and the raw-count
+decomposition agrees (0.51 vs 0.28).
+
+The locality bound held on all 200 swaps: no cost-map change fell outside the
+encoder's 11×11 receptive field.
+
+### Step 8 — an attribution method that fails its own test
+
+Because the encoder is five 3×3 convolutions, we know *exactly* which input
+cells can influence a given output — ground truth that attribution work almost
+never has.
+
+| method | share of attribution mass within radius 5 | furthest non-zero cell |
+|---|---|---|
+| integrated gradients | **100 %** | 3.8 |
+| saliency | **100 %** | 5.0 |
+| Grad-CAM | **10.9 %** | 24.6 |
+
+Grad-CAM attributes influence up to 30 cells away, where influence is
+impossible. Its channel-mean gradient weighting highlights a feature wherever
+it is active, so on a network with no downsampling it draws general activity
+rather than what produced one value — and the picture is persuasive, because it
+highlights the route band that steps 4 and 5 identified. The figures are kept
+to document the failure; no conclusion rests on them.
+
+The randomisation sanity check passes overall (r = +0.04) but not uniformly:
+wall-adjacent cells average +0.33.
+
+### Step 7b — the findings across all eight map families
+
+Seven more 32×32 families ship with the dataset submodule. Two results are
+model-independent and change how later steps are run: the plan's cell
+partition has an **empty class in every family** (a cell needs seven of eight
+neighbours blocked to be a "dead end", which these generators never produce),
+and **no single flip can disconnect the goal** in seven of eight families.
+
+The planner's own numbers are *transfer*, not generalisation — it was trained
+on mazes, and its Hmean falls from 0.573 to 0.272 across families, so
+per-family training is required before concluding anything about them.
+
 ---
 
 ## Repository layout
@@ -276,12 +344,11 @@ combined score. So the unexplained 59 % is not where planning competence lives
 │   ├── exact_solver.py        ✅ [2] Dijkstra ground truth + classical-A* control
 │   ├── features.py            ✅ [4] geometric + path features, two partitions
 │   ├── surrogate.py           ✅ [5] feature groups, fits, residuals, sufficiency
-│   ├── perturb.py             ✅ [3] random flips + k=1 enumeration + evaluation harness
-│   │                          ⬜ [6,9] exhaustive sweep, greedy, gradient
-│   ├── swap.py                ⬜ [7] the 2×2 cost/obstacle harness
-│   ├── attribution.py         ⬜ [8] Integrated Gradients / Grad-CAM
+│   ├── perturb.py             ✅ [3,6,9] flips: random, exhaustive, greedy
+│   ├── swap.py                ✅ [7] the 2×2 cost/obstacle harness + mediation
+│   ├── attribution.py         ✅ [8] integrated gradients, Grad-CAM, sanity checks
 │   └── detect.py              ⬜ [12] residual detector + Mahalanobis baseline
-├── tests/                     ✅ 109 tests: env, data, swap premise, planner, solver, metrics, perturbations, features, surrogate
+├── tests/                     ✅ 146 tests across 12 files, including a published-tree hygiene guard
 ├── notebooks/                 ✅ 01_features_spotcheck.ipynb (display only)
 └── results/
     ├── e0_reproduce.json      ✅ [0]
@@ -321,7 +388,7 @@ Check an environment you did not build yourself:
 
 ```bash
 make test-env     # 16 assertions: interpreter, pins, data, checkpoint, clean submodule
-make test         # whole suite, 109 tests, ~18 s
+make test         # whole suite, 146 tests, ~16 s
 ```
 
 ### Data
@@ -357,6 +424,10 @@ make probe              # step-3 worst-case probe: exhaustive k=1 on 3 instances
 make features           # step-4 feature archives for all 1 000 instances, ~9 s
 make spotcheck          # step-4 figure + correlation diagnostic
 make surrogate          # step-5 fits, residuals and the sufficiency test, ~40 s
+make sweep              # step-6 exhaustive k=1 sweep, ~21 min
+make swap               # step-7 mediation decomposition, ~10 s
+make attribution        # step-8 attribution study, ~1 min
+make families           # step-7b cross-family comparison, ~4 min
 make test               # the full suite
 python scripts/pilot_random.py --instances 3 --timing-only   # extrapolate first
 ```
@@ -411,17 +482,15 @@ that same map. Classical A\* replanning correctly is not an error.
 ## Roadmap (course stages)
 
 - [x] **Stage 1 — Proposal** (16 Oct 2026): question, hypothesis, design. ✔ submitted
-- [ ] **Stage 2:** E0 reproduced ✅ · swap premise confirmed in `differentiable_astar.py` ✅ · exact solver + metrics [2] ✅ · random-flip pilot [3] ✅ · feature library [4] ✅ · surrogate fit [5] ✅ · perturbation harness for one objective [6] ⬜
-- [ ] **Stage 3:** E2 + E3 complete on mazes [6–9]; three training seeds [10]; WarCraft started if time allows [11].
+- [ ] **Stage 2:** E0 reproduced ✅ · swap premise confirmed in `differentiable_astar.py` ✅ · exact solver + metrics [2] ✅ · random-flip pilot [3] ✅ · feature library [4] ✅ · surrogate fit [5] ✅ · perturbation harness [6] ✅
+- [ ] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] in progress · three training seeds [10] ⬜ · WarCraft [11] only if time allows.
 - [ ] **Final:** E4 if reached [12]; write-up with explicit negative results.
 
-**Next step:** step 5 — the surrogate fit. Ridge (and optionally a
-small GBM) from features to cost, fit on train and scored on test, in three
-variants: geometric-only, path-indicator-only, and both. Plus residual
-heatmaps and residual magnitude grouped by `wall_zone`. The step-4 correlations
-already point at the answer, and the plan is explicit about what to do if it
-holds: if path-only ≈ both ≫ geometric-only, the competing hypothesis is
-winning, and that gets recorded as the result. 
+**Next step:** step 9 — greedy search at budgets 2, 4 and 8, repeating the
+mediation decomposition at each to see whether the encoder/search split moves
+with the size of the attack. After that: three training seeds (step 10) to turn
+single-model observations into claims, and per-family training to finish the
+validity check begun in step 7b.
 
 ---
 
