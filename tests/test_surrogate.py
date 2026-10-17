@@ -201,17 +201,55 @@ def test_tagged_archives_are_kept_separate() -> None:
 
     from src import config
 
-    tagged = sorted(config.RESULTS_DIR.glob("features_test_*.npz"))
-    if not tagged:
-        pytest.skip("no per-model archives built; run scripts/seed_pipeline.sh")
-
-    tag = tagged[0].stem.replace("features_test_", "")
     default = load_archive("test")
-    other = load_archive("test", tag=tag)
+    default_family = str(default.get("family", "mazes"))
 
+    # Only archives from the *same* family are comparable: the geometry arrays
+    # are properties of the maps, so a forest archive differs from a maze one
+    # for reasons that have nothing to do with the model.
+    same_family = []
+    for path in sorted(config.RESULTS_DIR.glob("features_test_*.npz")):
+        tag = path.stem.replace("features_test_", "")
+        archive = load_archive("test", tag=tag)
+        if str(archive.get("family", "mazes")) == default_family:
+            same_family.append((tag, archive))
+    if not same_family:
+        pytest.skip("no per-model archives for this family; run scripts/seed_pipeline.sh")
+
+    tag, other = same_family[0]
     assert str(other["model_tag"]) == tag
     # The geometry is a property of the maps and must be identical...
     assert np.array_equal(default["geodesic_to_goal"], other["geodesic_to_goal"])
     assert np.array_equal(default["is_free"], other["is_free"])
     # ...while the cost map is a property of the model and must not be.
     assert not np.array_equal(default["cost_map"], other["cost_map"])
+
+
+@needs_archives
+def test_archives_from_different_families_are_not_comparable() -> None:
+    """An archive records its family, so the two cannot be mixed up silently.
+
+    Per-model archives began as "same maps, different weights". Once step 7b
+    trained on another family that stopped being true, and a comparison that
+    assumed it would have reported a difference in *geometry* as a difference
+    between models.
+    """
+    import numpy as np
+
+    from src import config
+
+    others = {}
+    for path in sorted(config.RESULTS_DIR.glob("features_test_*.npz")):
+        tag = path.stem.replace("features_test_", "")
+        archive = load_archive("test", tag=tag)
+        others.setdefault(str(archive.get("family", "mazes")), []).append((tag, archive))
+    if len(others) < 2:
+        pytest.skip("only one family has per-model archives")
+
+    (first_family, first), (second_family, second) = (
+        (name, entries[0][1]) for name, entries in list(others.items())[:2]
+    )
+    assert first_family != second_family
+    assert not np.array_equal(first["is_free"], second["is_free"]), (
+        "two families must differ in their maps, not only in their cost maps"
+    )
