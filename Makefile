@@ -1,7 +1,7 @@
 # Convenience targets. Everything runs inside the project venv (.venv).
 PY := .venv/bin/python
 
-.PHONY: help env lock test test-env e0 step2 pilot probe features spotcheck surrogate sweep swap attribution budgets families damaging seeds clean
+.PHONY: help env lock test test-env e0 step2 pilot probe features spotcheck surrogate sweep swap attribution budgets families damaging train seed-pipeline seeds clean
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -57,6 +57,12 @@ families:  ## PLAN.md step 7b(a): maze-trained planner across all 8 map families
 
 damaging:  ## where the damaging cells are: join the sweep to the feature library
 	$(PY) scripts/analyse_damaging_cells.py
+
+train:  ## PLAN.md step 10: train three encoders (~30 min each on CPU)
+	$(PY) scripts/train_encoders.py --family mazes --seeds 0 1 2 --epochs 50
+
+seed-pipeline:  ## per-model features + sweep + swap, e.g. make seed-pipeline TAG=mazes_seed0
+	bash scripts/seed_pipeline.sh $(TAG)
 
 seeds:  ## PLAN.md step 10: compare trained seeds and report dispersion
 	$(PY) scripts/compare_seeds.py --tags "" mazes_seed0 mazes_seed1 mazes_seed2
