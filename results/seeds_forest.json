@@ -1,0 +1,378 @@
+{
+  "seed": 0,
+  "models": [
+    {
+      "tag": "forest_seed0",
+      "checkpoint_epoch": 19,
+      "planning": {
+        "p_opt": 0.54,
+        "mean_opt": 1.0521733966488085,
+        "mean_exp": 0.8159634419859095,
+        "h_mean": 0.41175222911927056
+      },
+      "surrogate_r2": {
+        "geometric_h1_gbm": 0.20463514517302617,
+        "path_gbm": 0.035332426286975305,
+        "all_gbm": 0.31491763587301835
+      },
+      "sufficiency_all": {
+        "p_opt": 0.81,
+        "mean_opt": 1.0141450429006276,
+        "mean_exp": 0.7228819548831457,
+        "h_mean": 0.4848624021524723
+      },
+      "mediation_optimality": {
+        "n": 79,
+        "encoder": 0.40675105485232077,
+        "search": 0.31012658227848106
+      },
+      "mediation_efficiency": {
+        "n": 56,
+        "encoder": 0.5211905055109962,
+        "search": 0.4874605190853637
+      },
+      "fragility": {
+        "maps_with_a_damaging_cell": 0.8518518518518519,
+        "median_damaging_cells": 0.007338551859099804,
+        "mean_damaging_cells": 0.018542074363992172,
+        "worst_opt": 1.4736842105263157,
+        "median_worst_opt": 1.0454545454545454
+      },
+      "shared_optimality": {
+        "n": 79,
+        "encoder": 0.40675105485232077,
+        "search": 0.31012658227848106
+      },
+      "shared_efficiency": {
+        "n": 56,
+        "encoder": 0.5211905055109962,
+        "search": 0.4874605190853637
+      }
+    },
+    {
+      "tag": "forest_seed1",
+      "checkpoint_epoch": 23,
+      "planning": {
+        "p_opt": 0.56,
+        "mean_opt": 1.0477853824014969,
+        "mean_exp": 0.7504114478735299,
+        "h_mean": 0.44604591540371796
+      },
+      "surrogate_r2": {
+        "geometric_h1_gbm": 0.3006820538184761,
+        "path_gbm": 0.06409892855008181,
+        "all_gbm": 0.4123457861300408
+      },
+      "sufficiency_all": {
+        "p_opt": 0.77,
+        "mean_opt": 1.0180221396176086,
+        "mean_exp": 0.7100878307921712,
+        "h_mean": 0.49846008078659265
+      },
+      "mediation_optimality": {
+        "n": 82,
+        "encoder": 0.5443089430894309,
+        "search": 0.3461382113821138
+      },
+      "mediation_efficiency": {
+        "n": 55,
+        "encoder": 0.5194245428268509,
+        "search": 0.4513333126161948
+      },
+      "fragility": {
+        "maps_with_a_damaging_cell": 0.875,
+        "median_damaging_cells": 0.009784735812133072,
+        "mean_damaging_cells": 0.025958904109589037,
+        "worst_opt": 1.4782608695652173,
+        "median_worst_opt": 1.0564387917329094
+      },
+      "shared_optimality": {
+        "n": 34,
+        "encoder": 0.35784313725490197,
+        "search": 0.5833333333333334
+      },
+      "shared_efficiency": {
+        "n": 48,
+        "encoder": 0.32221532798181474,
+        "search": 0.7576333673934057
+      }
+    },
+    {
+      "tag": "forest_seed2",
+      "checkpoint_epoch": 27,
+      "planning": {
+        "p_opt": 0.53,
+        "mean_opt": 1.0455447788957488,
+        "mean_exp": 0.7603336353593868,
+        "h_mean": 0.4340802522667567
+      },
+      "surrogate_r2": {
+        "geometric_h1_gbm": 0.2380026539914354,
+        "path_gbm": 0.04309128297941767,
+        "all_gbm": 0.35936129141726103
+      },
+      "sufficiency_all": {
+        "p_opt": 0.72,
+        "mean_opt": 1.0238829804565526,
+        "mean_exp": 0.7322227068200771,
+        "h_mean": 0.4853694744711377
+      },
+      "mediation_optimality": {
+        "n": 74,
+        "encoder": 0.4932432432432433,
+        "search": 0.38175675675675674
+      },
+      "mediation_efficiency": {
+        "n": 62,
+        "encoder": 0.35509198770945777,
+        "search": 0.6954855999116065
+      },
+      "fragility": {
+        "maps_with_a_damaging_cell": 0.8490566037735849,
+        "median_damaging_cells": 0.008806262230919765,
+        "mean_damaging_cells": 0.023962818003913897,
+        "worst_opt": 1.3928571428571428,
+        "median_worst_opt": 1.0666666666666667
+      },
+      "shared_optimality": {
+        "n": 36,
+        "encoder": 0.31944444444444464,
+        "search": 0.6342592592592592
+      },
+      "shared_efficiency": {
+        "n": 49,
+        "encoder": 0.20551936892718342,
+        "search": 0.8053880094899795
+      }
+    }
+  ],
+  "dispersion": {
+    "checkpoint_epoch": {
+      "mean": 23.0,
+      "std": 4.0,
+      "min": 19.0,
+      "max": 27.0
+    },
+    "planning.p_opt": {
+      "mean": 0.5433333333333333,
+      "std": 0.01527525231651948,
+      "min": 0.53,
+      "max": 0.56
+    },
+    "planning.mean_opt": {
+      "mean": 1.048501185982018,
+      "std": 0.0033717835641481615,
+      "min": 1.0455447788957488,
+      "max": 1.0521733966488085
+    },
+    "planning.mean_exp": {
+      "mean": 0.7755695084062754,
+      "std": 0.03533220703059808,
+      "min": 0.7504114478735299,
+      "max": 0.8159634419859095
+    },
+    "planning.h_mean": {
+      "mean": 0.43062613226324836,
+      "std": 0.017405816225991848,
+      "min": 0.41175222911927056,
+      "max": 0.44604591540371796
+    },
+    "surrogate_r2.geometric_h1_gbm": {
+      "mean": 0.2477732843276459,
+      "std": 0.048763214393249446,
+      "min": 0.20463514517302617,
+      "max": 0.3006820538184761
+    },
+    "surrogate_r2.path_gbm": {
+      "mean": 0.047507545938824926,
+      "std": 0.014883059060834987,
+      "min": 0.035332426286975305,
+      "max": 0.06409892855008181
+    },
+    "surrogate_r2.all_gbm": {
+      "mean": 0.3622082378067734,
+      "std": 0.0487764281537179,
+      "min": 0.31491763587301835,
+      "max": 0.4123457861300408
+    },
+    "sufficiency_all.p_opt": {
+      "mean": 0.7666666666666666,
+      "std": 0.04509249752822898,
+      "min": 0.72,
+      "max": 0.81
+    },
+    "sufficiency_all.mean_opt": {
+      "mean": 1.018683387658263,
+      "std": 0.004902529315488644,
+      "min": 1.0141450429006276,
+      "max": 1.0238829804565526
+    },
+    "sufficiency_all.mean_exp": {
+      "mean": 0.721730830831798,
+      "std": 0.011112245458451853,
+      "min": 0.7100878307921712,
+      "max": 0.7322227068200771
+    },
+    "sufficiency_all.h_mean": {
+      "mean": 0.4895639858034009,
+      "std": 0.007708414885472015,
+      "min": 0.4848624021524723,
+      "max": 0.49846008078659265
+    },
+    "mediation_optimality.n": {
+      "mean": 78.33333333333333,
+      "std": 4.041451884327381,
+      "min": 74.0,
+      "max": 82.0
+    },
+    "mediation_optimality.encoder": {
+      "mean": 0.4814344137283317,
+      "std": 0.06953509541912994,
+      "min": 0.40675105485232077,
+      "max": 0.5443089430894309
+    },
+    "mediation_optimality.search": {
+      "mean": 0.3460071834724505,
+      "std": 0.0358152669986123,
+      "min": 0.31012658227848106,
+      "max": 0.38175675675675674
+    },
+    "mediation_efficiency.n": {
+      "mean": 57.666666666666664,
+      "std": 3.7859388972001824,
+      "min": 55.0,
+      "max": 62.0
+    },
+    "mediation_efficiency.encoder": {
+      "mean": 0.465235678682435,
+      "std": 0.09539132115613806,
+      "min": 0.35509198770945777,
+      "max": 0.5211905055109962
+    },
+    "mediation_efficiency.search": {
+      "mean": 0.5447598105377217,
+      "std": 0.13177629319646994,
+      "min": 0.4513333126161948,
+      "max": 0.6954855999116065
+    },
+    "fragility.maps_with_a_damaging_cell": {
+      "mean": 0.8586361518751456,
+      "std": 0.014240259725325919,
+      "min": 0.8490566037735849,
+      "max": 0.875
+    },
+    "fragility.median_damaging_cells": {
+      "mean": 0.008643183300717547,
+      "std": 0.0012312189229078195,
+      "min": 0.007338551859099804,
+      "max": 0.009784735812133072
+    },
+    "fragility.mean_damaging_cells": {
+      "mean": 0.02282126549249837,
+      "std": 0.0038379287996303346,
+      "min": 0.018542074363992172,
+      "max": 0.025958904109589037
+    },
+    "fragility.worst_opt": {
+      "mean": 1.4482674076495587,
+      "std": 0.04804122745375909,
+      "min": 1.3928571428571428,
+      "max": 1.4782608695652173
+    },
+    "fragility.median_worst_opt": {
+      "mean": 1.0561866679513738,
+      "std": 0.01060830789430354,
+      "min": 1.0454545454545454,
+      "max": 1.0666666666666667
+    },
+    "shared_optimality.n": {
+      "mean": 49.666666666666664,
+      "std": 25.423086620891123,
+      "min": 34.0,
+      "max": 79.0
+    },
+    "shared_optimality.encoder": {
+      "mean": 0.3613462121838891,
+      "std": 0.04375859579210398,
+      "min": 0.31944444444444464,
+      "max": 0.40675105485232077
+    },
+    "shared_optimality.search": {
+      "mean": 0.5092397249570245,
+      "std": 0.17430689938538788,
+      "min": 0.31012658227848106,
+      "max": 0.6342592592592592
+    },
+    "shared_efficiency.n": {
+      "mean": 51.0,
+      "std": 4.358898943540674,
+      "min": 48.0,
+      "max": 56.0
+    },
+    "shared_efficiency.encoder": {
+      "mean": 0.34964173413999816,
+      "std": 0.15961272641645552,
+      "min": 0.20551936892718342,
+      "max": 0.5211905055109962
+    },
+    "shared_efficiency.search": {
+      "mean": 0.6834939653229162,
+      "std": 0.17144083671421909,
+      "min": 0.4874605190853637,
+      "max": 0.8053880094899795
+    }
+  },
+  "cost_map_agreement": [
+    {
+      "pair": "forest_seed0 vs forest_seed1",
+      "pooled_r": 0.7123081782946976,
+      "within_map_r": 0.7106701998964157,
+      "mean_abs_difference": 0.14698979318830782
+    },
+    {
+      "pair": "forest_seed0 vs forest_seed2",
+      "pooled_r": 0.6719473975987141,
+      "within_map_r": 0.6699399832118468,
+      "mean_abs_difference": 0.15195876901665306
+    },
+    {
+      "pair": "forest_seed1 vs forest_seed2",
+      "pooled_r": 0.6765819108742931,
+      "within_map_r": 0.6742478410117573,
+      "mean_abs_difference": 0.1537231528374724
+    }
+  ],
+  "vulnerability_overlap": [
+    {
+      "pair": "forest_seed0 vs forest_seed1",
+      "damaging_first": 1895,
+      "damaging_second": 2653,
+      "damaging_both": 707,
+      "share_of_first_shared": 0.37308707124010554,
+      "enrichment_over_chance": 14.372219630885333,
+      "same_worst_flip_maps": 23,
+      "n_maps": 100
+    },
+    {
+      "pair": "forest_seed0 vs forest_seed2",
+      "damaging_first": 1895,
+      "damaging_second": 2449,
+      "damaging_both": 499,
+      "share_of_first_shared": 0.2633245382585752,
+      "enrichment_over_chance": 10.988880281758426,
+      "same_worst_flip_maps": 25,
+      "n_maps": 100
+    },
+    {
+      "pair": "forest_seed1 vs forest_seed2",
+      "damaging_first": 2653,
+      "damaging_second": 2449,
+      "damaging_both": 807,
+      "share_of_first_shared": 0.30418394270637017,
+      "enrichment_over_chance": 12.693997119065346,
+      "same_worst_flip_maps": 21,
+      "n_maps": 100
+    }
+  ],
+  "family": "forest"
+}

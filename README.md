@@ -474,11 +474,30 @@ with a damaging cell on mazes against 85.2 % on forest; median damaging cells
 0.78 % against 0.73 %. The concentration of damage on optimal routes replicates
 too (5.3 % vs 1.6 % off-route on mazes; 5.0 % vs 1.4 % on forest).
 
-**The mediation split does not fully carry over.** On forest the encoder route
-leads on *both* objectives (+0.41 vs +0.31 on path, +0.52 vs +0.49 on effort),
-where every maze model had the search route leading on effort. That is one
-model with a 0.034 margin — exactly the shape of evidence step 10 overturned —
-so it is recorded as a difference worth testing, not a reversal.
+**The mediation split: one half carries over, the other is undetermined.** The
+first forest model read as though the encoder route led on *both* objectives
+(+0.41 vs +0.31 on path, +0.52 vs +0.49 on effort), where every maze model had
+the search route leading on effort. That was one model with a 0.034 margin —
+exactly the shape of evidence step 10 overturned — so it was recorded as a
+difference worth testing rather than a reversal, and two more forest encoders
+were trained.
+
+| model | path: encoder | path: search | effort: encoder | effort: search |
+|-------|---------------|--------------|-----------------|----------------|
+| `forest_seed0` | **+0.407** | +0.310 | +0.521 | +0.487 |
+| `forest_seed1` | **+0.544** | +0.346 | +0.519 | +0.451 |
+| `forest_seed2` | **+0.493** | +0.382 | +0.355 | **+0.695** |
+
+**The difference was not real.** `forest_seed2` reverses the effort reading by
+0.340 — the largest margin of any model in this project — against two marginal
+readings of 0.034 and 0.068 the other way. The forest effort ranges overlap
+heavily (encoder 0.355–0.521, search 0.451–0.695), so the honest statement is
+*undetermined on forest*.
+
+**The path-quality half carries over strongly.** The encoder route leads in all
+three forest models with non-overlapping ranges (0.407–0.544 against
+0.310–0.382), as in all four maze models: **seven of seven models across two
+families.** Report: `results/seeds_forest.md`.
 
 ### Step 12 — detecting a tampered map from the planner's internals
 

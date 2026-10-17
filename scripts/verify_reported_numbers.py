@@ -60,6 +60,7 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
         load(f"e4_detector_{tag}.json")
         for tag in ("mazes_seed0", "mazes_seed1", "mazes_seed2")
     ]
+    seeds_forest = load("seeds_forest.json")
     detector_forest = [
         load(f"e4_detector_{tag}.json") for tag in ("forest_seed0", "forest_seed1")
     ]
@@ -254,6 +255,49 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
                  > conditions["blocked_2"]["combined_minus_map_only"]["hi"]),
             ]
         )
+
+    if seeds_forest:
+        forest_models = seeds_forest["models"]
+        forest_path_encoder = [
+            row["mediation_optimality"]["encoder"]
+            for row in forest_models
+            if "mediation_optimality" in row
+        ]
+        forest_path_search = [
+            row["mediation_optimality"]["search"]
+            for row in forest_models
+            if "mediation_optimality" in row
+        ]
+        forest_effort_encoder = [
+            row["mediation_efficiency"]["encoder"]
+            for row in forest_models
+            if "mediation_efficiency" in row
+        ]
+        forest_effort_search = [
+            row["mediation_efficiency"]["search"]
+            for row in forest_models
+            if "mediation_efficiency" in row
+        ]
+        if len(forest_path_encoder) > 2:
+            out.extend(
+                [
+                    # The half that travels between families.
+                    ("step 7b: the encoder route leads on path quality in every "
+                     "forest model too",
+                     lambda: min(forest_path_encoder) > max(forest_path_search)),
+                    # The half that does not: the step-7b hunch was withdrawn
+                    # because these ranges overlap, so the check is that they do.
+                    ("step 7b: on forest the search-effort route is undetermined "
+                     "(ranges overlap)",
+                     lambda: min(forest_effort_search) < max(forest_effort_encoder)),
+                    ("step 7b: the third forest seed reverses effort by more than any "
+                     "maze model's margin",
+                     lambda: max(
+                         search - encoder
+                         for encoder, search in zip(forest_effort_encoder, forest_effort_search)
+                     ) > 0.33),
+                ]
+            )
 
     if transfer:
         moved = {row["condition"]: row for row in transfer["conditions"]}

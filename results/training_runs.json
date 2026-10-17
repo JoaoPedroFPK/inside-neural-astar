@@ -34,5 +34,23 @@
     "returncode": 0,
     "checkpoint_dir": "/Users/joaopedroferreirapereira/Documents/GitHub/inside-neural-astar/results/models/forest_seed0/forest_032_moore_c8",
     "tag": "forest_seed0"
+  },
+  {
+    "family": "forest",
+    "seed": 1,
+    "epochs": 50,
+    "seconds": 935.5016295419773,
+    "returncode": 0,
+    "checkpoint_dir": "/Users/joaopedroferreirapereira/Documents/GitHub/inside-neural-astar/results/models/forest_seed1/forest_032_moore_c8",
+    "tag": "forest_seed1"
+  },
+  {
+    "family": "forest",
+    "seed": 2,
+    "epochs": 50,
+    "seconds": 932.5393885829835,
+    "returncode": 0,
+    "checkpoint_dir": "/Users/joaopedroferreirapereira/Documents/GitHub/inside-neural-astar/results/models/forest_seed2/forest_032_moore_c8",
+    "tag": "forest_seed2"
   }
 ]
