@@ -188,3 +188,30 @@ def test_path_features_beat_the_heuristic_features() -> None:
     assert heuristic.r2 < 0.02
     assert path.r2 > 0.08
     assert path.r2 > 4 * heuristic.r2
+
+
+@needs_archives
+def test_tagged_archives_are_kept_separate() -> None:
+    """A model tag selects that model's archive, not the default one.
+
+    Several trained encoders coexist in `results/`, and mixing one model's cost
+    maps with another's would silently invalidate every per-seed comparison.
+    """
+    import numpy as np
+
+    from src import config
+
+    tagged = sorted(config.RESULTS_DIR.glob("features_test_*.npz"))
+    if not tagged:
+        pytest.skip("no per-model archives built; run scripts/seed_pipeline.sh")
+
+    tag = tagged[0].stem.replace("features_test_", "")
+    default = load_archive("test")
+    other = load_archive("test", tag=tag)
+
+    assert str(other["model_tag"]) == tag
+    # The geometry is a property of the maps and must be identical...
+    assert np.array_equal(default["geodesic_to_goal"], other["geodesic_to_goal"])
+    assert np.array_equal(default["is_free"], other["is_free"])
+    # ...while the cost map is a property of the model and must not be.
+    assert not np.array_equal(default["cost_map"], other["cost_map"])
