@@ -1,0 +1,29 @@
+[
+  {
+    "family": "mazes",
+    "seed": 0,
+    "epochs": 50,
+    "seconds": 1352.9672875409888,
+    "returncode": 0,
+    "checkpoint_dir": "/Users/joaopedroferreirapereira/Documents/GitHub/inside-neural-astar/results/models/mazes_seed0/mazes_032_moore_c8",
+    "tag": "mazes_seed0"
+  },
+  {
+    "family": "mazes",
+    "seed": 1,
+    "epochs": 50,
+    "seconds": 1362.747739207989,
+    "returncode": 0,
+    "checkpoint_dir": "/Users/joaopedroferreirapereira/Documents/GitHub/inside-neural-astar/results/models/mazes_seed1/mazes_032_moore_c8",
+    "tag": "mazes_seed1"
+  },
+  {
+    "family": "mazes",
+    "seed": 2,
+    "epochs": 50,
+    "seconds": 1359.91669808398,
+    "returncode": 0,
+    "checkpoint_dir": "/Users/joaopedroferreirapereira/Documents/GitHub/inside-neural-astar/results/models/mazes_seed2/mazes_032_moore_c8",
+    "tag": "mazes_seed2"
+  }
+]
