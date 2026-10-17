@@ -36,7 +36,7 @@ from src.perturb import (  # noqa: E402
     greedy_flip_search,
 )
 from src.planner import load_pretrained_neural_astar  # noqa: E402
-from src.swap import run_swap, summarize_swaps  # noqa: E402
+from src.swap import run_swap, summarize_swaps, swap_columns  # noqa: E402
 
 BUDGETS = (1, 2, 4, 8)
 OBJECTIVE_METRIC = {"optimality": "opt", "efficiency": "exp"}
@@ -101,11 +101,17 @@ def random_baseline_curve(objective: str) -> List[Dict[str, float]]:
     return out
 
 
-def render_plot(curves: Dict[str, Dict[int, Dict[str, float]]], out_path: Path) -> Path:
+def render_plot(
+    curves: Dict[str, Dict[int, Dict[str, float]]],
+    curves_unchanged: Dict[str, Dict[int, Dict[str, float]]],
+    out_path: Path,
+) -> Path:
     """Plot mediation fraction against budget, one panel per objective.
 
     Args:
         curves: objective -> budget -> summary from `summarize_swaps`.
+        curves_unchanged: the same, restricted to alterations that did not
+            change the map's optimum.
         out_path: Where to write the PNG.
 
     Returns:
@@ -120,17 +126,28 @@ def render_plot(curves: Dict[str, Dict[int, Dict[str, float]]], out_path: Path) 
     axes = np.atleast_1d(axes)
     for ax, (objective, by_budget) in zip(axes, curves.items()):
         budgets = sorted(by_budget)
-        encoder = [by_budget[b]["encoder_median"] for b in budgets]
-        search = [by_budget[b]["search_median"] for b in budgets]
+        encoder = [by_budget[b]["encoder_mean"] for b in budgets]
+        search = [by_budget[b]["search_mean"] for b in budgets]
         ax.axhline(0, color="0.85", lw=0.8)
         ax.axhline(1, color="0.9", lw=0.8, ls="--")
-        ax.plot(budgets, encoder, "o-", label="encoder route")
-        ax.plot(budgets, search, "s-", label="search route")
+        ax.plot(budgets, encoder, "o-", color="C0", label="encoder route (all)")
+        ax.plot(budgets, search, "s-", color="C1", label="search route (all)")
+        restricted = curves_unchanged.get(objective, {})
+        if restricted:
+            rb = sorted(restricted)
+            ax.plot(
+                rb, [restricted[b]["encoder_mean"] for b in rb], "o--", color="C0",
+                alpha=0.55, label="encoder, optimum unchanged",
+            )
+            ax.plot(
+                rb, [restricted[b]["search_mean"] for b in rb], "s--", color="C1",
+                alpha=0.55, label="search, optimum unchanged",
+            )
         ax.set_xscale("log", base=2)
         ax.set_xticks(budgets)
         ax.set_xticklabels([str(b) for b in budgets])
         ax.set_xlabel("budget k (cells flipped)")
-        ax.set_ylabel("median mediation fraction")
+        ax.set_ylabel("mean mediation fraction")
         ax.set_title(f"{objective} objective", fontsize=10)
         ax.legend(fontsize=8)
     fig.suptitle("E3 — how the mediation split moves with the attack budget", fontsize=11)
@@ -190,7 +207,11 @@ def main() -> int:
                 budget = int(row["budget"])
                 if budget in BUDGETS:
                     cells = [tuple(int(v) for v in cell) for cell in row["flip_cells"]]
-                    swap_results[objective][budget].append(run_swap(planner, instance, cells))
+                    result = run_swap(planner, instance, cells)
+                    swap_results[objective][budget].append(result)
+                    # Persist the decomposition on the row itself, so later
+                    # analysis can query the manifest instead of recomputing.
+                    row.update(swap_columns(result))
             if position % 10 == 0 or position == len(instance_ids):
                 elapsed = time.perf_counter() - started
                 print(
@@ -217,7 +238,28 @@ def main() -> int:
         }
         for objective, by_budget in swap_results.items()
     }
-    figure = render_plot(curves, config.RESULTS_DIR / "e3_budget.png")
+    # Step 7 showed that pooling two failure modes - "took a worse path" and
+    # "failed to use a shortcut the flip opened" - inverts the reading. Larger
+    # budgets flip more cells and so open more shortcuts, which makes the split
+    # more important at k=8 than at k=1, not less.
+    curves_unchanged = {
+        objective: {
+            budget: summarize_swaps(
+                [r for r in results if not r.optimum_changed], OBJECTIVE_METRIC[objective]
+            )
+            for budget, results in by_budget.items()
+            if any(not r.optimum_changed for r in results)
+        }
+        for objective, by_budget in swap_results.items()
+    }
+    shortcut_share = {
+        objective: {
+            budget: float(np.mean([r.optimum_changed for r in results])) if results else float("nan")
+            for budget, results in by_budget.items()
+        }
+        for objective, by_budget in swap_results.items()
+    }
+    figure = render_plot(curves, curves_unchanged, config.RESULTS_DIR / "e3_budget.png")
 
     greedy_frame = pd.DataFrame(all_rows)
     greedy_frame["flip_cells"] = greedy_frame["flip_cells"].apply(
@@ -237,6 +279,8 @@ def main() -> int:
             "minutes": seconds / 60,
         },
         "curves": curves,
+        "curves_optimum_unchanged": curves_unchanged,
+        "shortcut_share": shortcut_share,
         "greedy_damage": {
             objective: [
                 {
@@ -311,17 +355,25 @@ def render_markdown(report: Dict[str, object], figure: Path) -> str:
         lines.append("")
         curve = report["curves"].get(objective, {})  # type: ignore[index]
         if curve:
+            restricted = report.get("curves_optimum_unchanged", {}).get(objective, {})
+            shares = report.get("shortcut_share", {}).get(objective, {})
             lines += [
-                "| budget | encoder route (median) | search route (median) | interaction share |",
-                "|--------|------------------------|-----------------------|-------------------|",
+                "| budget | encoder | search | encoder (optimum unchanged) | search (optimum unchanged) | flips that opened a shortcut | interaction |",
+                "|--------|---------|--------|-----------------------------|----------------------------|------------------------------|-------------|",
             ]
             for budget in sorted(curve):
                 summary = curve[budget]
                 labels = summary["labels"]
                 interaction = labels.get("interaction", 0) / max(summary["n"], 1)
+                part = restricted.get(budget)
+                enc_r = f"{part['encoder_mean']:+.2f}" if part else "—"
+                sea_r = f"{part['search_mean']:+.2f}" if part else "—"
+                share = shares.get(budget)
+                share_text = f"{share:.0%}" if share == share else "—"
                 lines.append(
-                    f"| {budget} | {summary['encoder_median']:+.2f} | "
-                    f"{summary['search_median']:+.2f} | {interaction:.0%} |"
+                    f"| {budget} | {summary['encoder_mean']:+.2f} | "
+                    f"{summary['search_mean']:+.2f} | {enc_r} | {sea_r} | {share_text} | "
+                    f"{interaction:.0%} |"
                 )
             lines.append("")
     lines += [f"Plot: `{figure.name}`.", ""]
