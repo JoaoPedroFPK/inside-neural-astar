@@ -1,989 +1,153 @@
 # How do small changes in a map affect a learned path planner?
 
-Interpretability and robustness analysis of **Neural A\*** (Yonetani et al., ICML 2021) — a semester project for the AI Interpretability course, PPGC/UFRGS, 2026/2.
+Interpretability and robustness study of **Neural A\*** (Yonetani et al., ICML 2021).
+AI Interpretability course project, PPGC/UFRGS, 2026/2.
 
-> **Como pequenas mudanças em um mapa afetam um planejador de rotas aprendido?**
+> *Como pequenas mudanças em um mapa afetam um planejador de rotas aprendido?*
 
----
+## The setup in one paragraph
 
-## TL;DR
+Neural A\* has two stages. A convolutional **encoder** (the only learned part) reads
+an obstacle map plus start and goal and outputs a per-cell **cost map**. A fixed,
+differentiable **A\*** then searches on that cost map. Because the search takes the
+cost map and the obstacle mask as separate inputs, we can run it on all four
+combinations of {original, altered} costs × {original, altered} obstacles after
+flipping 1–8 cells, and measure how much of the damage each route reproduces:
 
-Neural A\* is a two-stage planner: a convolutional **encoder** turns an obstacle map (plus start and goal) into a per-cell **cost map** (the *guidance map*), and a **differentiable A\*** searches on that cost map. Only the encoder is learned; the search is fixed. The cost map is therefore an explicit, human-readable bottleneck between a neural network and a classical algorithm.
+|                    | original obstacles      | altered obstacles         |
+|--------------------|-------------------------|---------------------------|
+| **original costs** | `C0O0` baseline         | `C0O1` search route only  |
+| **altered costs**  | `C1O0` encoder route only | `C1O1` full alteration  |
 
-We use that bottleneck to answer two questions:
+Classical A\* on the altered map is the ground truth: replanning because the map
+changed is not an error; deviating from the *altered* map's optimum is.
 
-1. **What does the learned cost map encode?** Is it a smoothed version of known geometric heuristics (distance to goal, proximity to obstacles), or something else — e.g. a prediction of where the path goes?
-2. **When a tiny change to the map (flipping 1–8 cells) makes the planner fail, where does the failure come from?** From the encoder producing distorted costs (*encoder-mediated*), or from the search amplifying almost-correct costs (*search-mediated*)?
-
-The second question is answered with a **swap design**: because the search takes the cost map and the obstacle mask as separate inputs, we can run it on all four combinations of {original, altered} costs × {original, altered} obstacles and measure how much of the failure each off-diagonal condition reproduces.
-
-Classical A\* on the same altered map is the control throughout: it is exact, so its answer is by definition the *correct* response to the change.
-
----
-
-## What a sample looks like
-
-A **map** is a 32×32 grid of cells: white cells are free, black cells are walls. The planner gets a map, a start cell **S** and a goal cell **G**, and must return a route from S to G that never enters a wall. Neural A\* does this in two stages:
-
-1. **The encoder** (a small convolutional network, the only learned part) reads the map and writes a **cost map**: one number between 0 and 1 for every cell, the price of passing through it. Dark cells are cheap, bright cells are expensive.
-2. **The search** (A\*, a classical algorithm) grows outward from S. At each step it **expands** one cell, meaning it examines that cell's neighbours and adds them to its list of candidates, always preferring the candidate that looks closest to a finished route. It stops when it expands G. Fewer expanded cells means less work.
-
-The figure below shows three test maps the planner has never trained on. Each row is one map, and the four columns are:
-
-| column | what it shows |
-|---|---|
-| 1 | The map with S, G, and the **optimal path** (teal), computed exactly by the dataset. |
-| 2 | The **cost map** the encoder predicts for that map. |
-| 3 | **Neural A\***: the cells it expanded (blue) and the route it returned (orange). |
-| 4 | **Classical A\*** on the same map, with no learned cost: the exact control (purple route). |
-
-![Three test maps: the map with its optimal path, the encoder's cost map, and the cells each planner expands](figures/dataset_samples.png)
-
-**Opt** is the length of the returned route divided by the length of the optimal one, so 1.000 means the planner found an optimal route. On these three maps Neural A\* is optimal every time, and it expands fewer cells than classical A\* on two of them (23 vs 61 and 43 vs 204), while using the same number on the third (28 vs 28). These maps were not picked for that outcome; across all 100 test maps with the fixed starts used here, the planner is optimal on 83 % (see *E0* in the status below), so the example is typical rather than the rule.
-
-The animation runs the same two searches on map 0, one expansion at a time. Both planners advance in lockstep: at each frame, every panel has expanded the same number of cells. The yellow cell is the one being expanded now. Neural A\* reaches G after 23 expansions and holds its finished route, while classical A\* keeps expanding until its own search finishes at 61.
-
-![Animation of the two searches on map 0, one expansion per frame](figures/neural_astar_search.gif)
-
-The figures are regenerated by `make figures` (about 6 seconds on a laptop CPU), which writes them to `figures/`.
-
-### Try it: the interactive demo
-
-```bash
-make demo                         # opens http://127.0.0.1:8765 in the browser
-make demo MAP=63 DETECTOR=1       # start on maze 63, with step 12's tamper detector
-make demo WARCRAFT=1              # start on the WarCraft terrain maps
-```
-
-A small local server (standard library only) runs the real pretrained planners; the page redraws after every change. Two kinds of map, switched at the top:
-
-![The demo on maze 63 after the worst single cell and three rounds of the gradient attack](figures/demo.png)
-
-**Mazes.** Click any cell to add or remove a wall. The board shows the cells Neural A\* expanded, its route (orange) and the exact shortest route on the map as it now stands (teal); the *Cost map* and *Cost change* views show what the network outputs and how the change moved it (only within each flip's 11 × 11 reach). On the right:
-
-- the verdict by the project's rule (a route longer than the *altered* map's shortest is a failure; replanning because the map changed is not);
-- route length and work against their yardsticks;
-- the four-way swap of step 7 as a 2 × 2 grid, old or new costs × old or new walls, with a one-line reading of which change did the damage;
-- with `DETECTOR=1`, the step-12 detector's confidence that the map was altered, from the map alone and with the planner's cost map added (fitted once in about a minute, then cached).
-
-Tools: the step-13 gradient attack, one cell per press, for the route (`g`) or the work (`h`); the worst single cell from the exhaustive sweep (`w`, `e`); a random cell (`r`); undo (`u`); reset (`0`); previous / next maze (`[`, `]`).
-
-![The demo on WarCraft terrain map 6 after a 1/255 pixel attack](figures/demo_warcraft.png)
-
-**WarCraft terrain.** The planner sees only the picture; every 8 × 8-pixel tile has a hidden true cost. Pick a terrain from the palette (real tiles from the training maps, labelled by their true cost; the dataset does not name its terrains) and click a tile to repaint it. Or change the pixels: the *pixel attack* moves every pixel by at most ±1–8/255 in the direction the planner's gradient says hurts most (`g`), and *random noise* of the same size is its control (`r`). The true costs, and so the cheapest route, do not change, yet on map 6 a 1/255 attack makes the route 53 % more expensive. The views compare the true costs with the network's, and a dashed purple route shows what a perfect search on the network's costs would do, which says whether the costs or the search are to blame. The arrows step through maps the planner solves untouched; *Worst repaint* (`w`) replays the most damaging single tile from the step-11 sweep (maps 0–299).
-
-The worst-cell buttons need the exhaustive sweeps (`make sweep`, `make warcraft`); WarCraft needs `make warcraft-data` and a trained model. `python scripts/demo.py --actions "worst:opt grad:opt"` runs actions headless and prints the verdicts.
-
----
-
-## Hypothesis
-
-The learned cost map approximates two geometric quantities — distance to goal and proximity to obstacles — in a smoothed form, so a single altered cell distorts the cost over a whole neighbourhood. Large distortions steer the search to a worse path (encoder-mediated); small distortions only break ties between near-equivalent routes and inflate the number of expanded nodes without changing the path (search-mediated). Each kind of damage — path quality vs. search efficiency — should have a dominant route.
-
-**Falsifiers.** H1 fails if a simple additive model on geometric features explains the cost map poorly and the residual is spatially unstructured. H2 fails if neither swap condition alone reproduces the damage (interaction), or if Neural A\* turns out to be as robust as classical A\* at the budgets tested (no damage to decompose). Both outcomes are reportable.
-
-**Main competing hypothesis.** The cost map is a *path-prediction map*, not a heuristic: the encoder is trained only so that the search history matches the reference path, so it may learn to "paint" the corridor the path goes through. A path map also correlates with distance to goal, so a good surrogate fit is not enough to distinguish the two — see *Validity risks* below.
-
----
-
-## Experiments
-
-| ID | Goal | Tests |
-|----|------|-------|
-| **E0** ✅ | Reproduce Neural A\* on the 32×32 maze benchmark (Opt, Exp, Hmean within tolerance). Set up attribution hooks. | — |
-| **E1** ✅ | Characterize the cost map: fit an additive model on geometric features (geodesic & Euclidean distance to goal, distance to nearest obstacle, local obstacle density, corridor width); residual analysis by local topology (junction / corridor / dead end / open area); Integrated Gradients from cost cells back to the input; controlled map edits. | H1 |
-| **E2** ✅ | Perturbations: flip 1–8 cells, chosen by exhaustive search (every single cell) and greedy search (up to 8 cells), reachability preserved; random flips as baseline. Step 13 adds a search whose candidates are ranked by the planner's own gradient, needing no exhaustive sweep. Two objectives: degrade path optimality / degrade search efficiency. Compare against classical A\* on the same altered maps. | premise |
-| **E3** ✅ | Mediation via the 2×2 swap design (see below). Metrics: fraction of ΔOpt and ΔExp reproduced by each off-diagonal cell; ΔCost (L1 and spatial localization). | H2 |
-| **E4** ✅ | Detection: do attacked inputs produce cost maps whose residual from the E1 surrogate is anomalous? Baselines: Mahalanobis distance on encoder activations **and** a model-free classifier on grid statistics. Step 13 adds an attacker who knows the detector. | H3 |
-
-### The swap design (E3)
-
-|                     | original obstacles              | altered obstacles              |
-|---------------------|---------------------------------|--------------------------------|
-| **original costs**  | baseline (no failure)           | *search-only* effect           |
-| **altered costs**   | *encoder-only* effect           | full perturbation (failure)    |
-
-If the failure reappears with altered costs on original obstacles, the encoder's reading of the map is what broke. If it reappears with original costs on altered obstacles, the search amplified a small cost error. If it only appears with both, the answer is "interaction".
-
-### Validity risks we are aware of
-
-- **The swap creates off-distribution pairs.** Costs computed from the altered map, applied to the original obstacles, is a configuration the encoder never produced in training; the search may react to the *incoherence*, not to the "encoder-only" effect. Alternative: intervene inside the encoder with linear probes and patch only the direction associated with the geometric quantity of interest.
-- **Surrogate fit is correlation, not mechanism.** A path-prediction map also correlates with distance to goal. Alternative: a *sufficiency test* — replace the encoder with a fixed geometric heuristic built from the same features and check whether performance and fragility are preserved.
-- **Attack selection is biased toward the encoder.** Gradient-guided flips are, by construction, cells the encoder is sensitive to. Random flips and natural perturbations (sensor noise, shifted obstacles) are the controls.
-- **Mazes may not be representative.** 32×32 mazes with width-1 corridors are full of near-ties, which favours the search route. Alternative: repeat on the building-floorplan and city maps from the original `icml2021` branch, and on the WarCraft raw-image task.
-
----
+![Three test maps: optimal path, cost map, Neural A* and classical A* expansions](figures/dataset_samples.png)
 
 ## Status — 2026-11-21
 
-**Every step of the plan is done (0–13)**, plus both halves of the cross-family
-validity check (step 7b), the WarCraft terrain-image replication (step 11) and
-the gradient-guided and adaptive attacks (step 13).
-The environment is pinned and asserted; the published numbers are reproduced;
-the structural premise of the mediation design is verified in code and under
-test; the exact solver reproduces the published search exactly; every one of
-the 102 198 single-cell map alterations has been evaluated; the damage has
-been decomposed into its two routes at four attack budgets; the attribution
-methods have been tested against a bound the architecture makes exact; and the
-findings have been checked against all eight map families.
-
-Three encoders were trained from different seeds and every per-model
-measurement repeated on each. Everything is reproducible with the `make`
-targets below — `make help` lists them with their runtimes.
-
-> The research plan, the verification record (every premise checked in code,
-> with file and line references), the decision log and the per-step write-ups
-> are kept as working notes outside this repository. Code comments and the
-> generated reports refer to them by name; every claim they support is
-> re-checkable here by running the test suite and the `make` targets below.
-
-### E0 — reproduction on the 100 test mazes (CPU, ~2 s)
-
-| | Opt | Exp | Hmean |
-|---|---|---|---|
-| Paper, Table 1 (MP dataset, Neural A\*) | 87.7 % | 40.1 % | 52.0 % |
-| **Ours**, upstream start protocol | **84.0 %** | **43.5 %** | **57.3 %** |
-| Ours, fixed starts (seed 0) | 83.0 % | 43.7 % | 57.3 % |
-
-Mean expansions 60.7 (Neural A\*) vs 133.4 (classical A\*). Within the few-point
-tolerance step 0 asks for. Caveats recorded rather than smoothed over: the
-paper's row aggregates eight environment types (no maze-only breakdown is
-published), and the checkpoint is the one shipped on the `minimal` branch, not
-the paper's model.
-
-### Three findings that changed the plan
-
-1. **The swap design works as specified, with no wrapper needed.** The search
-   module takes `(cost_maps, start_maps, goal_maps, obstacles_maps)` separately
-   and uses the obstacle map *only* as a mask on candidate neighbours. Costs
-   from one instance and obstacles from another plan a valid path
-   (`tests/test_swap_possible.py`).
-2. **Every move costs 1, diagonals included** — not √2, as the project notes
-   originally assumed. Both upstream A\* implementations and the dataset
-   generator agree, and the Chebyshev heuristic is the matching metric. The
-   exact solver and `Opt` use the unit-cost model.
-3. **The cost map enters `f` twice**: once accumulated in `g`, charged at the
-   *parent* node of each expansion, and once added wholesale to `h`. So raising
-   a cell's cost both penalises paths through it and makes it look farther from
-   the goal — directly relevant to how an encoder-mediated failure can arise.
-
-### Step 2 — the exact solver is a replica of upstream's search
-
-`src/exact_solver.py` validated with `make step2`
-(`results/step2_validation.json`):
-
-* geodesic distances equal the dataset's stored distances on **all 1 000 maps**,
-  every free cell — 0 mismatches over 451 447 cells (~1 s);
-* its classical-A\* expansion count and path cost match upstream
-  `VanillaAstar` on **100 %** of test instances;
-* fed Neural A\*'s own cost map, it reproduces the module's expansions *and*
-  path length on **100 %** of them — which is what confirms the cost
-  semantics (charged at the parent, and also added to `h`);
-* the project's `Opt`/`Exp` metrics reproduce the E0 line exactly
-  (`p_opt` 0.830, `p_exp` 0.4373, `h_mean` 0.5728).
-
-Two things fall out of it. Mean `Opt` ratio is **1.0154** — the pretrained
-planner's paths are 1.5 % above optimal on average — and **Neural A\* expands
-more nodes than classical A\* on 13 of 100 instances**, a regression the
-paper's `Exp` floors to zero. So the efficiency objective of E2 has headroom
-before any perturbation is applied.
-
-### Step 3 — random flips barely dent the planner; targeted flips do
-
-`make pilot` (1 200 alterations, 19 s) and `make probe`
-(3 066 exhaustive k=1 alterations, 33 s) → `results/pilot_random.md`:
-
-| k | Opt > 1 | **newly suboptimal** | Exp > 1.5 |
-|---|---------|----------------------|-----------|
-| 1 | 18 % | **1 %** | 1 % |
-| 2 | 19 % | **3 %** | 1 % |
-| 4 | 20 % | **4 %** | 1 % |
-| 8 | 22 % | **9 %** | 1 % |
-
-The raw `Opt > 1` column is mostly the planner's standing 17 % error rate; the
-damage *caused* by a random flip is the second column. At k=1 the optimum
-itself never changed (0 of 300 draws), so those failures are pure planner
-deviation on a map whose optimum it already matched. When damage does occur it
-is not marginal — mean `Opt` 1.08, worst 1.33.
-
-The exhaustive k=1 probe shows this is a **weak attack, not a robust planner**:
-all 3 probed instances have at least one single cell that costs optimality
-(worst `Opt` 1.053 / 1.120 / 1.111), but only 0.1–1.2 % of the ~1 000 candidate
-cells do. Fragility is real and extremely localized, so **step 6's exhaustive
-k=1 sweep is justified and necessary** (≈18 min single-process for the test
-split), greedy k ∈ {2, 4, 8} is justified, and random flips stay as the control.
-
-Two structural findings came out of it, both correcting assumptions:
-
-* **These are thin-wall rooms, not width-1-corridor mazes** — 10.8 % obstacles,
-  one-cell-thick walls, ~10-cell-wide open areas, 68 % of free cells with all
-  eight neighbours free. So *no* single flip can disconnect the goal (0 in
-  9 068 tried), and the two flip directions are different edits: a **pillar**
-  dropped into open space (92 % of draws, 0.9 % damage) versus a **door**
-  opened in a wall (8 % of draws, 4.5 % damage). The plan's tie-heaviness
-  concern survives, but via open space rather than corridors, and step 4's
-  topology classes needed rethinking.
-* **The encoder's response to a k=1 flip is exactly local** — radius 5 (five
-  3×3 convs, *not* four), `|Δcost|` exactly zero outside the 11×11 window, with
-  only 1.7 % of the Δ mass on the flipped cell itself. Any behaviour change
-  farther away travelled through the search, which is a sharp mediation handle
-  independent of the swap design.
-
-### Step 4 — the feature library, and an early signal against H1
-
-`make features` (1 000 instances, 14 features + 7 auxiliary arrays, 9 s) and
-`make spotcheck` → `results/e1_features_spotcheck.{png,md}`, notebook
-`notebooks/01_features_spotcheck.ipynb`.
-
-Correlation of each feature with the cost map over free, reachable cells —
-pooled, and averaged within instances (they agree, so no pooling artefact):
-
-| feature | pooled r | within-instance r |
-|---------|----------|-------------------|
-| `on_any_optimal_path` | **−0.327** | **−0.339** |
-| `on_reference_path` (training target) | **−0.248** | **−0.248** |
-| `on_solver_path` | −0.205 | −0.205 |
-| `corridor_span_min` | 0.086 | 0.062 |
-| `geodesic_to_goal` | 0.033 | 0.022 |
-| `chebyshev_to_goal` (= the heuristic) | 0.018 | 0.020 |
-| `euclidean_to_goal` | 0.007 | 0.010 |
-
-The path indicators are the strongest linear correlates; **every
-distance-to-goal feature is essentially uncorrelated with the cost map**
-(|r| ≤ 0.03). Cells on optimal paths carry *lower* cost, which is what steering
-a search toward them requires. That is the direction of the plan's *competing*
-hypothesis — a path-prediction map — rather than H1's smoothed geometric
-heuristic. It is not the verdict: these are single-feature correlations, and
-step 5's joint fits (geometric-only / path-only / both, train → test R²) are
-the actual test. Recorded as it came out, per the project's working rules.
-
-The cost map's spread is almost entirely within instances (sd 0.288 vs 0.033
-between), and spans 0.000–1.000, so the sigmoid is neither saturated nor
-reduced to a per-instance level shift.
-
-One definition had to change: step 5 groups residuals by local
-topology, but that partition is degenerate here (70 % "open", 0 % "dead end").
-`src.features.wall_zone` — distance to the nearest wall, bucketed — is balanced
-(43 / 31 / 26 %) and is what step 5 will group by; both are stored.
-
-### Step 5 — what the cost map is made of, and what of it matters
-
-`make surrogate` → `results/e1_surrogate.{md,json,png}`. Fitted on 360 700
-cells from 800 training maps, scored on 44 635 cells from 100 unseen maps.
-
-| feature group | ridge R² | boosting R² |
-|---|---|---|
-| the search's own heuristic | **0.002** | — |
-| distance to goal only | 0.007 | 0.074 |
-| obstacle geometry only | 0.022 | 0.153 |
-| **H1 as stated** (goal + obstacles) | 0.026 | **0.240** |
-| path indicators only | 0.123 | 0.123 |
-| **everything** | 0.151 | **0.408** |
-
-**The encoder does not re-encode the search's heuristic** — those features
-explain 0.2 % of its output, which is what the architecture predicts, since the
-search already adds the Chebyshev heuristic itself. H1 is refuted *as stated*
-(linear fits reach 0.026) but partly vindicated in substance (0.240
-non-linearly), and the competing path-prediction account does not replace it
-either (0.123 alone). The cost map is a combination, and ~59 % of it is
-explained by nothing we named.
-
-Then the test R² cannot perform — feed the surrogate's prediction to the real
-search instead of the network's output:
-
-| cost map driving the search | exactly optimal | mean Exp ratio | Hmean |
-|---|---|---|---|
-| the network's own | 0.830 | 0.578 | **0.573** |
-| surrogate, H1 features only | 0.620 | 0.755 | 0.413 |
-| **surrogate, all features** | **0.920** | 0.627 | 0.552 |
-| flat costs = classical A\* | 1.000 | 1.000 | 0.000 |
-
-Geometry alone cannot plan. Geometry plus path indicators nearly can: a
-surrogate reconstructing 41 % of the cost map plans *more optimally than the
-network it imitates*, buying that with search effort and landing at 96 % of its
-combined score. So the unexplained 59 % is not where planning competence lives
-— it is what makes the network cut corners.
-
-That is not just "weaker guidance". Scaling the network's own cost map toward a
-constant traces the weaker-guidance curve; at scale 0.50 it reaches 0.840
-optimality at 0.644 of classical effort, while the surrogate reaches **0.920 at
-0.627** — strictly better on both axes. The structure interpretable features
-impose is genuinely better for path quality at a comparable search cost.
-
-### Steps 6–7 — where the damage comes from
-
-`make sweep` evaluated **102 198 single-cell alterations** across the 100 test
-maps in 21 minutes, then `make swap` decomposed the worst one per map per
-objective.
-
-**86 %** of the maps that were optimal beforehand have at least one cell whose
-flip costs them optimality — but only a median **0.78 %** of candidate cells
-are damaging. Fragility is near-universal and very thin, which is exactly why
-random perturbation finds almost nothing. The worst single flip in the split
-costs 35 % extra path length.
-
-The mediation split, over the worst flip per map:
-
-Both objectives have to be split by failure mode first. In some alterations
-the flip *opened a new shortcut*: the optimum dropped and the planner was
-scored as damaged for not taking a route that exists only under the altered
-mask — which the search route varies by definition. Pooling those with genuine
-planner deviation inverts the reading.
-
-| | encoder route | search route |
-|---|---|---|
-| path quality, pooled (88) | +0.40 | +0.40 |
-| **path quality, optimum unchanged (70)** | **+0.49** | +0.28 |
-| path quality, shortcut opened (18) | +0.02 | +0.84 |
-| search effort, pooled (91) | +0.19 | +0.50 |
-| **search effort, optimum unchanged (55)** | **+0.23** | **+0.26** |
-| search effort, shortcut opened (36) | +0.14 | +0.87 |
-
-On genuine planner deviation, **path-quality damage is encoder-mediated**
-(0.49 vs 0.28, and the raw-count decomposition agrees at 0.51 vs 0.28), while
-**search-effort damage is roughly even** (0.23 vs 0.26) rather than
-search-dominated as the pooled number suggests.
-
-The locality bound held on all 200 swaps: no cost-map change fell outside the
-encoder's 11×11 receptive field.
-
-### Step 9 — the split moves with the size of the attack
-
-`make budgets`: greedy search at k ≤ 8, with the step-3 random draws as the
-control.
-
-| budget | greedy mean Opt | random mean Opt | greedy mean Exp | random mean Exp |
-|---|---|---|---|---|
-| 1 | 1.110 | 1.017 | 1.152 | 0.587 |
-| 8 | **1.167** | 1.020 | **1.981** | 0.599 |
-
-Measured as excess over the optimum, targeting is worth 6.5× the path damage
-of random flipping at k=1 and 8.4× at k=8, and it *inverts* the efficiency
-effect: a randomly perturbed map still leaves the
-planner expanding 41 % fewer cells than classical A\*, while eight targeted
-flips leave it expanding twice as many — up to 7.4× in the worst case. The
-learned guidance stops helping and becomes a liability.
-
-The mediation split, restricted to the clean failure mode, **moves with the
-budget and crosses over**:
-
-| budget | encoder | search | interaction |
-|---|---|---|---|
-| 1 | **+0.49** | +0.28 | 24 % |
-| 4 | +0.42 | +0.39 | 44 % |
-| 8 | +0.38 | **+0.42** | 45 % |
-
-A single targeted cell damages the planner mainly through the encoder; eight
-cells mainly through the search, with interaction rising throughout. So "which
-route mediates the damage?" has no single answer — it depends on how large the
-perturbation is.
-
-### Where the damaging cells are — and a falsified mechanism
-
-Joining all 102 198 flips to the feature library (`make damaging`): **2.00 %**
-damage the planner relative to its own baseline, and the rate varies six-fold
-with location.
-
-| | damage rate |
+| | state |
 |---|---|
-| on an optimal route, in open space | **6.16 %** |
-| on an optimal route, touching a wall | 3.47 % |
-| off every route, in open space | 1.56 % |
-| off every route, touching a wall | **1.05 %** |
+| Experiments (plan steps 0–13) | **All done.** Mazes (4 models), forest (3 models), WarCraft (3 models), detector, gradient and adaptive attacks. |
+| Reproducibility | Pinned env, `make` target per step, 16-file test suite, `make verify` checks quoted numbers against stored results. |
+| **Open** | Final write-up (course deliverable). Team names below are still placeholders. |
+| Optional, not started | Joint two-cell adaptive attack; WarCraft with random start/goal (tests the position shortcut); 64×64 map families. |
 
-The dangerous cell is the one *on a route the planner might take, in open
-space* — which fits what the cost map was found to encode.
+Reproduction (100 test mazes): Opt 84.0 %, Exp 43.5 %, Hmean 57.3 %, against the
+paper's 87.7 / 40.1 / 52.0 (the paper pools eight map types; checkpoint is the one
+shipped upstream).
 
-The hypothesis also says large cost-map distortions are what steer the search
-to a worse path. Measured, that is **false**: the correlation between the size
-of the distortion and whether the path broke is **+0.04**, among broken cases
-the severity correlates **−0.06**, and the relationship is non-monotone — the
-largest distortions are *less* damaging than mid-sized ones, even restricted to
-on-route cells. Location predicts damage; magnitude does not.
+## Results against the hypothesis
 
-### Step 8 — an attribution method that fails its own test
+**Hypothesis (as proposed).** The cost map is a smoothed version of distance-to-goal
+and proximity-to-obstacles (H1). A flip distorts it locally; *large* distortions
+steer the search to a worse path (encoder-mediated), *small* ones only break ties
+and inflate expansions (search-mediated), so each kind of damage has a dominant
+route (H2). Competing hypothesis: the cost map is a path-prediction map.
 
-Because the encoder is five 3×3 convolutions, we know *exactly* which input
-cells can influence a given output — ground truth that attribution work almost
-never has.
-
-| method | share of attribution mass within radius 5 | furthest non-zero cell |
+| claim | verdict | evidence |
 |---|---|---|
-| integrated gradients | **100 %** | 3.8 |
-| saliency | **100 %** | 5.0 |
-| Grad-CAM | **10.9 %** | 24.6 |
-
-Grad-CAM attributes influence up to 30 cells away, where influence is
-impossible. Its channel-mean gradient weighting highlights a feature wherever
-it is active, so on a network with no downsampling it draws general activity
-rather than what produced one value — and the picture is persuasive, because it
-highlights the route band that steps 4 and 5 identified. The figures are kept
-to document the failure; no conclusion rests on them.
-
-The randomisation sanity check passes overall (r = +0.04) but not uniformly:
-wall-adjacent cells average +0.33, so near walls a sizeable part of the
-attribution is input geometry rather than learned weights.
-
-### Step 7b — the findings across all eight map families
-
-Seven more 32×32 families ship with the dataset submodule. Two results are
-model-independent and change how later steps are run: the plan's cell
-partition has an **empty class in every family** (a cell needs seven of eight
-neighbours blocked to be a "dead end", which these generators never produce),
-and **no single flip can disconnect the goal** in seven of eight families.
-
-The planner's own numbers are *transfer*, not generalisation — it was trained
-on mazes, and its Hmean falls from 0.573 to 0.272 across families, so
-per-family training is required before concluding anything about them.
-
-### Step 10 — what survives a change of training seed
-
-Three encoders trained from scratch (50 epochs each, ~23 min on CPU) plus the
-shipped checkpoint, with the surrogate fits, the exhaustive sweep and the
-mediation swap repeated on every one.
-
-**What replicates.** Fragility: 81–88 % of baseline-optimal maps have a
-damaging cell, median 0.59–0.78 % of cells, worst single flip 1.31–1.37.
-Surrogate: the ordering all (0.41–0.48) > geometry (0.24–0.31) > path
-(0.11–0.13) holds in every model, with gaps four to five times the spread
-between models. And in all four, a surrogate plans **more optimally than the
-network it imitates** (0.90–0.93 against 0.79–0.83).
-
-**The mediation split holds in both halves, with ranges that do not overlap:**
-
-| | encoder route | search route |
-|---|---|---|
-| path quality | **0.463 – 0.627** | 0.284 – 0.437 |
-| search effort | 0.040 – 0.229 | **0.256 – 0.363** |
-
-The lowest encoder value for path quality is above the highest search value;
-for search effort the ordering is reversed and equally clean. Both halves of
-the project's hypothesis are confirmed.
-
-**This reversed a conclusion the project had reached twice.** Step 7 read the
-pooled efficiency numbers as search-dominated 2.6 : 1; step 9 corrected that to
-"roughly even, not confirmed" from the restricted figures of a single model
-whose margin was 0.03 — the narrowest of the four. Reading a direction from one
-model was the error. The sequence is left in the write-ups rather than tidied
-away.
-
-**What does not replicate.** The cost map itself: two models trained
-identically but for a seed agree at within-map r ≈ 0.85, differing by about a
-tenth of the output range per cell. Vulnerable cells overlap only 45–51 %
-between models — 21–27× chance, so largely a property of the map, but the
-single worst cell per map agrees in only about a third of them. Aggregate
-findings travel between models; specific cost values and specific vulnerable
-cells do not.
-
-### Step 7b part b — one family trained for, not merely transferred to
-
-Part (a) ran the maze-trained planner on seven other families, which could not
-separate "does this finding depend on geometry" from "does this model cope with
-unfamiliar inputs". Training an encoder on `forest` — scattered obstacles, no
-walls — removes the confound for one family.
-
-| planner, on forest maps | exactly optimal | mean Exp |
-|---|---|---|
-| maze-trained (transfer) | 0.430 | 0.860 |
-| **forest-trained** | **0.540** | 0.816 |
-| maze-trained on mazes, for reference | 0.800 | 0.605 |
-
-Training on the family buys 11 points; the remaining 26-point gap is the family
-being **harder**, which part (a) could not have told apart.
-
-**What the cost map encodes is family-dependent.** Surrogate R², both models
-trained identically:
-
-| feature group | mazes | forest |
-|---|---|---|
-| H1 geometry | 0.274 | 0.205 |
-| **path indicators** | **0.119** | **0.035** |
-| everything | 0.437 | 0.315 |
-
-The path component — a third of the explained variance on mazes — nearly
-vanishes on forest. Step 5's answer needs the family attached, just as step
-10's needs the seed spread attached.
-
-**And on forest the surrogate is strictly the better planner:**
-
-| cost map driving the search | exactly optimal | mean Exp |
-|---|---|---|
-| the forest-trained network | 0.540 | 0.816 |
-| **its surrogate** (R² 0.315) | **0.810** | **0.723** |
-
-On mazes the surrogate traded optimality for search effort. Here it is better
-on **both** axes at once. On a family the encoder fits poorly, what it has
-learned beyond the interpretable part is not merely unhelpful but costly.
-
-**The pillar/door prediction, written in advance, is confirmed and then some.**
-Over every single-cell flip of both families:
-
-| | pillar flips | door flips | ratio |
-|---|---|---|---|
-| mazes | 1.83 % damage (n = 91 121) | **3.38 %** (n = 11 077) | **1.85×** |
-| forest | 1.99 % (n = 84 677) | **1.18 %** (n = 17 523) | **0.59×** |
-
-The asymmetry does not merely disappear without walls — it **inverts**.
-
-**Fragility is a property of the planner, not the geometry**: 85.5 % of maps
-with a damaging cell on mazes against 85.2 % on forest; median damaging cells
-0.78 % against 0.73 %. The concentration of damage on optimal routes replicates
-too (5.3 % vs 1.6 % off-route on mazes; 5.0 % vs 1.4 % on forest).
-
-**The mediation split: one half carries over, the other is undetermined.** The
-first forest model read as though the encoder route led on *both* objectives
-(+0.41 vs +0.31 on path, +0.52 vs +0.49 on effort), where every maze model had
-the search route leading on effort. That was one model with a 0.034 margin —
-exactly the shape of evidence step 10 overturned — so it was recorded as a
-difference worth testing rather than a reversal, and two more forest encoders
-were trained.
-
-| model | path: encoder | path: search | effort: encoder | effort: search |
-|-------|---------------|--------------|-----------------|----------------|
-| `forest_seed0` | **+0.407** | +0.310 | +0.521 | +0.487 |
-| `forest_seed1` | **+0.544** | +0.346 | +0.519 | +0.451 |
-| `forest_seed2` | **+0.493** | +0.382 | +0.355 | **+0.695** |
-
-**The difference was not real.** `forest_seed2` reverses the effort reading by
-0.340 — the largest margin of any model in this project — against two marginal
-readings of 0.034 and 0.068 the other way. The forest effort ranges overlap
-heavily (encoder 0.355–0.521, search 0.451–0.695), so the honest statement is
-*undetermined on forest*.
-
-**The path-quality half carries over strongly.** The encoder route leads in all
-three forest models with non-overlapping ranges (0.407–0.544 against
-0.310–0.382), as in all four maze models: **seven of seven models across two
-families.** Report: `results/seeds_forest.md`.
-
-### Step 12 — detecting a tampered map from the planner's internals
-
-The planner never signals that its input was altered; it just returns a worse
-route. Can the tampering be seen from inside? Four detectors are compared on
-100 test maps, scored by AUC, where 0.5 is chance.
-
-| detector | what it sees |
-|---|---|
-| surrogate residual | the cost map minus what the step-5 geometry surrogate predicts, in seven summary statistics |
-| Mahalanobis (baseline) | pooled encoder activations, scored against clean maps; best of four layers × two poolings |
-| grid statistics (weak control) | the map alone: obstacle fraction, isolated obstacles, isolated free cells, dead ends, path length |
-| convolutional net (strong control) | the raw grid, trained on **random** flips of the 800 training maps — never a selected flip, never a scored map |
-
-**The claim, at the strength seven trained models support: for a single flipped
-cell on a maze map, chosen to make the search work harder, the planner's
-internals carry information a convolutional network reading the raw grid does
-not have. Everywhere else, no.**
-
-| model | effort: control | + residual | gain, 95 % CI |
-|---|---|---|---|
-| shipped | 0.797 | 0.902 | **+0.106** [+0.024, +0.182] |
-| `mazes_seed0` | 0.817 | 0.897 | **+0.080** [+0.019, +0.142] |
-| `mazes_seed1` | 0.788 | 0.903 | **+0.115** [+0.048, +0.179] |
-| `mazes_seed2` | 0.786 | 0.866 | **+0.079** [+0.012, +0.141] |
-
-Four of four maze models, every interval clear of zero. What does *not* survive:
-
-| measurement | outcome |
-|---|---|
-| single flip, path damage | 2 of 4 maze models clear zero → **withdrawn** |
-| 2, 4 or 8 flips, either objective | nothing; the grid gives those away by itself (control 0.966–1.000) |
-| forest maps, either objective | 0 of 6 against this control; 1 of 6 marginally (+0.036) against the weaker one |
-
-The control is near-perfect at its own training task — AUC 1.000 on held-out
-maze maps, 0.985 on forest — and it **beats the hand-feature detector
-outright** in most conditions (0.919 vs 0.892 at `k=1`, a perfect 1.000 on two
-added obstacles). Against the weaker five-statistic control the gains look
-three times larger (+0.113 and +0.238) and replicate everywhere; that column is
-kept in the write-up marked as such, because the gap between the two controls is
-the methodological finding.
-
-**As a standalone detector the residual loses** to the out-of-distribution
-score in all ten conditions, and that score's own strength is unexplained: its
-best configuration's dominant direction correlates 0.994 with the obstacle
-count, but constructing alterations that hold the count fixed costs it 0.003
-AUC while costing the grid statistics 0.124. A Mahalanobis score discounts
-whatever varies most among clean examples, so the obvious mechanism is the
-wrong one.
-
-**The realistic version of the task is not the hard one.** Scoring each map on
-either its clean or its altered version — no clean twin, which is what a
-deployed monitor faces — costs map-based detectors AUC and costs the residual
-nothing. For stealthy effort flips the grid statistics fall to **0.449, below
-chance**, while the combined detector holds 0.842: without a reference, counting
-obstacles says nothing about whether *this* map was altered, since maps
-legitimately differ in obstacle count far more than one flip changes it. The
-step had predicted the opposite and the correction is recorded.
-
-Every gap carries a bootstrap interval over scoring maps, because step 9's
-retracted conclusion came from a 0.03 margin. A detector fitted on four-cell
-flips transfers to every other condition for ≤ 0.024 AUC.
-
-Full write-up: `docs/steps/step-12-detector.md`, including two predictions this
-step made and then overturned, and the leak that made its first transfer run
-return a flat AUC of 1.000.
-
-### Step 11 — WarCraft: on picture maps the cost map encodes *where*, not *what*
-
-Neural A\* trained on 12×12 WarCraft terrain images (96×96 RGB; each 8×8-pixel
-tile has a hidden cost of 0.8–9.2; start and goal always in opposite corners).
-Three encoders trained from different seeds, 50 epochs each on CPU. With no
-walls, the search sees the world only through the cost map, so the 2×2 swap
-has no obstacle half; damage is split instead by running an *exact* search on
-the learned costs.
-
-| measurement (ranges over three models) | result |
-|---|---|
-| Neural A\* optimal / exact search on its costs / same search on true costs | 33–37 % / 32 % / 92 % |
-| Cost map explained by **position** alone (non-linear) / by terrain (linear) | **R² 0.62–0.69** / 0.04–0.05 |
-| Planner with the position pattern removed from its own map | 24–26 % optimal |
-| Linear probe for true terrain cost: last hidden layer / output | R² 0.91 / **0.05–0.08** |
-| Optimal maps with ≥ 1 damaging single-tile edit | 100 % (12–13 % of edits per map) |
-| Damage that is cost-ranking (exact search on the costs also fails) | 82–85 % |
-| Damaging edits where the right answer had not changed | 51–57 % |
-| Same-terrain transplants (seams only) / different terrain | 3–5 % / 13–17 % of optimal maps broken |
-| Optimal maps broken by 1/255 pixel change: random / PGD | 4–8 % / 84–85 % |
-
-The encoder carries the terrain to its last hidden layer — an untrained encoder
-does too, so it comes from the picture — and drops it at the output, emitting
-mostly a position pattern that the fixed start and goal make useful. Location
-again decides damage (Spearman with the size of the cost change 0.10–0.13).
-Full report: `results/warcraft.md`; write-up: `docs/steps/step-11-warcraft.md`.
-
-### Step 13 — a gradient-guided attack, and an attacker who knows the detector
-
-Two cheats were built into every earlier attack: step 9's greedy read its
-candidate cells off the exhaustive sweep (an oracle no attacker has), and
-step 12's detector was only ever scored against attacks that ignore it.
-
-**The planner's own gradient can replace the oracle.** One backward pass through
-the encoder and the straight-through search ranks every cell by the size of its
-first-order effect. The ranking is weak (Spearman with the true single-flip
-effect 0.11 for path, 0.20 for effort; the *sign* carries nothing), but under
-the same search and the same 512 evaluations per map it beats a random pool at
-every budget on both objectives:
-
-| budget | baseline-optimal maps broken: gradient | random pool | step 9 (sweep-seeded) |
-|---|---|---|---|
-| 1 | 62.7 % | 43.4 % | 85.5 % |
-| 4 | 80.7 % | 67.5 % | 85.5 % |
-| 8 | **94.0 %** | 72.3 % | 85.5 % |
-
-At eight cells it overtakes the oracle-seeded search (+0.033 Opt per map,
-interval clear of zero), because it re-ranks on the map as altered so far.
-
-**Gradient-chosen alterations are easier to detect, not harder.** They add
-obstacles more often; the convolutional map-only control alone reaches 0.955 on
-one cell (path) and ≥ 0.999 on every alteration of four cells or more. Step
-12's claim replicates on the new source: on the single effort cell the residual
-adds **+0.100** [+0.037, +0.166].
-
-**Against an adaptive attacker** — step 12's detector frozen, the attacker
-playing per map the change it scores lowest among those keeping a fraction `f`
-of the worst damage — the residual's gain over the control:
-
-| attacker | shipped | `mazes_seed0` | `mazes_seed1` | `mazes_seed2` |
-|---|---|---|---|---|
-| any single cell, f = 0.75 | **+0.101** | **+0.075** | **+0.135** | **+0.090** |
-| any single cell, f = 0.5 | +0.080 | **+0.097** | **+0.110** | +0.063 |
-| step 12's cell + one camouflage cell, f = 1 | **+0.096** | **+0.104** | **+0.114** | +0.004 |
-| step 12's cell + one camouflage cell, f = 0.5 | +0.071 | **+0.080** | **+0.119** | −0.013 |
-
-Bold: 95 % interval clear of zero. The single-cell attacker has only one to
-three near-worst options per map and cannot erase the gain on any model at
-f ≥ 0.75. Given ~250 camouflage options, it erases the gain completely on
-`mazes_seed2` — while doing 1.2× the damage — and pushes the shipped model's
-interval to zero from f = 0.75. **Step 12's surviving claim holds against these
-attackers on three models of four, not as a property of the method.** The
-defender never refits; that round is not played.
-
-Reports: `results/e2_gradient.md`, `results/e4_detector.md`,
-`results/e4_adaptive*.md`; write-up: `docs/steps/step-13-gradient-attack.md`.
-
-### Negative and corrected results, collected
-
-The plan asks for these to be explicit rather than buried, so they are listed
-together. Each links to the step that produced it.
-
-**Hypotheses that did not survive measurement**
-
-| claim | what was measured |
-|---|---|
-| The cost map approximates distance-to-goal in smoothed form | Linear fits on the goal distances reach R² **0.007**; the search's own heuristic reaches **0.002**. The non-linear fit recovers 0.105, so the information is there but not in the stated form. |
-| Large distortions steer the search to a worse path | Correlation between the size of the cost-map change and whether the path broke: **+0.04**. Among broken cases, severity correlates **−0.06**. Non-monotone, with the largest distortions *less* damaging. Location predicts damage; magnitude does not. |
-| ~~Search-effort damage is search-mediated~~ | **Reinstated.** The pooled 2.6 : 1 was wrong, and so was the single-model correction (0.23 vs 0.26). Across four models the search route is larger in every one, 0.256–0.363 against 0.040–0.229. |
-| Denser map families would make the plan's cell partition usable | The "dead end" class is empty in **all eight** families, including the densest at 36 % obstacles. |
-| The guidance map is a learned terrain cost (WarCraft) | Terrain explains R² **0.04–0.05** of it, position **0.62–0.69**. The most expensive terrain gets a lower learned cost than the middle two. The terrain is linearly readable one layer earlier (0.91) and dropped at the output. |
-| The surrogate residual would beat an out-of-distribution score at detecting tampering | It loses in **all ten** conditions. It is a complement to a map-only control, not a replacement for the standard baseline. |
-| The OOD baseline is essentially counting obstacles | Its dominant activation direction correlates 0.994 with the obstacle count, but hiding the count costs it **0.003** AUC (and costs the hand-feature control 0.124). Written down, then tested, then withdrawn. |
-| Detecting tampering without a clean reference would be harder | The opposite. Dropping the clean twin costs map-based detectors AUC and the residual nothing; the grid statistics fall to **0.449** on stealthy effort flips. Predicted, measured, corrected. |
-| A gradient-steered attack would hide better from the detector | The opposite: it adds obstacles more often and the map-only control catches every gradient alteration of 4+ cells at AUC ≥ 0.999. |
-| The residual's gain survives on both objectives at one flipped cell | Drawn from one model, withdrawn one model later. Across four maze models the search-effort gain replicates (4/4) and the path gain does not (2/4). **Both** the objective and the number of flipped cells are load-bearing. |
-
-**Premises of the project that were wrong**
-
-| assumption | measurement |
-|---|---|
-| Diagonal moves cost √2 | All eight moves cost 1, in both upstream implementations and the dataset generator. |
-| The maps are width-1-corridor mazes | They are ~11 % obstacles: thin walls between ~10-cell-wide rooms. No single flip can disconnect the goal in seven of eight families. |
-| The encoder is four 3×3 convolutions (9×9 receptive field) | It is five, radius 5, verified by measuring where `Δcost` is non-zero. |
-
-**Claims this project made and then corrected**
-
-| first reported | corrected to |
-|---|---|
-| Doors are ~5× more damaging than pillars (25 draws) | **1.85×** over all 11 077 door flips. |
-| Efficiency damage is search-mediated 2.6 : 1 | Roughly even once the shortcut-opening alterations are separated — then **confirmed after all** once four models were measured, since one model's 0.03 margin was not a direction. |
-| Step 9's sweep-seeded greedy bounds the damage at k = 8 | A gradient search that never saw the sweep breaks **94.0 %** of baseline-optimal maps at k = 8 against 85.5 %. |
-| Step 12's effort gain is robust to any attacker | Against a frozen detector, one camouflage cell erases it on 1 of 4 models and reaches zero on a second (step 13). |
-| Greedy search climbs monotonically | It cannot stay put, so it can step down; 3 of 194 sequences do. |
-| Damaging cells carry ~1.7× the attribution density (5 cells per group) | Re-measured at ~35 per group: **0.80×, 1.05×, 0.79×**, none significant. No reliable effect. |
-
----
-
-## Repository layout
-
-✅ exists · ⬜ planned (plan step in brackets)
-
-```
-.
-├── README.md
-├── Makefile                   ✅ every target below; `make help` lists them
-├── .python-version            ✅ 3.10.18
-├── requirements.txt           ✅ direct pins, one comment per non-obvious pin
-├── requirements.lock.txt      ✅ full transitive closure (174 packages)
-├── neural-astar/              ✅ git submodule, `minimal` branch (never edited)
-│   └── planning-datasets/     ✅ nested submodule: ships the .npz data
-├── data/
-│   ├── mazes_032_moore_c8.npz ✅ symlink into the nested submodule
-│   └── warcraft/              ✅ [11] downloaded by `make warcraft-data` (not versioned)
-├── scripts/
-│   ├── setup_env.sh           ✅ idempotent, self-verifying env build
-│   ├── e0_reproduce.py        ✅ [0] E0 numbers, both start protocols
-│   ├── validate_step2.py      ✅ [2] solver-vs-dataset + metrics-vs-E0 gate
-│   ├── pilot_random.py        ✅ [3] random-flip pilot + budget decision
-│   ├── probe_exhaustive_k1.py ✅ [3] worst-case probe (also step-6 timing)
-│   ├── build_features.py      ✅ [4] feature archives for all splits
-│   ├── plot_feature_spotcheck.py ✅ [4] spot-check figure + correlations
-│   ├── render_readme_figures.py ✅ the dataset samples and search animation above
-│   ├── fit_surrogate.py       ✅ [5] surrogate fits, residuals, sufficiency
-│   ├── sweep_k1.py            ✅ [6] exhaustive single-cell sweep → manifest
-│   ├── analyse_damaging_cells.py ✅ [6] where the damaging cells are
-│   ├── swap_k1.py             ✅ [7] 2×2 mediation swap
-│   ├── compare_families.py    ✅ [7b] maze-trained planner on all 8 families
-│   ├── attribution_study.py   ✅ [8] attribution vs the exact influence bound
-│   ├── greedy_budgets.py      ✅ [9] greedy search at k ≤ 8, mediation vs budget
-│   ├── train_encoders.py      ✅ [10] encoder training (mazes, forest)
-│   ├── seed_pipeline.sh       ✅ [10] per-model features + sweep + swap
-│   ├── compare_seeds.py       ✅ [10] dispersion across trained encoders
-│   ├── warcraft_study.py      ✅ [11] every WarCraft stage for one model
-│   ├── warcraft_report.py     ✅ [11] the three-model WarCraft report
-│   ├── e4_detector.py         ✅ [12] the detector and its baselines
-│   ├── gradient_attack.py     ✅ [13] gradient-ranked search vs random pool vs step 9
-│   ├── adaptive_attack.py     ✅ [13] detector-aware attack on step 12's claim
-│   ├── demo.py                ✅ browser demo server: mazes and WarCraft, every change rerun live
-│   ├── demo_page.html         ✅ the demo's page (no external code; one web font, with a system fallback)
-│   └── verify_reported_numbers.py ✅ figures quoted in the write-ups vs stored results
-├── src/
-│   ├── config.py              ✅ paths, device, dataset layout, seeding
-│   ├── grid.py                ✅ 8-connected geometry, BFS, flips, path validation
-│   ├── data.py                ✅ split loading with fixed, stored start cells
-│   ├── planner.py             ✅ checkpoint loading, cost maps, the swap primitive
-│   ├── metrics.py             ✅ paper metrics + Opt/Exp ratios + mediation fraction
-│   ├── exact_solver.py        ✅ [2] Dijkstra ground truth + classical-A* control
-│   ├── features.py            ✅ [4] geometric + path features, two partitions
-│   ├── surrogate.py           ✅ [5] feature groups, fits, residuals, sufficiency
-│   ├── perturb.py             ✅ [3,6,9,13] flips: random, exhaustive, greedy, gradient-ranked
-│   ├── swap.py                ✅ [7] the 2×2 cost/obstacle harness + mediation
-│   ├── attribution.py         ✅ [8] integrated gradients, Grad-CAM, sanity checks
-│   ├── detect.py              ✅ [12] residual detector, OOD + model-free baselines, bootstrap
-│   └── warcraft.py            ✅ [11] WarCraft loading, ground truth, tile transplants, probes
-├── tests/                     ✅ 211 tests across 16 files, including published-tree and manifest-schema guards
-├── notebooks/                 ✅ 01_features_spotcheck.ipynb (display only)
-└── results/                   ✅ versioned: the .md/.json reports; .npz, .parquet, .png and models are regenerated
-    ├── e0_reproduce.json      ✅ [0]
-    ├── step2_validation.json  ✅ [2]
-    ├── pilot_random.md        ✅ [3] the step-3 table and the budget decision
-    ├── probe_k1.json          ✅ [3] exhaustive k=1 on 3 instances
-    ├── e1_surrogate*.{md,json} ✅ [5]
-    ├── e2_k1_sweep*.{md,json} ✅ [6] (+ e2_damaging_cells*)
-    ├── e3_k1*.{md,json}       ✅ [7] · e3_budget.{md,json} [9]
-    ├── family_comparison.{md,json} ✅ [7b]
-    ├── e1_attribution/        ✅ [8]
-    ├── training_runs.json · seeds*.{md,json} ✅ [10]
-    ├── warcraft.{md,json} · warcraft/ ✅ [11]
-    ├── e4_detector*.{md,json} ✅ [12] (+ gradient conditions [13])
-    ├── e2_gradient.{md,json}  ✅ [13]
-    └── e4_adaptive*.{md,json} ✅ [13] one per maze model
-```
-
----
+| H1: cost map ≈ smoothed geometric heuristic | **Refuted as stated**, partly in substance | Linear R² 0.026 on goal + obstacle features; the search's own heuristic 0.002. Non-linear 0.24. |
+| Competing: cost map ≈ path prediction | **Partial** | Path indicators alone R² 0.12 (mazes), 0.035 (forest). All features together 0.41; ~59 % explained by nothing we named. |
+| Neural A\* is fragile to small changes | **Confirmed, but thin** | 86 % of optimal maps have ≥ 1 damaging single flip; only a median 0.78 % of cells are damaging, so random flips hit ~1 %. |
+| Path-quality damage is encoder-mediated | **Confirmed** | 7/7 models, two families. Mazes: encoder 0.46–0.63 vs search 0.28–0.44, non-overlapping. |
+| Search-effort damage is search-mediated | **Confirmed on mazes, undetermined on forest** | Mazes (4/4): search 0.26–0.36 vs encoder 0.04–0.23. Forest: 2 seeds lean encoder by 0.03–0.07, 1 leans search by 0.34. |
+| Mechanism: distortion *size* decides the damage | **Refuted** | Correlation of distortion size with damage +0.04 over 102 198 flips; −0.06 among damaged cases. Location predicts damage (6.2 % on-route open space vs 1.1 % off-route by a wall). |
+| H2 falsifier: damage is mostly interaction | **Not triggered at k = 1, grows with budget** | Interaction 24 % at k = 1, 45 % at k = 8; dominant route flips from encoder (k = 1) to search (k = 8). |
+
+**Net reading.** The route split predicted by H2 holds, but not for the reason the
+hypothesis gave: what the encoder encodes is not a smoothed heuristic, and how much
+it is distorted does not explain the damage. Where the flipped cell sits does.
+
+### Other findings
+
+- **A surrogate beats the network on path quality.** Feeding the search a ridge/boosting
+  surrogate (R² 0.41) gives 92 % optimal vs the network's 83 %, at slightly more search
+  effort. On forest it is better on both axes (81 % vs 54 % optimal).
+- **Grad-CAM fails an exact test.** The receptive field is exactly 11×11; integrated
+  gradients and saliency put 100 % of their mass inside it, Grad-CAM 10.9 %.
+- **Seeds.** Aggregate findings replicate across models; cost maps agree at only
+  r ≈ 0.79–0.88 and vulnerable cells overlap ~half the time.
+- **WarCraft (terrain images).** The cost map encodes mostly *position* (R² 0.62–0.69),
+  not terrain (0.04–0.05), although terrain is linearly readable one layer earlier
+  (R² 0.91). 82–85 % of damage is cost-ranking error; a 1/255 PGD step breaks 84–85 %
+  of optimal maps.
+- **Tamper detection (E4).** The cost-map residual adds +0.08 to +0.12 AUC over a CNN
+  reading the raw grid, but only for single-cell, effort-targeted flips on mazes (4/4
+  models). Path objective, k ≥ 2 and forest: nothing. As a standalone detector it loses
+  to a Mahalanobis baseline in all ten conditions.
+- **Attacks.** A gradient-ranked attack (no oracle) breaks 94 % of optimal maps at k = 8,
+  vs 86 % for the sweep-seeded greedy. An adaptive attacker with one camouflage cell
+  erases the detector's gain on 1 of 4 models.
+
+### Premises corrected by measurement
+
+- Moves cost 1, diagonals included (not √2).
+- The maps are thin walls between ~10-cell-wide rooms, not width-1 corridors; no single
+  flip disconnects the goal.
+- The encoder has five 3×3 convolutions (radius 5), not four.
+- Mediation on effort was read three ways before replication settled it: from one model,
+  a 0.03 margin is not a direction.
+
+Per-step reports with every number: `results/*.md`.
 
 ## Setup
 
-Python 3.10 (pinned in `.python-version`), CPU-only. One command from a fresh
-clone:
+Python 3.10, CPU only.
 
 ```bash
-git clone --recursive https://github.com/<org>/inside-neural-astar.git
+git clone --recursive https://github.com/JoaoPedroFPK/inside-neural-astar.git
 cd inside-neural-astar
-bash scripts/setup_env.sh      # or: make env
+make env                      # builds .venv from pinned deps and asserts it
 source .venv/bin/activate
+make test
 ```
 
-The script fetches the submodules, installs the interpreter via pyenv if it is
-missing, builds `.venv`, installs the pinned dependencies in a single pip
-invocation, and then **asserts** the result with `tests/test_env.py`. Re-run it
-any time; it is idempotent. `--recreate`, `--lock` and `--no-test` are
-available. Every pin carries a comment in `requirements.txt`; the two that are
-easy to get wrong are `numpy==1.26.4` (2.x is ABI-incompatible with torch
-1.12.1, and upstream's `numpy>=1.19.2` would resolve to it) and
-`setuptools==69.5.1` (≥ 81 removed the `pkg_resources` that
-pytorch-lightning 1.8.5 imports at startup).
-
-Check an environment you did not build yourself:
-
-```bash
-make test-env     # 16 assertions: interpreter, pins, data, checkpoint, clean submodule
-make test         # whole suite, 211 tests
-```
-
-### Data
-
-Nothing to download or generate. `data/mazes_032_moore_c8.npz` is a symlink
-into the nested `planning-datasets` submodule, which ships the file (800 train
-/ 100 val / 100 test, 32×32, 8-connected). Each instance carries the binary
-map, the one-hot goal map, the optimal 8-direction policy, and the **true
-geodesic distance of every cell** — the ground truth for the E1 probes and for
-the step-2 solver test. Seven more 32×32 map families (`forest`,
-`single_bugtrap`, `shifting_gaps`, …) sit next to it; step 7b uses them as the
-control for "mazes may not be representative".
-
-The pretrained maze checkpoint also ships with the submodule, so **no training
-is needed for steps 0–9**.
-
-**WarCraft 12×12 (step 11).** `make warcraft-data` downloads
-`warcraft_maps.tar.gz` (0.9 GB, CC BY 4.0) from the
-[Blackbox Combinatorial Solvers page](https://edmond.mpdl.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.YJCQ5S),
-checks its MD5 and keeps only `12x12/` under `data/warcraft/` (not versioned).
-
----
+Data and the pretrained maze checkpoint ship in the `neural-astar` submodule
+(never edited). WarCraft: `make warcraft-data` (0.9 GB, CC BY 4.0).
 
 ## Running
 
-Available now:
+| target | what | time (laptop CPU) |
+|---|---|---|
+| `make pipeline` | steps 0–9 in order, then `verify` | ~1 h 15 |
+| `make e0` / `step2` | reproduction / exact-solver validation | seconds |
+| `make sweep` / `swap` | exhaustive single-cell flips / 2×2 mediation | ~20 min / ~10 s |
+| `make budgets` | greedy k ≤ 8 and mediation vs budget | — |
+| `make train`, `seed-pipeline TAG=…`, `seeds` | extra encoders and their replication | ~30 min per model |
+| `make warcraft-train`, `warcraft` | WarCraft study | ~3 h + ~45 min per model |
+| `make detector` / `gradient` / `adaptive` | detection and attacks | ~2 / ~45 / ~30 min |
+| `make demo` | interactive browser demo (`MAP=63`, `DETECTOR=1`, `WARCRAFT=1`) | — |
+| `make help` | every target | — |
 
-```bash
-make pipeline           # steps 0–9 in dependency order + verify, ~1h15 (training, seeds, WarCraft and the detector run separately)
-make e0                 # E0: Opt/Exp/Hmean on the test split, both start protocols
-make step2              # step-2 gate: solver vs dataset (1000 maps) + metrics vs E0
-make pilot              # step-3 random-flip pilot (k = 1, 2, 4, 8), ~20 s
-make probe              # step-3 worst-case probe: exhaustive k=1 on 3 instances
-make features           # step-4 feature archives for all 1 000 instances, ~9 s
-make spotcheck          # step-4 figure + correlation diagnostic
-make surrogate          # step-5 fits, residuals and the sufficiency test, ~40 s
-make sweep              # step-6 exhaustive k=1 sweep, ~21 min
-make swap               # step-7 mediation decomposition, ~10 s
-make attribution        # step-8 attribution study, ~1 min
-make families           # step-7b cross-family comparison, ~4 min
-make damaging           # step-6 where the damaging cells are
-make budgets            # step-9 greedy search at k ≤ 8
-make train              # step-10 three maze encoders, ~30 min each
-make seed-pipeline TAG=mazes_seed0   # step-10 per-model features + sweep + swap
-make seeds              # step-10 dispersion across encoders
-make detector           # step-12 detector, every condition + CNN control, ~2 min
-make gradient           # step-13 gradient-guided attack, ~45 min alone (~100 min with other jobs)
-make adaptive           # step-13 adaptive attack, shipped model, ~30–80 min
-make demo               # browser demo (MAP=…, DETECTOR=1, WARCRAFT=1)
-make figures            # README figures, ~6 s
-make verify             # quoted figures vs stored results
-make warcraft-data      # step-11 data: download, checksum, extract 12x12
-make warcraft-train     # step-11 three encoders, ~3 h in parallel on CPU
-make warcraft           # step-11 every stage for three models + report, ~45 min per model
-make test               # the full suite
-python scripts/pilot_random.py --instances 3 --timing-only   # extrapolate first
-```
+Every script seeds numpy and torch and accepts `--seed`.
 
-Every script seeds numpy and torch at the top and accepts `--seed`; everything
-runs on CPU (`src.config.get_device()` is the only place a device is chosen).
-
----
+![The demo on maze 63 after a gradient attack](figures/demo.png)
 
 ## Metrics
 
-Two families, deliberately kept apart in `src/metrics.py`:
+- **Opt ratio**: planner path cost ÷ optimal cost on the same (altered) map; 1.0 = optimal.
+- **Exp ratio**: planner expansions ÷ classical A\* expansions on the same map.
+- **Mediation fraction**: `(M[C1O0] − M[C0O0]) / (M[C1O1] − M[C0O0])` for the encoder
+  route, `C0O1` for the search route. Both reported; they need not sum to 1.
+- The paper's binary Opt / floored Exp / Hmean are kept in `src/metrics.py` for the
+  reproduction only.
 
-**The paper's metrics**, replicated line for line from upstream's
-`validation_step` so that E0 is comparable to published numbers:
+## Layout
 
-- **Opt** — *fraction* of instances whose path is as short as classical A\*'s.
-- **Exp** — *reduction* in expanded nodes vs. classical A\*, `max((E* − E)/E*, 0)`.
-- **Hmean** — harmonic mean of the two.
-
-**This project's metrics**, which is what the perturbation analysis uses:
-
-- **Opt (ratio)** — planner path cost ÷ true optimal cost on the **same** map
-  (1.0 = optimal). After a flip, always against the *altered* map's optimum.
-- **Exp (ratio)** — planner expansions ÷ classical A\* expansions on the same
-  map. Above 1.0 means worse than classical, which the paper's `Exp` floors away.
-- **ΔCost** — L1 change in the cost map and its spatial localization (mass
-  under the flipped cells vs. spread).
-- **Mediation fraction** — `(M[C1O0] − M[C0O0]) / (M[C1O1] − M[C0O0])` for the
-  encoder route, the same with `C0O1` for the search route. Both reported; they
-  need not sum to 1.
-
-Path costs are counted under the **unit-cost** model (every one of the eight
-moves costs 1), which is what upstream and the dataset do — see
-A path map with *n* cells is a path of *n − 1* moves.
-
-A perturbation counts as an *error* only when Neural A\* deviates from the
-altered map's optimum or expands substantially more than classical A\* does on
-that same map. Classical A\* replanning correctly is not an error.
-
----
-
-## Roadmap (course stages)
-
-- [x] **Stage 1 — Proposal** (16 Oct 2026): question, hypothesis, design. ✔ submitted
-- [x] **Stage 2:** E0 reproduced ✅ · swap premise confirmed in `differentiable_astar.py` ✅ · exact solver + metrics [2] ✅ · random-flip pilot [3] ✅ · feature library [4] ✅ · surrogate fit [5] ✅ · perturbation harness [6] ✅
-- [x] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] ✅ · WarCraft [11] ✅
-- [ ] **Final:** E4 detector [12] ✅ · gradient + adaptive attacks [13] ✅ · write-up with explicit negative results ⬜.
-
-**Everything planned for mazes and forest is done.** Three `forest` seeds
-settled the mediation question (the difference was noise; see step 7b), and
-step 12's three open extensions were all run: the unpaired detection task, the
-convolutional map-only control, and replication across all seven encoders —
-the last two between them withdrew half of step 12's first claim.
-
-**WarCraft is done too** (step 11): three encoders, the full sweep, pixel
-attacks, probes and a seam control.
-
-**Next steps** (every step in `PLAN.md` is done; these are what remains open):
-
-1. **The final write-up**, with the negative results stated explicitly.
-2. **A joint two-cell adaptive attack** (step 13 § 8): choose both cells for
-   stealth rather than keeping step 12's first one. It is the cheapest
-   experiment that could remove step 12's last claim on the two models where it
-   survived, and a defender who refits on adaptive changes is the matching
-   next round.
-3. **WarCraft with random start and goal tiles.** The only direct test that the
-   position shortcut of step 11 comes from the fixed corners; it changes the
-   task and needs retraining (~3 h).
-
-Smaller items, in descending order of value: a streaming version of the
-detector (a threshold fixed in advance, with no altered examples at fitting
-time); a map-only control trained on *selected* rather than random flips; and
-the 64×64 families, which need `MAP_SIZE` and the unreachable sentinel to
-become per-dataset values first; a relax-and-round (PGD) version of the maze
-gradient attack; and the gradient attack on the trained encoders, which so far
-ran on the shipped checkpoint only.
-
----
+```
+neural-astar/   upstream submodule (minimal branch, untouched)
+src/            planner wrapper, exact solver, metrics, features, surrogate,
+                perturbations, swap harness, attribution, detector, WarCraft
+scripts/        one script per experiment (see Makefile)
+tests/          unit and guard tests
+results/        versioned .md/.json reports; .npz/.parquet/models are regenerated
+figures/        README figures (make figures)
+```
 
 ## Team
 
 Group *<group name>* — <member 1>, <member 2>, <member 3>.
-Course: AI Interpretability, PPGC/UFRGS.
-
----
 
 ## References
 
