@@ -1,7 +1,7 @@
 # Convenience targets. Everything runs inside the project venv (.venv).
 PY := .venv/bin/python
 
-.PHONY: help env lock test test-env e0 step2 pilot probe features spotcheck figures surrogate sweep swap attribution budgets families damaging train seed-pipeline verify seeds pipeline clean
+.PHONY: help env lock test test-env e0 step2 pilot probe features spotcheck figures surrogate sweep swap attribution budgets families damaging train seed-pipeline verify seeds warcraft-data warcraft-train warcraft pipeline clean
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -74,6 +74,20 @@ seeds:  ## PLAN.md step 10: compare trained seeds and report dispersion
 	$(PY) scripts/compare_seeds.py --tags "" mazes_seed0 mazes_seed1 mazes_seed2 \
 	    --checkpoints "" results/models/mazes_seed0 results/models/mazes_seed1 results/models/mazes_seed2 \
 	    --shared-flips results/manifest.parquet
+
+warcraft-data:  ## PLAN.md step 11: fetch WarCraft maps (0.9 GB, CC BY 4.0), keep only 12x12
+	mkdir -p data/warcraft
+	curl -L --fail -o data/warcraft/warcraft_maps.tar.gz https://edmond.mpg.de/api/access/datafile/102059
+	test "$$(md5 -q data/warcraft/warcraft_maps.tar.gz 2>/dev/null || md5sum data/warcraft/warcraft_maps.tar.gz | cut -d' ' -f1)" = acea5ea60a47664ff189923a84814e96
+	tar -xzf data/warcraft/warcraft_maps.tar.gz -C data/warcraft --strip-components=1 warcraft_shortest_path_oneskin/12x12
+	rm data/warcraft/warcraft_maps.tar.gz
+
+warcraft-train:  ## PLAN.md step 11: three WarCraft encoders (~80 min each on CPU)
+	$(PY) scripts/train_encoders.py --family warcraft --seeds 0 1 2 --epochs 50
+
+warcraft:  ## PLAN.md step 11: every WarCraft stage per model, then the report (~45 min per model)
+	for s in 0 1 2; do $(PY) scripts/warcraft_study.py --tag warcraft_seed$$s --stage all || exit 1; done
+	$(PY) scripts/warcraft_report.py --tags warcraft_seed0 warcraft_seed1 warcraft_seed2
 
 pipeline:  ## every experiment in dependency order (~1h15 on a laptop CPU)
 	@echo "==> step 0: reproduction"      && $(MAKE) --no-print-directory e0

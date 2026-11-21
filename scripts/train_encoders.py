@@ -1,4 +1,4 @@
-"""Train encoders — PLAN.md step 10 (seeds) and step 7b part (b) (families).
+"""Train encoders — PLAN.md step 10 (seeds), step 7b part (b) (families) and step 11 (WarCraft).
 
 Wraps upstream's own training entry point rather than reimplementing it, so
 the models this project analyses are produced exactly the way the published
@@ -19,6 +19,7 @@ Usage:
     python scripts/train_encoders.py --seeds 0 --epochs 1          # timing probe
     python scripts/train_encoders.py --seeds 0 1 2 --epochs 50     # step 10
     python scripts/train_encoders.py --family forest --seeds 0     # step 7b(b)
+    python scripts/train_encoders.py --family warcraft --seeds 0   # step 11
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ def train_one(family: str, seed: int, epochs: int, logdir: Path, tmax: float) ->
     """Run one upstream training job as a subprocess.
 
     Args:
-        family: A key of `src.config.MAP_FAMILIES`.
+        family: A key of `src.config.MAP_FAMILIES`, or ``"warcraft"``.
         seed: Random seed for the run.
         epochs: Number of epochs.
         logdir: Where checkpoints go — outside the submodule.
@@ -55,10 +56,15 @@ def train_one(family: str, seed: int, epochs: int, logdir: Path, tmax: float) ->
         path is resolved against the working directory; the job therefore runs
         with the submodule as its working directory.
     """
-    dataset = f"planning-datasets/data/mpd/{config.MAP_FAMILIES[family]}"
+    if family == "warcraft":
+        # Upstream's WarCraft entry point (RGB input, learned obstacles).
+        dataset, script = str(config.WARCRAFT_DIR), "scripts/train_warcraft.py"
+    else:
+        dataset = f"planning-datasets/data/mpd/{config.MAP_FAMILIES[family]}"
+        script = "scripts/train.py"
     command = [
         str(config.REPO_ROOT / ".venv" / "bin" / "python"),
-        "scripts/train.py",
+        script,
         f"seed={seed}",
         f"dataset={dataset}",
         f"logdir={logdir}",
@@ -79,7 +85,7 @@ def train_one(family: str, seed: int, epochs: int, logdir: Path, tmax: float) ->
         "epochs": epochs,
         "seconds": seconds,
         "returncode": completed.returncode,
-        "checkpoint_dir": str(logdir / config.MAP_FAMILIES[family]),
+        "checkpoint_dir": str(logdir / Path(dataset).name),
         "tag": f"{family}_seed{seed}",
     }
 
@@ -87,7 +93,7 @@ def train_one(family: str, seed: int, epochs: int, logdir: Path, tmax: float) ->
 def main() -> int:
     """Train the requested encoders and record timings."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--family", default="mazes", choices=list(config.MAP_FAMILIES))
+    parser.add_argument("--family", default="mazes", choices=list(config.MAP_FAMILIES) + ["warcraft"])
     parser.add_argument("--seeds", type=int, nargs="+", default=[0])
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--tmax", type=float, default=0.25)

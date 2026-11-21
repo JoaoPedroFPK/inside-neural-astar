@@ -52,5 +52,32 @@
     "returncode": 0,
     "checkpoint_dir": "/Users/joaopedroferreirapereira/Documents/GitHub/inside-neural-astar/results/models/forest_seed2/forest_032_moore_c8",
     "tag": "forest_seed2"
+  },
+  {
+    "family": "warcraft",
+    "seed": 1,
+    "epochs": 50,
+    "seconds": 10625.197841666057,
+    "returncode": 0,
+    "checkpoint_dir": "/Users/joaopedroferreirapereira/Documents/GitHub/inside-neural-astar/results/models/warcraft_seed1/12x12",
+    "tag": "warcraft_seed1"
+  },
+  {
+    "family": "warcraft",
+    "seed": 0,
+    "epochs": 50,
+    "seconds": 10668.924642500002,
+    "returncode": 0,
+    "checkpoint_dir": "/Users/joaopedroferreirapereira/Documents/GitHub/inside-neural-astar/results/models/warcraft_seed0/12x12",
+    "tag": "warcraft_seed0"
+  },
+  {
+    "family": "warcraft",
+    "seed": 2,
+    "epochs": 50,
+    "seconds": 10638.807312624995,
+    "returncode": 0,
+    "checkpoint_dir": "/Users/joaopedroferreirapereira/Documents/GitHub/inside-neural-astar/results/models/warcraft_seed2/12x12",
+    "tag": "warcraft_seed2"
   }
 ]

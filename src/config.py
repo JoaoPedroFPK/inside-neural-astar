@@ -69,6 +69,12 @@ MAP_FAMILIES: Dict[str, str] = {
 }
 
 
+#: WarCraft 12x12 maps (PLAN.md step 11): the ``12x12`` directory of
+#: ``warcraft_maps.tar.gz`` from the Blackbox Combinatorial Solvers dataset
+#: (doi:10.17617/3.YJCQ5S, CC BY 4.0). Downloaded, not versioned.
+WARCRAFT_DIR: Path = DATA_DIR / "warcraft" / "12x12"
+
+
 def family_npz(name: str) -> Path:
     """Path to one map family's dataset file.
 
