@@ -1,0 +1,51 @@
+{
+  "tag": "warcraft_seed2",
+  "draws": 3,
+  "seed": 0,
+  "by_budget": [
+    {
+      "budget": 1,
+      "n": 3000,
+      "frac_suboptimal": 0.677,
+      "frac_worsened": 0.161,
+      "frac_exp_gt_1_5": 0.0003333333333333333,
+      "frac_exp_up_1_5x": 0.01,
+      "opt_mean": 1.1585123625907596,
+      "exp_mean": 0.49384629710010836,
+      "frac_path_changed": 0.21166666666666667
+    },
+    {
+      "budget": 2,
+      "n": 3000,
+      "frac_suboptimal": 0.6966666666666667,
+      "frac_worsened": 0.2823333333333333,
+      "frac_exp_gt_1_5": 0.0013333333333333333,
+      "frac_exp_up_1_5x": 0.017666666666666667,
+      "opt_mean": 1.1788623246545256,
+      "exp_mean": 0.4944552747607433,
+      "frac_path_changed": 0.37733333333333335
+    },
+    {
+      "budget": 4,
+      "n": 3000,
+      "frac_suboptimal": 0.7506666666666667,
+      "frac_worsened": 0.4216666666666667,
+      "frac_exp_gt_1_5": 0.0016666666666666668,
+      "frac_exp_up_1_5x": 0.033,
+      "opt_mean": 1.214413508812888,
+      "exp_mean": 0.48739633231667034,
+      "frac_path_changed": 0.554
+    },
+    {
+      "budget": 8,
+      "n": 3000,
+      "frac_suboptimal": 0.8383333333333334,
+      "frac_worsened": 0.6083333333333333,
+      "frac_exp_gt_1_5": 0.0026666666666666666,
+      "frac_exp_up_1_5x": 0.049,
+      "opt_mean": 1.2875873705128082,
+      "exp_mean": 0.4780553935497746,
+      "frac_path_changed": 0.7763333333333333
+    }
+  ]
+}

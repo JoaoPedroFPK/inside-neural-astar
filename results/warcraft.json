@@ -1,0 +1,1481 @@
+{
+  "warcraft_seed0": {
+    "eval": {
+      "tag": "warcraft_seed0",
+      "planner": {
+        "n": 1000,
+        "opt_mean": 1.117900346105047,
+        "opt_binary": 0.374,
+        "exp_mean": 0.581172464661297,
+        "exp_median": 0.5424630364226469,
+        "opt_exact_mean": 1.1138796913946807,
+        "opt_exact_binary": 0.32,
+        "valid": 1.0
+      },
+      "classical_true_weights": {
+        "opt_mean": 1.0018777346165118,
+        "opt_binary": 0.924
+      },
+      "cost_by_terrain": {
+        "0.8": {
+          "mean": 1.376785159111023,
+          "std": 1.4666557312011719
+        },
+        "1.2": {
+          "mean": 1.5669746398925781,
+          "std": 1.3177473545074463
+        },
+        "5.3": {
+          "mean": 2.1902873516082764,
+          "std": 1.6182918548583984
+        },
+        "7.7": {
+          "mean": 2.0532288551330566,
+          "std": 1.5900096893310547
+        },
+        "9.2": {
+          "mean": 1.839322566986084,
+          "std": 1.4570605754852295
+        }
+      },
+      "spearman_cost_vs_weight_mean": 0.317340204029234,
+      "cost_on_reference_path_mean": 1.6440149545669556,
+      "cost_off_reference_path_mean": 1.7130523920059204,
+      "learned_scale_const": 11.692741394042969
+    },
+    "surrogate": {
+      "tag": "warcraft_seed0",
+      "n_train_maps": 2000,
+      "fits": [
+        {
+          "group": "geometric",
+          "kind": "ridge",
+          "n_features": 2,
+          "r2": 0.059059314713959865,
+          "r2_within": 0.059670105804698115,
+          "coefficients": {
+            "cheb_to_goal": -0.3509149959930782,
+            "cheb_to_start": -0.357453034528093
+          }
+        },
+        {
+          "group": "terrain",
+          "kind": "ridge",
+          "n_features": 6,
+          "r2": 0.040702572503748646,
+          "r2_within": 0.03812671417015645,
+          "coefficients": {
+            "is_0.8": -0.21416209814460985,
+            "is_1.2": -0.12499621284570242,
+            "is_5.3": 0.1663928004685855,
+            "is_7.7": 0.16259974264922553,
+            "is_9.2": 0.12014090918111041,
+            "weight_mean3": -0.16364601746289292
+          }
+        },
+        {
+          "group": "terrain",
+          "kind": "gbm",
+          "n_features": 6,
+          "r2": 0.08868641229055108,
+          "r2_within": 0.08464393922500901
+        },
+        {
+          "group": "path",
+          "kind": "ridge",
+          "n_features": 3,
+          "r2": 0.03781309763720053,
+          "r2_within": 0.03719477947643246,
+          "coefficients": {
+            "on_optimal_path": 0.04624904393072852,
+            "cheb_to_optimal_path": -0.3959209809374628,
+            "log_excess": 0.23208049693759364
+          }
+        },
+        {
+          "group": "path",
+          "kind": "gbm",
+          "n_features": 3,
+          "r2": 0.08066940516815047,
+          "r2_within": 0.07926650660144141
+        },
+        {
+          "group": "terrain+geometric",
+          "kind": "ridge",
+          "n_features": 8,
+          "r2": 0.0960199735341587,
+          "r2_within": 0.09411206139189954,
+          "coefficients": {
+            "is_0.8": -0.20082117464835,
+            "is_1.2": -0.13182687774697152,
+            "is_5.3": 0.16482486764496912,
+            "is_7.7": 0.15996423712467817,
+            "is_9.2": 0.11693707073850043,
+            "weight_mean3": -0.16838460947194736,
+            "cheb_to_goal": -0.3526126813287432,
+            "cheb_to_start": -0.3385013562867606
+          }
+        },
+        {
+          "group": "terrain+path",
+          "kind": "ridge",
+          "n_features": 9,
+          "r2": 0.08818522755903924,
+          "r2_within": 0.08689228405226179,
+          "coefficients": {
+            "is_0.8": -0.27141323105374443,
+            "is_1.2": -0.18304083385327521,
+            "is_5.3": 0.21268035666253685,
+            "is_7.7": 0.21783706756517565,
+            "is_9.2": 0.17284148654752685,
+            "weight_mean3": -0.0556000015969869,
+            "on_optimal_path": -0.02901511609722434,
+            "cheb_to_optimal_path": -0.10404863890618742,
+            "log_excess": -0.33258849225444753
+          }
+        },
+        {
+          "group": "all",
+          "kind": "ridge",
+          "n_features": 11,
+          "r2": 0.10274326689159718,
+          "r2_within": 0.1013377504068057,
+          "coefficients": {
+            "is_0.8": -0.2507145350146709,
+            "is_1.2": -0.17350178935150845,
+            "is_5.3": 0.19738228399172703,
+            "is_7.7": 0.20362918937222046,
+            "is_9.2": 0.16248122070650398,
+            "weight_mean3": -0.11817468439201355,
+            "cheb_to_goal": -0.27308474225975893,
+            "cheb_to_start": -0.2539806991317329,
+            "on_optimal_path": 0.009925211543898924,
+            "cheb_to_optimal_path": 0.05879237168931429,
+            "log_excess": -0.2418334097996492
+          }
+        },
+        {
+          "group": "all",
+          "kind": "gbm",
+          "n_features": 11,
+          "r2": 0.845818028176696,
+          "r2_within": 0.8474664243708008
+        }
+      ],
+      "sufficiency": {
+        "terrain/ridge": {
+          "n": 1000,
+          "opt_mean": 1.5401950298632536,
+          "opt_binary": 0.076,
+          "exp_mean": 1.406426412627241,
+          "exp_median": 1.1261363636363635,
+          "opt_exact_mean": 1.5401950298632536,
+          "opt_exact_binary": 0.076,
+          "valid": 1.0
+        },
+        "terrain/gbm": {
+          "n": 1000,
+          "opt_mean": 1.3829006499780527,
+          "opt_binary": 0.192,
+          "exp_mean": 1.423725193693654,
+          "exp_median": 1.0731707317073171,
+          "opt_exact_mean": 1.3810702915587005,
+          "opt_exact_binary": 0.196,
+          "valid": 1.0
+        },
+        "path/gbm": {
+          "n": 1000,
+          "opt_mean": 1.6250129485354041,
+          "opt_binary": 0.031,
+          "exp_mean": 2.0795954256127525,
+          "exp_median": 1.610317975340688,
+          "opt_exact_mean": 1.625064470039756,
+          "opt_exact_binary": 0.031,
+          "valid": 1.0
+        },
+        "all/ridge": {
+          "n": 1000,
+          "opt_mean": 1.5961912130741143,
+          "opt_binary": 0.013,
+          "exp_mean": 2.8740175127360117,
+          "exp_median": 2.2434167215273204,
+          "opt_exact_mean": 1.5961912130741143,
+          "opt_exact_binary": 0.013,
+          "valid": 1.0
+        },
+        "all/gbm": {
+          "n": 1000,
+          "opt_mean": 1.160545586432333,
+          "opt_binary": 0.431,
+          "exp_mean": 1.0318393297885813,
+          "exp_median": 0.9020061728395061,
+          "opt_exact_mean": 1.1493498895939191,
+          "opt_exact_binary": 0.444,
+          "valid": 1.0
+        },
+        "true_weights": {
+          "n": 1000,
+          "opt_mean": 1.0018777346165118,
+          "opt_binary": 0.924,
+          "exp_mean": 1.0004867981380587,
+          "exp_median": 1.0,
+          "opt_exact_mean": 1.0,
+          "opt_exact_binary": 1.0,
+          "valid": 1.0
+        }
+      }
+    },
+    "pilot": {
+      "tag": "warcraft_seed0",
+      "draws": 3,
+      "seed": 0,
+      "by_budget": [
+        {
+          "budget": 1,
+          "n": 3000,
+          "frac_suboptimal": 0.657,
+          "frac_worsened": 0.14766666666666667,
+          "frac_exp_gt_1_5": 0.011333333333333334,
+          "frac_exp_up_1_5x": 0.01,
+          "opt_mean": 1.1373831062588207,
+          "exp_mean": 0.5749263231202351,
+          "frac_path_changed": 0.21033333333333334
+        },
+        {
+          "budget": 2,
+          "n": 3000,
+          "frac_suboptimal": 0.69,
+          "frac_worsened": 0.2693333333333333,
+          "frac_exp_gt_1_5": 0.012666666666666666,
+          "frac_exp_up_1_5x": 0.020666666666666667,
+          "opt_mean": 1.1572425564687656,
+          "exp_mean": 0.5758899608758551,
+          "frac_path_changed": 0.36466666666666664
+        },
+        {
+          "budget": 4,
+          "n": 3000,
+          "frac_suboptimal": 0.7243333333333334,
+          "frac_worsened": 0.4076666666666667,
+          "frac_exp_gt_1_5": 0.012,
+          "frac_exp_up_1_5x": 0.042,
+          "opt_mean": 1.1832022674348457,
+          "exp_mean": 0.5683643406772005,
+          "frac_path_changed": 0.566
+        },
+        {
+          "budget": 8,
+          "n": 3000,
+          "frac_suboptimal": 0.8213333333333334,
+          "frac_worsened": 0.6,
+          "frac_exp_gt_1_5": 0.012666666666666666,
+          "frac_exp_up_1_5x": 0.06866666666666667,
+          "opt_mean": 1.2490918736640406,
+          "exp_mean": 0.5613948229016155,
+          "frac_path_changed": 0.767
+        }
+      ]
+    },
+    "sweep": {
+      "tag": "warcraft_seed0",
+      "n_maps": 300,
+      "n_alterations": 170400,
+      "n_baseline_optimal_maps": 106,
+      "frac_optimal_maps_with_damaging_tile": 1.0,
+      "median_frac_damaging_edits_per_map": 0.12235915492957747,
+      "frac_damaging_edits": 0.14591084241296837,
+      "frac_exp_damaging_edits": 0.013121179909646558,
+      "worst_opt": 3.2723735408560315,
+      "frac_worsened_all_maps": 0.14550469483568076,
+      "frac_needed_response": 0.6755633802816902,
+      "frac_path_changed": 0.20353286384976527,
+      "max_dcost_outside_receptive_field": 0.00013685226440429688,
+      "dcost_frac_under_flips_mean": 0.13932445270033175,
+      "spearman_dcost_vs_opt_damage": 0.1288067215266343,
+      "decomposition": {
+        "n_damaging": 8785,
+        "cost_ranking": 0.8503130335799659,
+        "search_rule": 0.14968696642003415,
+        "ignoring_change_was_optimal": 0.5449060899260102,
+        "opt_C1_mean_damaging": 1.2104597767367606
+      },
+      "by_direction": [
+        {
+          "direction": "cheaper",
+          "n": 22393,
+          "frac_damaging": 0.14093689992408343,
+          "frac_needed_response": 0.07828339213146966
+        },
+        {
+          "direction": "costlier",
+          "n": 37815,
+          "frac_damaging": 0.14885627396535767,
+          "frac_needed_response": 0.10278989818854951
+        }
+      ],
+      "by_location": [
+        {
+          "location": "away from optimal paths",
+          "n": 34228,
+          "frac_damaging": 0.04274278368587121,
+          "frac_damaging_costlier": 0.028803286079246607,
+          "frac_damaging_cheaper": 0.06225026288117771
+        },
+        {
+          "location": "next to an optimal path",
+          "n": 17144,
+          "frac_damaging": 0.18624591693887074,
+          "frac_damaging_costlier": 0.14251252551493784,
+          "frac_damaging_cheaper": 0.2602890355010996
+        },
+        {
+          "location": "on another optimal path",
+          "n": 3272,
+          "frac_damaging": 0.31754278728606355,
+          "frac_damaging_costlier": 0.22666666666666666,
+          "frac_damaging_cheaper": 0.6385041551246537
+        },
+        {
+          "location": "on planner path",
+          "n": 5564,
+          "frac_damaging": 0.5553558590941768,
+          "frac_damaging_costlier": 0.649867374005305,
+          "frac_damaging_cheaper": 0.14423076923076922
+        }
+      ]
+    },
+    "linf": {
+      "tag": "warcraft_seed0",
+      "n_instances": 300,
+      "pgd_steps": 10,
+      "clean": {
+        "n": 300,
+        "opt_mean": 1.123037608801218,
+        "opt_binary": 0.35333333333333333,
+        "exp_mean": 0.5654808281845985,
+        "exp_median": 0.5220635950681376,
+        "opt_exact_mean": 1.0985897580805344,
+        "opt_exact_binary": 0.3233333333333333,
+        "valid": 1.0
+      },
+      "rows": [
+        {
+          "eps_255": 1,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.109898546644021,
+          "opt_binary": 0.36333333333333334,
+          "frac_optimal_maps_broken": 0.03773584905660377,
+          "frac_worsened": 0.04,
+          "exp_mean": 0.569414618881889,
+          "frac_path_changed": 0.15,
+          "opt_exact_binary": 0.33,
+          "dcost_l1_mean": 4.667989253997803
+        },
+        {
+          "eps_255": 1,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.322947343140534,
+          "opt_binary": 0.056666666666666664,
+          "frac_optimal_maps_broken": 0.8490566037735849,
+          "frac_worsened": 0.64,
+          "exp_mean": 0.545449887711754,
+          "frac_path_changed": 0.82,
+          "opt_exact_binary": 0.03,
+          "dcost_l1_mean": 31.38055419921875
+        },
+        {
+          "eps_255": 2,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.1293645767110991,
+          "opt_binary": 0.36666666666666664,
+          "frac_optimal_maps_broken": 0.10377358490566038,
+          "frac_worsened": 0.11333333333333333,
+          "exp_mean": 0.5688180528450482,
+          "frac_path_changed": 0.2733333333333333,
+          "opt_exact_binary": 0.30666666666666664,
+          "dcost_l1_mean": 9.302620887756348
+        },
+        {
+          "eps_255": 2,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.4840243173626948,
+          "opt_binary": 0.03333333333333333,
+          "frac_optimal_maps_broken": 0.9339622641509434,
+          "frac_worsened": 0.7866666666666666,
+          "exp_mean": 0.47299815801537476,
+          "frac_path_changed": 0.9266666666666666,
+          "opt_exact_binary": 0.02,
+          "dcost_l1_mean": 55.83470153808594
+        },
+        {
+          "eps_255": 4,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.1185312198903383,
+          "opt_binary": 0.36333333333333334,
+          "frac_optimal_maps_broken": 0.19811320754716982,
+          "frac_worsened": 0.18,
+          "exp_mean": 0.5918398458763667,
+          "frac_path_changed": 0.4633333333333333,
+          "opt_exact_binary": 0.34,
+          "dcost_l1_mean": 18.929792404174805
+        },
+        {
+          "eps_255": 4,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.6008710177857044,
+          "opt_binary": 0.016666666666666666,
+          "frac_optimal_maps_broken": 0.9716981132075472,
+          "frac_worsened": 0.8766666666666667,
+          "exp_mean": 0.3764792319982967,
+          "frac_path_changed": 0.9766666666666667,
+          "opt_exact_binary": 0.01,
+          "dcost_l1_mean": 94.78922271728516
+        },
+        {
+          "eps_255": 8,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.1756818217229532,
+          "opt_binary": 0.2633333333333333,
+          "frac_optimal_maps_broken": 0.49056603773584906,
+          "frac_worsened": 0.37333333333333335,
+          "exp_mean": 0.6826650442409342,
+          "frac_path_changed": 0.71,
+          "opt_exact_binary": 0.25666666666666665,
+          "dcost_l1_mean": 38.09540939331055
+        },
+        {
+          "eps_255": 8,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.7053435871975047,
+          "opt_binary": 0.013333333333333334,
+          "frac_optimal_maps_broken": 0.9716981132075472,
+          "frac_worsened": 0.92,
+          "exp_mean": 0.33871467570630776,
+          "frac_path_changed": 0.9933333333333333,
+          "opt_exact_binary": 0.01,
+          "dcost_l1_mean": 150.52877807617188
+        },
+        {
+          "eps_255": 16,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.3514362810939031,
+          "opt_binary": 0.11666666666666667,
+          "frac_optimal_maps_broken": 0.8301886792452831,
+          "frac_worsened": 0.6533333333333333,
+          "exp_mean": 0.643790800367675,
+          "frac_path_changed": 0.8933333333333333,
+          "opt_exact_binary": 0.15,
+          "dcost_l1_mean": 72.29402923583984
+        },
+        {
+          "eps_255": 16,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.7587192844098767,
+          "opt_binary": 0.01,
+          "frac_optimal_maps_broken": 0.9811320754716981,
+          "frac_worsened": 0.93,
+          "exp_mean": 0.32057454390850165,
+          "frac_path_changed": 0.99,
+          "opt_exact_binary": 0.006666666666666667,
+          "dcost_l1_mean": 211.11146545410156
+        }
+      ]
+    }
+  },
+  "warcraft_seed1": {
+    "eval": {
+      "tag": "warcraft_seed1",
+      "planner": {
+        "n": 1000,
+        "opt_mean": 1.1445019362961764,
+        "opt_binary": 0.329,
+        "exp_mean": 0.4926437544592533,
+        "exp_median": 0.4827586206896552,
+        "opt_exact_mean": 1.1114506001916797,
+        "opt_exact_binary": 0.321,
+        "valid": 1.0
+      },
+      "classical_true_weights": {
+        "opt_mean": 1.0018777346165118,
+        "opt_binary": 0.924
+      },
+      "cost_by_terrain": {
+        "0.8": {
+          "mean": 1.2401127815246582,
+          "std": 1.5342748165130615
+        },
+        "1.2": {
+          "mean": 1.4574373960494995,
+          "std": 1.3562906980514526
+        },
+        "5.3": {
+          "mean": 1.9715251922607422,
+          "std": 1.6318389177322388
+        },
+        "7.7": {
+          "mean": 2.1619839668273926,
+          "std": 1.709455966949463
+        },
+        "9.2": {
+          "mean": 1.8527719974517822,
+          "std": 1.4942253828048706
+        }
+      },
+      "spearman_cost_vs_weight_mean": 0.3978555828338107,
+      "cost_on_reference_path_mean": 1.6764512062072754,
+      "cost_off_reference_path_mean": 1.614346981048584,
+      "learned_scale_const": 11.528903007507324
+    },
+    "surrogate": {
+      "tag": "warcraft_seed1",
+      "n_train_maps": 2000,
+      "fits": [
+        {
+          "group": "geometric",
+          "kind": "ridge",
+          "n_features": 2,
+          "r2": 0.06801186341041998,
+          "r2_within": 0.06894599891847153,
+          "coefficients": {
+            "cheb_to_goal": -0.31734824136171635,
+            "cheb_to_start": -0.4407830699129487
+          }
+        },
+        {
+          "group": "terrain",
+          "kind": "ridge",
+          "n_features": 6,
+          "r2": 0.04553507053515338,
+          "r2_within": 0.03947805642263236,
+          "coefficients": {
+            "is_0.8": -0.17282534151876813,
+            "is_1.2": -0.09516176682359453,
+            "is_5.3": 0.10739227784571694,
+            "is_7.7": 0.17156362275412235,
+            "is_9.2": 0.07349418953832396,
+            "weight_mean3": -0.0012863724515647598
+          }
+        },
+        {
+          "group": "terrain",
+          "kind": "gbm",
+          "n_features": 6,
+          "r2": 0.09950430644946073,
+          "r2_within": 0.09184990711924823
+        },
+        {
+          "group": "path",
+          "kind": "ridge",
+          "n_features": 3,
+          "r2": 0.04404087648501187,
+          "r2_within": 0.04072931400348745,
+          "coefficients": {
+            "on_optimal_path": 0.12042832857433654,
+            "cheb_to_optimal_path": -0.4279057140056292,
+            "log_excess": 0.3275003323055006
+          }
+        },
+        {
+          "group": "path",
+          "kind": "gbm",
+          "n_features": 3,
+          "r2": 0.08586329583661045,
+          "r2_within": 0.08147885787086828
+        },
+        {
+          "group": "terrain+geometric",
+          "kind": "ridge",
+          "n_features": 8,
+          "r2": 0.10598254367234461,
+          "r2_within": 0.10103425566651958,
+          "coefficients": {
+            "is_0.8": -0.1638220611029481,
+            "is_1.2": -0.10160001340193309,
+            "is_5.3": 0.10263843062419428,
+            "is_7.7": 0.1710407181981937,
+            "is_9.2": 0.0761455638060829,
+            "weight_mean3": -0.02360313443203309,
+            "cheb_to_goal": -0.3210809080630806,
+            "cheb_to_start": -0.4137005154809138
+          }
+        },
+        {
+          "group": "terrain+path",
+          "kind": "ridge",
+          "n_features": 9,
+          "r2": 0.096562773168403,
+          "r2_within": 0.0920081069129789,
+          "coefficients": {
+            "is_0.8": -0.241631624673681,
+            "is_1.2": -0.15985714149772748,
+            "is_5.3": 0.15946710491557767,
+            "is_7.7": 0.23533973084724535,
+            "is_9.2": 0.13584905322768046,
+            "weight_mean3": 0.10403781242787769,
+            "on_optimal_path": 0.007159570110760932,
+            "cheb_to_optimal_path": -0.09227154924657566,
+            "log_excess": -0.3534314884444774
+          }
+        },
+        {
+          "group": "all",
+          "kind": "ridge",
+          "n_features": 11,
+          "r2": 0.11432769889221639,
+          "r2_within": 0.10987371753610253,
+          "coefficients": {
+            "is_0.8": -0.2234724000079046,
+            "is_1.2": -0.14787789655166952,
+            "is_5.3": 0.13929672462896828,
+            "is_7.7": 0.22139591881117227,
+            "is_9.2": 0.12971479411498668,
+            "weight_mean3": 0.01903479070579843,
+            "cheb_to_goal": -0.23960344474430828,
+            "cheb_to_start": -0.3263517099948462,
+            "on_optimal_path": 0.04800587675415169,
+            "cheb_to_optimal_path": 0.08014339671622787,
+            "log_excess": -0.25114201592763635
+          }
+        },
+        {
+          "group": "all",
+          "kind": "gbm",
+          "n_features": 11,
+          "r2": 0.8748115463280758,
+          "r2_within": 0.8761348221652003
+        }
+      ],
+      "sufficiency": {
+        "terrain/ridge": {
+          "n": 1000,
+          "opt_mean": 1.5363978755767802,
+          "opt_binary": 0.072,
+          "exp_mean": 1.2249480383231934,
+          "exp_median": 1.021315192743764,
+          "opt_exact_mean": 1.5363978755767802,
+          "opt_exact_binary": 0.072,
+          "valid": 1.0
+        },
+        "terrain/gbm": {
+          "n": 1000,
+          "opt_mean": 1.3618434703129787,
+          "opt_binary": 0.188,
+          "exp_mean": 1.2025388831381087,
+          "exp_median": 0.9460403726708074,
+          "opt_exact_mean": 1.3403209188395193,
+          "opt_exact_binary": 0.207,
+          "valid": 1.0
+        },
+        "path/gbm": {
+          "n": 1000,
+          "opt_mean": 1.6340170391520497,
+          "opt_binary": 0.012,
+          "exp_mean": 1.9966443638191453,
+          "exp_median": 1.5364583333333335,
+          "opt_exact_mean": 1.6331928037476569,
+          "opt_exact_binary": 0.012,
+          "valid": 1.0
+        },
+        "all/ridge": {
+          "n": 1000,
+          "opt_mean": 1.6089675992913244,
+          "opt_binary": 0.0,
+          "exp_mean": 2.5199015650356387,
+          "exp_median": 1.9674603174603174,
+          "opt_exact_mean": 1.6081416308905816,
+          "opt_exact_binary": 0.0,
+          "valid": 1.0
+        },
+        "all/gbm": {
+          "n": 1000,
+          "opt_mean": 1.1845282333823406,
+          "opt_binary": 0.372,
+          "exp_mean": 0.6299146873120062,
+          "exp_median": 0.6122448979591837,
+          "opt_exact_mean": 1.1478130276621696,
+          "opt_exact_binary": 0.418,
+          "valid": 1.0
+        },
+        "true_weights": {
+          "n": 1000,
+          "opt_mean": 1.0018777346165118,
+          "opt_binary": 0.924,
+          "exp_mean": 1.0004867981380587,
+          "exp_median": 1.0,
+          "opt_exact_mean": 1.0,
+          "opt_exact_binary": 1.0,
+          "valid": 1.0
+        }
+      }
+    },
+    "pilot": {
+      "tag": "warcraft_seed1",
+      "draws": 3,
+      "seed": 0,
+      "by_budget": [
+        {
+          "budget": 1,
+          "n": 3000,
+          "frac_suboptimal": 0.6956666666666667,
+          "frac_worsened": 0.14,
+          "frac_exp_gt_1_5": 0.0,
+          "frac_exp_up_1_5x": 0.008333333333333333,
+          "opt_mean": 1.1566588833610063,
+          "exp_mean": 0.4909275439289179,
+          "frac_path_changed": 0.188
+        },
+        {
+          "budget": 2,
+          "n": 3000,
+          "frac_suboptimal": 0.7203333333333334,
+          "frac_worsened": 0.25533333333333336,
+          "frac_exp_gt_1_5": 0.0003333333333333333,
+          "frac_exp_up_1_5x": 0.014666666666666666,
+          "opt_mean": 1.179400542443003,
+          "exp_mean": 0.4880271988135108,
+          "frac_path_changed": 0.33766666666666667
+        },
+        {
+          "budget": 4,
+          "n": 3000,
+          "frac_suboptimal": 0.7663333333333333,
+          "frac_worsened": 0.412,
+          "frac_exp_gt_1_5": 0.0006666666666666666,
+          "frac_exp_up_1_5x": 0.025333333333333333,
+          "opt_mean": 1.2106630216394594,
+          "exp_mean": 0.4854771766589548,
+          "frac_path_changed": 0.5136666666666667
+        },
+        {
+          "budget": 8,
+          "n": 3000,
+          "frac_suboptimal": 0.8293333333333334,
+          "frac_worsened": 0.5623333333333334,
+          "frac_exp_gt_1_5": 0.0,
+          "frac_exp_up_1_5x": 0.048,
+          "opt_mean": 1.267279753613984,
+          "exp_mean": 0.478311785233534,
+          "frac_path_changed": 0.72
+        }
+      ]
+    },
+    "sweep": {
+      "tag": "warcraft_seed1",
+      "n_maps": 300,
+      "n_alterations": 170400,
+      "n_baseline_optimal_maps": 99,
+      "frac_optimal_maps_with_damaging_tile": 1.0,
+      "median_frac_damaging_edits_per_map": 0.11795774647887323,
+      "frac_damaging_edits": 0.13803528240147958,
+      "frac_exp_damaging_edits": 0.006633233745909802,
+      "worst_opt": 3.206249999999999,
+      "frac_worsened_all_maps": 0.13509976525821596,
+      "frac_needed_response": 0.697699530516432,
+      "frac_path_changed": 0.18708920187793426,
+      "max_dcost_outside_receptive_field": 0.00014591217041015625,
+      "dcost_frac_under_flips_mean": 0.13760741398234658,
+      "spearman_dcost_vs_opt_damage": 0.10414545315883882,
+      "decomposition": {
+        "n_damaging": 7762,
+        "cost_ranking": 0.8219531048698789,
+        "search_rule": 0.1780468951301211,
+        "ignoring_change_was_optimal": 0.5059263076526669,
+        "opt_C1_mean_damaging": 1.214414165753178
+      },
+      "by_direction": [
+        {
+          "direction": "cheaper",
+          "n": 21112,
+          "frac_damaging": 0.13565744600227359,
+          "frac_needed_response": 0.08634899583175445
+        },
+        {
+          "direction": "costlier",
+          "n": 35120,
+          "frac_damaging": 0.1394646924829157,
+          "frac_needed_response": 0.1008257403189066
+        }
+      ],
+      "by_location": [
+        {
+          "location": "away from optimal paths",
+          "n": 32364,
+          "frac_damaging": 0.03859226300828081,
+          "frac_damaging_costlier": 0.025730808000424425,
+          "frac_damaging_cheaper": 0.05652978172401036
+        },
+        {
+          "location": "next to an optimal path",
+          "n": 15896,
+          "frac_damaging": 0.17677403120281832,
+          "frac_damaging_costlier": 0.13226032190342898,
+          "frac_damaging_cheaper": 0.25233327676904804
+        },
+        {
+          "location": "on another optimal path",
+          "n": 2848,
+          "frac_damaging": 0.3061797752808989,
+          "frac_damaging_costlier": 0.19452181987000927,
+          "frac_damaging_cheaper": 0.6527377521613833
+        },
+        {
+          "location": "on planner path",
+          "n": 5124,
+          "frac_damaging": 0.5524980483996877,
+          "frac_damaging_costlier": 0.6492464754496841,
+          "frac_damaging_cheaper": 0.15841584158415842
+        }
+      ]
+    },
+    "linf": {
+      "tag": "warcraft_seed1",
+      "n_instances": 300,
+      "pgd_steps": 10,
+      "clean": {
+        "n": 300,
+        "opt_mean": 1.14235883507799,
+        "opt_binary": 0.33,
+        "exp_mean": 0.48666004416564806,
+        "exp_median": 0.47692307692307695,
+        "opt_exact_mean": 1.0870305415812436,
+        "opt_exact_binary": 0.32666666666666666,
+        "valid": 1.0
+      },
+      "rows": [
+        {
+          "eps_255": 1,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.1375281464740312,
+          "opt_binary": 0.31333333333333335,
+          "frac_optimal_maps_broken": 0.08080808080808081,
+          "frac_worsened": 0.043333333333333335,
+          "exp_mean": 0.4852734806393026,
+          "frac_path_changed": 0.13,
+          "opt_exact_binary": 0.3233333333333333,
+          "dcost_l1_mean": 4.207298755645752
+        },
+        {
+          "eps_255": 1,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.3743953372517839,
+          "opt_binary": 0.05333333333333334,
+          "frac_optimal_maps_broken": 0.8383838383838383,
+          "frac_worsened": 0.66,
+          "exp_mean": 0.4550201912145426,
+          "frac_path_changed": 0.81,
+          "opt_exact_binary": 0.056666666666666664,
+          "dcost_l1_mean": 27.80246353149414
+        },
+        {
+          "eps_255": 2,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.1322049219203696,
+          "opt_binary": 0.33,
+          "frac_optimal_maps_broken": 0.1111111111111111,
+          "frac_worsened": 0.08333333333333333,
+          "exp_mean": 0.49327638809112034,
+          "frac_path_changed": 0.20666666666666667,
+          "opt_exact_binary": 0.34,
+          "dcost_l1_mean": 8.254449844360352
+        },
+        {
+          "eps_255": 2,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.5021616658514474,
+          "opt_binary": 0.043333333333333335,
+          "frac_optimal_maps_broken": 0.8686868686868687,
+          "frac_worsened": 0.7533333333333333,
+          "exp_mean": 0.39189828079705913,
+          "frac_path_changed": 0.9033333333333333,
+          "opt_exact_binary": 0.04,
+          "dcost_l1_mean": 49.38520812988281
+        },
+        {
+          "eps_255": 4,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.1383509371289031,
+          "opt_binary": 0.3433333333333333,
+          "frac_optimal_maps_broken": 0.15151515151515152,
+          "frac_worsened": 0.13,
+          "exp_mean": 0.5094540807027356,
+          "frac_path_changed": 0.42,
+          "opt_exact_binary": 0.3333333333333333,
+          "dcost_l1_mean": 16.473651885986328
+        },
+        {
+          "eps_255": 4,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.5895783859637773,
+          "opt_binary": 0.03666666666666667,
+          "frac_optimal_maps_broken": 0.898989898989899,
+          "frac_worsened": 0.8166666666666667,
+          "exp_mean": 0.3318206602296327,
+          "frac_path_changed": 0.9466666666666667,
+          "opt_exact_binary": 0.03666666666666667,
+          "dcost_l1_mean": 85.00360107421875
+        },
+        {
+          "eps_255": 8,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.1518074775512723,
+          "opt_binary": 0.34,
+          "frac_optimal_maps_broken": 0.31313131313131315,
+          "frac_worsened": 0.24333333333333335,
+          "exp_mean": 0.551876761565396,
+          "frac_path_changed": 0.6166666666666667,
+          "opt_exact_binary": 0.2966666666666667,
+          "dcost_l1_mean": 32.22184371948242
+        },
+        {
+          "eps_255": 8,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.630195152294216,
+          "opt_binary": 0.04,
+          "frac_optimal_maps_broken": 0.898989898989899,
+          "frac_worsened": 0.8666666666666667,
+          "exp_mean": 0.31501654401177104,
+          "frac_path_changed": 0.96,
+          "opt_exact_binary": 0.02666666666666667,
+          "dcost_l1_mean": 134.97476196289062
+        },
+        {
+          "eps_255": 16,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.2091716133964034,
+          "opt_binary": 0.17666666666666667,
+          "frac_optimal_maps_broken": 0.6565656565656566,
+          "frac_worsened": 0.47333333333333333,
+          "exp_mean": 0.7168851488812857,
+          "frac_path_changed": 0.88,
+          "opt_exact_binary": 0.18333333333333332,
+          "dcost_l1_mean": 58.821170806884766
+        },
+        {
+          "eps_255": 16,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.6867870121454094,
+          "opt_binary": 0.03666666666666667,
+          "frac_optimal_maps_broken": 0.898989898989899,
+          "frac_worsened": 0.8966666666666666,
+          "exp_mean": 0.31396684527588453,
+          "frac_path_changed": 0.9666666666666667,
+          "opt_exact_binary": 0.016666666666666666,
+          "dcost_l1_mean": 194.18557739257812
+        }
+      ]
+    }
+  },
+  "warcraft_seed2": {
+    "eval": {
+      "tag": "warcraft_seed2",
+      "planner": {
+        "n": 1000,
+        "opt_mean": 1.1367083761866006,
+        "opt_binary": 0.368,
+        "exp_mean": 0.4983618790910545,
+        "exp_median": 0.47559523809523807,
+        "opt_exact_mean": 1.117908990277057,
+        "opt_exact_binary": 0.318,
+        "valid": 1.0
+      },
+      "classical_true_weights": {
+        "opt_mean": 1.0018777346165118,
+        "opt_binary": 0.924
+      },
+      "cost_by_terrain": {
+        "0.8": {
+          "mean": 1.2591828107833862,
+          "std": 1.3800021409988403
+        },
+        "1.2": {
+          "mean": 1.4520089626312256,
+          "std": 1.2317792177200317
+        },
+        "5.3": {
+          "mean": 1.9719756841659546,
+          "std": 1.551897644996643
+        },
+        "7.7": {
+          "mean": 2.0152578353881836,
+          "std": 1.5922999382019043
+        },
+        "9.2": {
+          "mean": 1.703512191772461,
+          "std": 1.4269537925720215
+        }
+      },
+      "spearman_cost_vs_weight_mean": 0.33178997436625773,
+      "cost_on_reference_path_mean": 1.4975939989089966,
+      "cost_off_reference_path_mean": 1.594420075416565,
+      "learned_scale_const": 11.695405006408691
+    },
+    "surrogate": {
+      "tag": "warcraft_seed2",
+      "n_train_maps": 2000,
+      "fits": [
+        {
+          "group": "geometric",
+          "kind": "ridge",
+          "n_features": 2,
+          "r2": 0.05630576839527224,
+          "r2_within": 0.056985512262848315,
+          "coefficients": {
+            "cheb_to_goal": -0.31541407633431634,
+            "cheb_to_start": -0.3437998606809471
+          }
+        },
+        {
+          "group": "terrain",
+          "kind": "ridge",
+          "n_features": 6,
+          "r2": 0.04189144522038346,
+          "r2_within": 0.03825319184336973,
+          "coefficients": {
+            "is_0.8": -0.20720513195392573,
+            "is_1.2": -0.11829716719865743,
+            "is_5.3": 0.13180562361396633,
+            "is_7.7": 0.1881232772979787,
+            "is_9.2": 0.10903707635208637,
+            "weight_mean3": -0.15016355497931663
+          }
+        },
+        {
+          "group": "terrain",
+          "kind": "gbm",
+          "n_features": 6,
+          "r2": 0.09313599759080016,
+          "r2_within": 0.0877068835740159
+        },
+        {
+          "group": "path",
+          "kind": "ridge",
+          "n_features": 3,
+          "r2": 0.03693668938800909,
+          "r2_within": 0.03613511301302552,
+          "coefficients": {
+            "on_optimal_path": 0.047844990261720934,
+            "cheb_to_optimal_path": -0.37534998412184606,
+            "log_excess": 0.2306459127229246
+          }
+        },
+        {
+          "group": "path",
+          "kind": "gbm",
+          "n_features": 3,
+          "r2": 0.07784809742034038,
+          "r2_within": 0.07601007816566807
+        },
+        {
+          "group": "terrain+geometric",
+          "kind": "ridge",
+          "n_features": 8,
+          "r2": 0.09381445631923302,
+          "r2_within": 0.09089607642732289,
+          "coefficients": {
+            "is_0.8": -0.195854440144849,
+            "is_1.2": -0.12447341126604952,
+            "is_5.3": 0.1297346879384113,
+            "is_7.7": 0.1861313244641958,
+            "is_9.2": 0.10727099321962295,
+            "weight_mean3": -0.15800746447782707,
+            "cheb_to_goal": -0.31658209545418164,
+            "cheb_to_start": -0.3249428343436318
+          }
+        },
+        {
+          "group": "terrain+path",
+          "kind": "ridge",
+          "n_features": 9,
+          "r2": 0.08834748606916554,
+          "r2_within": 0.08609498249358494,
+          "coefficients": {
+            "is_0.8": -0.2639108225859843,
+            "is_1.2": -0.1758286311383059,
+            "is_5.3": 0.17724545207127065,
+            "is_7.7": 0.24286804576638946,
+            "is_9.2": 0.16164710023837553,
+            "weight_mean3": -0.04576451986205504,
+            "on_optimal_path": -0.02964751795031658,
+            "cheb_to_optimal_path": -0.08644891974015843,
+            "log_excess": -0.33119551292296456
+          }
+        },
+        {
+          "group": "all",
+          "kind": "ridge",
+          "n_features": 11,
+          "r2": 0.10106391537705306,
+          "r2_within": 0.0986668045365846,
+          "coefficients": {
+            "is_0.8": -0.2459880728570925,
+            "is_1.2": -0.16687462504790576,
+            "is_5.3": 0.16270124244549175,
+            "is_7.7": 0.23028120909443273,
+            "is_9.2": 0.1532444722244258,
+            "weight_mean3": -0.1057361253968032,
+            "cheb_to_goal": -0.23646514645040045,
+            "cheb_to_start": -0.23982671649506826,
+            "on_optimal_path": 0.005355596266329759,
+            "cheb_to_optimal_path": 0.06023575083192683,
+            "log_excess": -0.24825281016630085
+          }
+        },
+        {
+          "group": "all",
+          "kind": "gbm",
+          "n_features": 11,
+          "r2": 0.8461995051732882,
+          "r2_within": 0.8482161767169516
+        }
+      ],
+      "sufficiency": {
+        "terrain/ridge": {
+          "n": 1000,
+          "opt_mean": 1.5242833898709323,
+          "opt_binary": 0.078,
+          "exp_mean": 1.2452100597110556,
+          "exp_median": 1.0148156277436349,
+          "opt_exact_mean": 1.5242833898709323,
+          "opt_exact_binary": 0.078,
+          "valid": 1.0
+        },
+        "terrain/gbm": {
+          "n": 1000,
+          "opt_mean": 1.3701756502453577,
+          "opt_binary": 0.186,
+          "exp_mean": 1.2312005962228472,
+          "exp_median": 0.9372549019607843,
+          "opt_exact_mean": 1.355978385278679,
+          "opt_exact_binary": 0.203,
+          "valid": 1.0
+        },
+        "path/gbm": {
+          "n": 1000,
+          "opt_mean": 1.6171908320749318,
+          "opt_binary": 0.03,
+          "exp_mean": 1.9052394963158603,
+          "exp_median": 1.4881401617250674,
+          "opt_exact_mean": 1.6170714512099251,
+          "opt_exact_binary": 0.03,
+          "valid": 1.0
+        },
+        "all/ridge": {
+          "n": 1000,
+          "opt_mean": 1.5917875716585945,
+          "opt_binary": 0.018,
+          "exp_mean": 2.6104866741022,
+          "exp_median": 2.0165300546448086,
+          "opt_exact_mean": 1.5917875716585945,
+          "opt_exact_binary": 0.018,
+          "valid": 1.0
+        },
+        "all/gbm": {
+          "n": 1000,
+          "opt_mean": 1.1854704442982196,
+          "opt_binary": 0.395,
+          "exp_mean": 0.7274401048672346,
+          "exp_median": 0.6521120075937352,
+          "opt_exact_mean": 1.1586137580062792,
+          "opt_exact_binary": 0.43,
+          "valid": 1.0
+        },
+        "true_weights": {
+          "n": 1000,
+          "opt_mean": 1.0018777346165118,
+          "opt_binary": 0.924,
+          "exp_mean": 1.0004867981380587,
+          "exp_median": 1.0,
+          "opt_exact_mean": 1.0,
+          "opt_exact_binary": 1.0,
+          "valid": 1.0
+        }
+      }
+    },
+    "pilot": {
+      "tag": "warcraft_seed2",
+      "draws": 3,
+      "seed": 0,
+      "by_budget": [
+        {
+          "budget": 1,
+          "n": 3000,
+          "frac_suboptimal": 0.677,
+          "frac_worsened": 0.161,
+          "frac_exp_gt_1_5": 0.0003333333333333333,
+          "frac_exp_up_1_5x": 0.01,
+          "opt_mean": 1.1585123625907596,
+          "exp_mean": 0.49384629710010836,
+          "frac_path_changed": 0.21166666666666667
+        },
+        {
+          "budget": 2,
+          "n": 3000,
+          "frac_suboptimal": 0.6966666666666667,
+          "frac_worsened": 0.2823333333333333,
+          "frac_exp_gt_1_5": 0.0013333333333333333,
+          "frac_exp_up_1_5x": 0.017666666666666667,
+          "opt_mean": 1.1788623246545256,
+          "exp_mean": 0.4944552747607433,
+          "frac_path_changed": 0.37733333333333335
+        },
+        {
+          "budget": 4,
+          "n": 3000,
+          "frac_suboptimal": 0.7506666666666667,
+          "frac_worsened": 0.4216666666666667,
+          "frac_exp_gt_1_5": 0.0016666666666666668,
+          "frac_exp_up_1_5x": 0.033,
+          "opt_mean": 1.214413508812888,
+          "exp_mean": 0.48739633231667034,
+          "frac_path_changed": 0.554
+        },
+        {
+          "budget": 8,
+          "n": 3000,
+          "frac_suboptimal": 0.8383333333333334,
+          "frac_worsened": 0.6083333333333333,
+          "frac_exp_gt_1_5": 0.0026666666666666666,
+          "frac_exp_up_1_5x": 0.049,
+          "opt_mean": 1.2875873705128082,
+          "exp_mean": 0.4780553935497746,
+          "frac_path_changed": 0.7763333333333333
+        }
+      ]
+    },
+    "sweep": {
+      "tag": "warcraft_seed2",
+      "n_maps": 300,
+      "n_alterations": 170400,
+      "n_baseline_optimal_maps": 107,
+      "frac_optimal_maps_with_damaging_tile": 1.0,
+      "median_frac_damaging_edits_per_map": 0.13380281690140844,
+      "frac_damaging_edits": 0.15300447545083587,
+      "frac_exp_damaging_edits": 0.007091615111228116,
+      "worst_opt": 4.41216216216216,
+      "frac_worsened_all_maps": 0.15274647887323944,
+      "frac_needed_response": 0.6727288732394366,
+      "frac_path_changed": 0.20952464788732394,
+      "max_dcost_outside_receptive_field": 0.00015974044799804688,
+      "dcost_frac_under_flips_mean": 0.14217632959636706,
+      "spearman_dcost_vs_opt_damage": 0.1290496882996287,
+      "decomposition": {
+        "n_damaging": 9299,
+        "cost_ranking": 0.8201957199698893,
+        "search_rule": 0.17980428003011076,
+        "ignoring_change_was_optimal": 0.5659748360038713,
+        "opt_C1_mean_damaging": 1.256390148094295
+      },
+      "by_direction": [
+        {
+          "direction": "cheaper",
+          "n": 22028,
+          "frac_damaging": 0.15639186489921916,
+          "frac_needed_response": 0.07658434719447975
+        },
+        {
+          "direction": "costlier",
+          "n": 38748,
+          "frac_damaging": 0.15107876535563125,
+          "frac_needed_response": 0.10021162382574585
+        }
+      ],
+      "by_location": [
+        {
+          "location": "away from optimal paths",
+          "n": 34868,
+          "frac_damaging": 0.04663301594585293,
+          "frac_damaging_costlier": 0.031297929447852764,
+          "frac_damaging_cheaper": 0.06948014852899172
+        },
+        {
+          "location": "next to an optimal path",
+          "n": 17268,
+          "frac_damaging": 0.19533240676395644,
+          "frac_damaging_costlier": 0.14322087842138764,
+          "frac_damaging_cheaper": 0.28671663211608994
+        },
+        {
+          "location": "on another optimal path",
+          "n": 3080,
+          "frac_damaging": 0.32272727272727275,
+          "frac_damaging_costlier": 0.22349936143039592,
+          "frac_damaging_cheaper": 0.6415868673050615
+        },
+        {
+          "location": "on planner path",
+          "n": 5560,
+          "frac_damaging": 0.5946043165467626,
+          "frac_damaging_costlier": 0.6833406787130895,
+          "frac_damaging_cheaper": 0.20058708414872797
+        }
+      ]
+    },
+    "linf": {
+      "tag": "warcraft_seed2",
+      "n_instances": 300,
+      "pgd_steps": 10,
+      "clean": {
+        "n": 300,
+        "opt_mean": 1.137122233069511,
+        "opt_binary": 0.3566666666666667,
+        "exp_mean": 0.4934924239978744,
+        "exp_median": 0.4702338766832034,
+        "opt_exact_mean": 1.0987460927138466,
+        "opt_exact_binary": 0.31333333333333335,
+        "valid": 1.0
+      },
+      "rows": [
+        {
+          "eps_255": 1,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.1363836563348628,
+          "opt_binary": 0.36666666666666664,
+          "frac_optimal_maps_broken": 0.04672897196261682,
+          "frac_worsened": 0.06333333333333334,
+          "exp_mean": 0.49594863384430016,
+          "frac_path_changed": 0.18,
+          "opt_exact_binary": 0.30333333333333334,
+          "dcost_l1_mean": 4.768393039703369
+        },
+        {
+          "eps_255": 1,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.3673207110113208,
+          "opt_binary": 0.056666666666666664,
+          "frac_optimal_maps_broken": 0.8504672897196262,
+          "frac_worsened": 0.6466666666666666,
+          "exp_mean": 0.4489026325058516,
+          "frac_path_changed": 0.8166666666666667,
+          "opt_exact_binary": 0.04666666666666667,
+          "dcost_l1_mean": 30.334850311279297
+        },
+        {
+          "eps_255": 2,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.1309234350643995,
+          "opt_binary": 0.35,
+          "frac_optimal_maps_broken": 0.11214953271028037,
+          "frac_worsened": 0.11,
+          "exp_mean": 0.5075694944923679,
+          "frac_path_changed": 0.30666666666666664,
+          "opt_exact_binary": 0.35,
+          "dcost_l1_mean": 9.509233474731445
+        },
+        {
+          "eps_255": 2,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.5011944858641966,
+          "opt_binary": 0.03666666666666667,
+          "frac_optimal_maps_broken": 0.897196261682243,
+          "frac_worsened": 0.8066666666666666,
+          "exp_mean": 0.3945949581213337,
+          "frac_path_changed": 0.9166666666666666,
+          "opt_exact_binary": 0.03666666666666667,
+          "dcost_l1_mean": 53.75629425048828
+        },
+        {
+          "eps_255": 4,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.1518134376170772,
+          "opt_binary": 0.32,
+          "frac_optimal_maps_broken": 0.24299065420560748,
+          "frac_worsened": 0.23666666666666666,
+          "exp_mean": 0.5180715277943853,
+          "frac_path_changed": 0.49666666666666665,
+          "opt_exact_binary": 0.30333333333333334,
+          "dcost_l1_mean": 19.5158748626709
+        },
+        {
+          "eps_255": 4,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.626737334369714,
+          "opt_binary": 0.02666666666666667,
+          "frac_optimal_maps_broken": 0.9252336448598131,
+          "frac_worsened": 0.8566666666666667,
+          "exp_mean": 0.37165607653204413,
+          "frac_path_changed": 0.9566666666666667,
+          "opt_exact_binary": 0.02666666666666667,
+          "dcost_l1_mean": 92.17897033691406
+        },
+        {
+          "eps_255": 8,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.2239870822345276,
+          "opt_binary": 0.24,
+          "frac_optimal_maps_broken": 0.514018691588785,
+          "frac_worsened": 0.4033333333333333,
+          "exp_mean": 0.5182523548252925,
+          "frac_path_changed": 0.73,
+          "opt_exact_binary": 0.26666666666666666,
+          "dcost_l1_mean": 39.741756439208984
+        },
+        {
+          "eps_255": 8,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.6634609542152794,
+          "opt_binary": 0.02666666666666667,
+          "frac_optimal_maps_broken": 0.9252336448598131,
+          "frac_worsened": 0.8866666666666667,
+          "exp_mean": 0.3190707423336274,
+          "frac_path_changed": 0.9666666666666667,
+          "opt_exact_binary": 0.02,
+          "dcost_l1_mean": 144.84356689453125
+        },
+        {
+          "eps_255": 16,
+          "method": "random_sign",
+          "n": 300,
+          "opt_mean": 1.3943116260915496,
+          "opt_binary": 0.11666666666666667,
+          "frac_optimal_maps_broken": 0.8317757009345794,
+          "frac_worsened": 0.6566666666666666,
+          "exp_mean": 0.6204830182927412,
+          "frac_path_changed": 0.92,
+          "opt_exact_binary": 0.13,
+          "dcost_l1_mean": 73.00086212158203
+        },
+        {
+          "eps_255": 16,
+          "method": "pgd",
+          "n": 300,
+          "opt_mean": 1.723236267318276,
+          "opt_binary": 0.023333333333333334,
+          "frac_optimal_maps_broken": 0.9345794392523364,
+          "frac_worsened": 0.91,
+          "exp_mean": 0.3091602355514262,
+          "frac_path_changed": 0.9766666666666667,
+          "opt_exact_binary": 0.016666666666666666,
+          "dcost_l1_mean": 209.40345764160156
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,182 @@
+{
+  "tag": "warcraft_seed1",
+  "n_train_maps": 2000,
+  "fits": [
+    {
+      "group": "geometric",
+      "kind": "ridge",
+      "n_features": 2,
+      "r2": 0.06801186341041998,
+      "r2_within": 0.06894599891847153,
+      "coefficients": {
+        "cheb_to_goal": -0.31734824136171635,
+        "cheb_to_start": -0.4407830699129487
+      }
+    },
+    {
+      "group": "terrain",
+      "kind": "ridge",
+      "n_features": 6,
+      "r2": 0.04553507053515338,
+      "r2_within": 0.03947805642263236,
+      "coefficients": {
+        "is_0.8": -0.17282534151876813,
+        "is_1.2": -0.09516176682359453,
+        "is_5.3": 0.10739227784571694,
+        "is_7.7": 0.17156362275412235,
+        "is_9.2": 0.07349418953832396,
+        "weight_mean3": -0.0012863724515647598
+      }
+    },
+    {
+      "group": "terrain",
+      "kind": "gbm",
+      "n_features": 6,
+      "r2": 0.09950430644946073,
+      "r2_within": 0.09184990711924823
+    },
+    {
+      "group": "path",
+      "kind": "ridge",
+      "n_features": 3,
+      "r2": 0.04404087648501187,
+      "r2_within": 0.04072931400348745,
+      "coefficients": {
+        "on_optimal_path": 0.12042832857433654,
+        "cheb_to_optimal_path": -0.4279057140056292,
+        "log_excess": 0.3275003323055006
+      }
+    },
+    {
+      "group": "path",
+      "kind": "gbm",
+      "n_features": 3,
+      "r2": 0.08586329583661045,
+      "r2_within": 0.08147885787086828
+    },
+    {
+      "group": "terrain+geometric",
+      "kind": "ridge",
+      "n_features": 8,
+      "r2": 0.10598254367234461,
+      "r2_within": 0.10103425566651958,
+      "coefficients": {
+        "is_0.8": -0.1638220611029481,
+        "is_1.2": -0.10160001340193309,
+        "is_5.3": 0.10263843062419428,
+        "is_7.7": 0.1710407181981937,
+        "is_9.2": 0.0761455638060829,
+        "weight_mean3": -0.02360313443203309,
+        "cheb_to_goal": -0.3210809080630806,
+        "cheb_to_start": -0.4137005154809138
+      }
+    },
+    {
+      "group": "terrain+path",
+      "kind": "ridge",
+      "n_features": 9,
+      "r2": 0.096562773168403,
+      "r2_within": 0.0920081069129789,
+      "coefficients": {
+        "is_0.8": -0.241631624673681,
+        "is_1.2": -0.15985714149772748,
+        "is_5.3": 0.15946710491557767,
+        "is_7.7": 0.23533973084724535,
+        "is_9.2": 0.13584905322768046,
+        "weight_mean3": 0.10403781242787769,
+        "on_optimal_path": 0.007159570110760932,
+        "cheb_to_optimal_path": -0.09227154924657566,
+        "log_excess": -0.3534314884444774
+      }
+    },
+    {
+      "group": "all",
+      "kind": "ridge",
+      "n_features": 11,
+      "r2": 0.11432769889221639,
+      "r2_within": 0.10987371753610253,
+      "coefficients": {
+        "is_0.8": -0.2234724000079046,
+        "is_1.2": -0.14787789655166952,
+        "is_5.3": 0.13929672462896828,
+        "is_7.7": 0.22139591881117227,
+        "is_9.2": 0.12971479411498668,
+        "weight_mean3": 0.01903479070579843,
+        "cheb_to_goal": -0.23960344474430828,
+        "cheb_to_start": -0.3263517099948462,
+        "on_optimal_path": 0.04800587675415169,
+        "cheb_to_optimal_path": 0.08014339671622787,
+        "log_excess": -0.25114201592763635
+      }
+    },
+    {
+      "group": "all",
+      "kind": "gbm",
+      "n_features": 11,
+      "r2": 0.8748115463280758,
+      "r2_within": 0.8761348221652003
+    }
+  ],
+  "sufficiency": {
+    "terrain/ridge": {
+      "n": 1000,
+      "opt_mean": 1.5363978755767802,
+      "opt_binary": 0.072,
+      "exp_mean": 1.2249480383231934,
+      "exp_median": 1.021315192743764,
+      "opt_exact_mean": 1.5363978755767802,
+      "opt_exact_binary": 0.072,
+      "valid": 1.0
+    },
+    "terrain/gbm": {
+      "n": 1000,
+      "opt_mean": 1.3618434703129787,
+      "opt_binary": 0.188,
+      "exp_mean": 1.2025388831381087,
+      "exp_median": 0.9460403726708074,
+      "opt_exact_mean": 1.3403209188395193,
+      "opt_exact_binary": 0.207,
+      "valid": 1.0
+    },
+    "path/gbm": {
+      "n": 1000,
+      "opt_mean": 1.6340170391520497,
+      "opt_binary": 0.012,
+      "exp_mean": 1.9966443638191453,
+      "exp_median": 1.5364583333333335,
+      "opt_exact_mean": 1.6331928037476569,
+      "opt_exact_binary": 0.012,
+      "valid": 1.0
+    },
+    "all/ridge": {
+      "n": 1000,
+      "opt_mean": 1.6089675992913244,
+      "opt_binary": 0.0,
+      "exp_mean": 2.5199015650356387,
+      "exp_median": 1.9674603174603174,
+      "opt_exact_mean": 1.6081416308905816,
+      "opt_exact_binary": 0.0,
+      "valid": 1.0
+    },
+    "all/gbm": {
+      "n": 1000,
+      "opt_mean": 1.1845282333823406,
+      "opt_binary": 0.372,
+      "exp_mean": 0.6299146873120062,
+      "exp_median": 0.6122448979591837,
+      "opt_exact_mean": 1.1478130276621696,
+      "opt_exact_binary": 0.418,
+      "valid": 1.0
+    },
+    "true_weights": {
+      "n": 1000,
+      "opt_mean": 1.0018777346165118,
+      "opt_binary": 0.924,
+      "exp_mean": 1.0004867981380587,
+      "exp_median": 1.0,
+      "opt_exact_mean": 1.0,
+      "opt_exact_binary": 1.0,
+      "valid": 1.0
+    }
+  }
+}

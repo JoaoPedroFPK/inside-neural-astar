@@ -1,0 +1,68 @@
+{
+  "tag": "warcraft_seed2",
+  "n_maps": 300,
+  "n_alterations": 170400,
+  "n_baseline_optimal_maps": 107,
+  "frac_optimal_maps_with_damaging_tile": 1.0,
+  "median_frac_damaging_edits_per_map": 0.13380281690140844,
+  "frac_damaging_edits": 0.15300447545083587,
+  "frac_exp_damaging_edits": 0.007091615111228116,
+  "worst_opt": 4.41216216216216,
+  "frac_worsened_all_maps": 0.15274647887323944,
+  "frac_needed_response": 0.6727288732394366,
+  "frac_path_changed": 0.20952464788732394,
+  "max_dcost_outside_receptive_field": 0.00015974044799804688,
+  "dcost_frac_under_flips_mean": 0.14217632959636706,
+  "spearman_dcost_vs_opt_damage": 0.1290496882996287,
+  "decomposition": {
+    "n_damaging": 9299,
+    "cost_ranking": 0.8201957199698893,
+    "search_rule": 0.17980428003011076,
+    "ignoring_change_was_optimal": 0.5659748360038713,
+    "opt_C1_mean_damaging": 1.256390148094295
+  },
+  "by_direction": [
+    {
+      "direction": "cheaper",
+      "n": 22028,
+      "frac_damaging": 0.15639186489921916,
+      "frac_needed_response": 0.07658434719447975
+    },
+    {
+      "direction": "costlier",
+      "n": 38748,
+      "frac_damaging": 0.15107876535563125,
+      "frac_needed_response": 0.10021162382574585
+    }
+  ],
+  "by_location": [
+    {
+      "location": "away from optimal paths",
+      "n": 34868,
+      "frac_damaging": 0.04663301594585293,
+      "frac_damaging_costlier": 0.031297929447852764,
+      "frac_damaging_cheaper": 0.06948014852899172
+    },
+    {
+      "location": "next to an optimal path",
+      "n": 17268,
+      "frac_damaging": 0.19533240676395644,
+      "frac_damaging_costlier": 0.14322087842138764,
+      "frac_damaging_cheaper": 0.28671663211608994
+    },
+    {
+      "location": "on another optimal path",
+      "n": 3080,
+      "frac_damaging": 0.32272727272727275,
+      "frac_damaging_costlier": 0.22349936143039592,
+      "frac_damaging_cheaper": 0.6415868673050615
+    },
+    {
+      "location": "on planner path",
+      "n": 5560,
+      "frac_damaging": 0.5946043165467626,
+      "frac_damaging_costlier": 0.6833406787130895,
+      "frac_damaging_cheaper": 0.20058708414872797
+    }
+  ]
+}
