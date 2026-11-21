@@ -65,9 +65,9 @@ The learned cost map approximates two geometric quantities — distance to goal 
 |----|------|-------|
 | **E0** ✅ | Reproduce Neural A\* on the 32×32 maze benchmark (Opt, Exp, Hmean within tolerance). Set up attribution hooks. | — |
 | **E1** ✅ | Characterize the cost map: fit an additive model on geometric features (geodesic & Euclidean distance to goal, distance to nearest obstacle, local obstacle density, corridor width); residual analysis by local topology (junction / corridor / dead end / open area); Integrated Gradients from cost cells back to the input; controlled map edits. | H1 |
-| **E2** ✅ | Perturbations: flip 1–8 cells, chosen by exhaustive search (every single cell) and greedy search (up to 8 cells), reachability preserved; random flips as baseline. A gradient-guided search through the differentiable module was planned and is **not built yet** (see *Next steps*). Two objectives: degrade path optimality / degrade search efficiency. Compare against classical A\* on the same altered maps. | premise |
+| **E2** ✅ | Perturbations: flip 1–8 cells, chosen by exhaustive search (every single cell) and greedy search (up to 8 cells), reachability preserved; random flips as baseline. Step 13 adds a search whose candidates are ranked by the planner's own gradient, needing no exhaustive sweep. Two objectives: degrade path optimality / degrade search efficiency. Compare against classical A\* on the same altered maps. | premise |
 | **E3** ✅ | Mediation via the 2×2 swap design (see below). Metrics: fraction of ΔOpt and ΔExp reproduced by each off-diagonal cell; ΔCost (L1 and spatial localization). | H2 |
-| **E4** ✅ | Detection: do attacked inputs produce cost maps whose residual from the E1 surrogate is anomalous? Baselines: Mahalanobis distance on encoder activations **and** a model-free classifier on grid statistics. | H3 |
+| **E4** ✅ | Detection: do attacked inputs produce cost maps whose residual from the E1 surrogate is anomalous? Baselines: Mahalanobis distance on encoder activations **and** a model-free classifier on grid statistics. Step 13 adds an attacker who knows the detector. | H3 |
 
 ### The swap design (E3)
 
@@ -89,8 +89,9 @@ If the failure reappears with altered costs on original obstacles, the encoder's
 
 ## Status — 2026-11-21
 
-**Every step of the plan is done (0–12)**, plus both halves of the cross-family
-validity check (step 7b) and the WarCraft terrain-image replication (step 11).
+**Every step of the plan is done (0–13)**, plus both halves of the cross-family
+validity check (step 7b), the WarCraft terrain-image replication (step 11) and
+the gradient-guided and adaptive attacks (step 13).
 The environment is pinned and asserted; the published numbers are reproduced;
 the structural premise of the mediation design is verified in code and under
 test; the exact solver reproduces the published search exactly; every one of
@@ -620,6 +621,56 @@ mostly a position pattern that the fixed start and goal make useful. Location
 again decides damage (Spearman with the size of the cost change 0.10–0.13).
 Full report: `results/warcraft.md`; write-up: `docs/steps/step-11-warcraft.md`.
 
+### Step 13 — a gradient-guided attack, and an attacker who knows the detector
+
+Two cheats were built into every earlier attack: step 9's greedy read its
+candidate cells off the exhaustive sweep (an oracle no attacker has), and
+step 12's detector was only ever scored against attacks that ignore it.
+
+**The planner's own gradient can replace the oracle.** One backward pass through
+the encoder and the straight-through search ranks every cell by the size of its
+first-order effect. The ranking is weak (Spearman with the true single-flip
+effect 0.11 for path, 0.20 for effort; the *sign* carries nothing), but under
+the same search and the same 512 evaluations per map it beats a random pool at
+every budget on both objectives:
+
+| budget | baseline-optimal maps broken: gradient | random pool | step 9 (sweep-seeded) |
+|---|---|---|---|
+| 1 | 62.7 % | 43.4 % | 85.5 % |
+| 4 | 80.7 % | 67.5 % | 85.5 % |
+| 8 | **94.0 %** | 72.3 % | 85.5 % |
+
+At eight cells it overtakes the oracle-seeded search (+0.033 Opt per map,
+interval clear of zero), because it re-ranks on the map as altered so far.
+
+**Gradient-chosen alterations are easier to detect, not harder.** They add
+obstacles more often; the convolutional map-only control alone reaches 0.955 on
+one cell (path) and ≥ 0.999 on every alteration of four cells or more. Step
+12's claim replicates on the new source: on the single effort cell the residual
+adds **+0.100** [+0.037, +0.166].
+
+**Against an adaptive attacker** — step 12's detector frozen, the attacker
+playing per map the change it scores lowest among those keeping a fraction `f`
+of the worst damage — the residual's gain over the control:
+
+| attacker | shipped | `mazes_seed0` | `mazes_seed1` | `mazes_seed2` |
+|---|---|---|---|---|
+| any single cell, f = 0.75 | **+0.101** | **+0.075** | **+0.135** | **+0.090** |
+| any single cell, f = 0.5 | +0.080 | **+0.097** | **+0.110** | +0.063 |
+| step 12's cell + one camouflage cell, f = 1 | **+0.096** | **+0.104** | **+0.114** | +0.004 |
+| step 12's cell + one camouflage cell, f = 0.5 | +0.071 | **+0.080** | **+0.119** | −0.013 |
+
+Bold: 95 % interval clear of zero. The single-cell attacker has only one to
+three near-worst options per map and cannot erase the gain on any model at
+f ≥ 0.75. Given ~250 camouflage options, it erases the gain completely on
+`mazes_seed2` — while doing 1.2× the damage — and pushes the shipped model's
+interval to zero from f = 0.75. **Step 12's surviving claim holds against these
+attackers on three models of four, not as a property of the method.** The
+defender never refits; that round is not played.
+
+Reports: `results/e2_gradient.md`, `results/e4_detector.md`,
+`results/e4_adaptive*.md`; write-up: `docs/steps/step-13-gradient-attack.md`.
+
 ### Negative and corrected results, collected
 
 The plan asks for these to be explicit rather than buried, so they are listed
@@ -637,6 +688,7 @@ together. Each links to the step that produced it.
 | The surrogate residual would beat an out-of-distribution score at detecting tampering | It loses in **all ten** conditions. It is a complement to a map-only control, not a replacement for the standard baseline. |
 | The OOD baseline is essentially counting obstacles | Its dominant activation direction correlates 0.994 with the obstacle count, but hiding the count costs it **0.003** AUC (and costs the hand-feature control 0.124). Written down, then tested, then withdrawn. |
 | Detecting tampering without a clean reference would be harder | The opposite. Dropping the clean twin costs map-based detectors AUC and the residual nothing; the grid statistics fall to **0.449** on stealthy effort flips. Predicted, measured, corrected. |
+| A gradient-steered attack would hide better from the detector | The opposite: it adds obstacles more often and the map-only control catches every gradient alteration of 4+ cells at AUC ≥ 0.999. |
 | The residual's gain survives on both objectives at one flipped cell | Drawn from one model, withdrawn one model later. Across four maze models the search-effort gain replicates (4/4) and the path gain does not (2/4). **Both** the objective and the number of flipped cells are load-bearing. |
 
 **Premises of the project that were wrong**
@@ -653,6 +705,8 @@ together. Each links to the step that produced it.
 |---|---|
 | Doors are ~5× more damaging than pillars (25 draws) | **1.85×** over all 11 077 door flips. |
 | Efficiency damage is search-mediated 2.6 : 1 | Roughly even once the shortcut-opening alterations are separated — then **confirmed after all** once four models were measured, since one model's 0.03 margin was not a direction. |
+| Step 9's sweep-seeded greedy bounds the damage at k = 8 | A gradient search that never saw the sweep breaks **94.0 %** of baseline-optimal maps at k = 8 against 85.5 %. |
+| Step 12's effort gain is robust to any attacker | Against a frozen detector, one camouflage cell erases it on 1 of 4 models and reaches zero on a second (step 13). |
 | Greedy search climbs monotonically | It cannot stay put, so it can step down; 3 of 194 sequences do. |
 | Damaging cells carry ~1.7× the attribution density (5 cells per group) | Re-measured at ~35 per group: **0.80×, 1.05×, 0.79×**, none significant. No reliable effect. |
 
@@ -696,6 +750,8 @@ together. Each links to the step that produced it.
 │   ├── warcraft_study.py      ✅ [11] every WarCraft stage for one model
 │   ├── warcraft_report.py     ✅ [11] the three-model WarCraft report
 │   ├── e4_detector.py         ✅ [12] the detector and its baselines
+│   ├── gradient_attack.py     ✅ [13] gradient-ranked search vs random pool vs step 9
+│   ├── adaptive_attack.py     ✅ [13] detector-aware attack on step 12's claim
 │   └── verify_reported_numbers.py ✅ figures quoted in the write-ups vs stored results
 ├── src/
 │   ├── config.py              ✅ paths, device, dataset layout, seeding
@@ -706,12 +762,12 @@ together. Each links to the step that produced it.
 │   ├── exact_solver.py        ✅ [2] Dijkstra ground truth + classical-A* control
 │   ├── features.py            ✅ [4] geometric + path features, two partitions
 │   ├── surrogate.py           ✅ [5] feature groups, fits, residuals, sufficiency
-│   ├── perturb.py             ✅ [3,6,9] flips: random, exhaustive, greedy
+│   ├── perturb.py             ✅ [3,6,9,13] flips: random, exhaustive, greedy, gradient-ranked
 │   ├── swap.py                ✅ [7] the 2×2 cost/obstacle harness + mediation
 │   ├── attribution.py         ✅ [8] integrated gradients, Grad-CAM, sanity checks
 │   ├── detect.py              ✅ [12] residual detector, OOD + model-free baselines, bootstrap
 │   └── warcraft.py            ✅ [11] WarCraft loading, ground truth, tile transplants, probes
-├── tests/                     ✅ 203 tests across 16 files, including published-tree and manifest-schema guards
+├── tests/                     ✅ 206 tests across 16 files, including published-tree and manifest-schema guards
 ├── notebooks/                 ✅ 01_features_spotcheck.ipynb (display only)
 └── results/                   ✅ versioned: the .md/.json reports; .npz, .parquet, .png and models are regenerated
     ├── e0_reproduce.json      ✅ [0]
@@ -725,7 +781,9 @@ together. Each links to the step that produced it.
     ├── e1_attribution/        ✅ [8]
     ├── training_runs.json · seeds*.{md,json} ✅ [10]
     ├── warcraft.{md,json} · warcraft/ ✅ [11]
-    └── e4_detector*.{md,json} ✅ [12]
+    ├── e4_detector*.{md,json} ✅ [12] (+ gradient conditions [13])
+    ├── e2_gradient.{md,json}  ✅ [13]
+    └── e4_adaptive*.{md,json} ✅ [13] one per maze model
 ```
 
 ---
@@ -756,7 +814,7 @@ Check an environment you did not build yourself:
 
 ```bash
 make test-env     # 16 assertions: interpreter, pins, data, checkpoint, clean submodule
-make test         # whole suite, 203 tests
+make test         # whole suite, 206 tests
 ```
 
 ### Data
@@ -802,7 +860,9 @@ make budgets            # step-9 greedy search at k ≤ 8
 make train              # step-10 three maze encoders, ~30 min each
 make seed-pipeline TAG=mazes_seed0   # step-10 per-model features + sweep + swap
 make seeds              # step-10 dispersion across encoders
-python scripts/e4_detector.py        # step-12 detector (variants: docs/steps/step-12-detector.md)
+make detector           # step-12 detector, every condition + CNN control, ~2 min
+make gradient           # step-13 gradient-guided attack, ~45 min alone (~100 min with other jobs)
+make adaptive           # step-13 adaptive attack, shipped model, ~30–80 min
 make figures            # README figures, ~6 s
 make verify             # quoted figures vs stored results
 make warcraft-data      # step-11 data: download, checksum, extract 12x12
@@ -855,7 +915,7 @@ that same map. Classical A\* replanning correctly is not an error.
 - [x] **Stage 1 — Proposal** (16 Oct 2026): question, hypothesis, design. ✔ submitted
 - [x] **Stage 2:** E0 reproduced ✅ · swap premise confirmed in `differentiable_astar.py` ✅ · exact solver + metrics [2] ✅ · random-flip pilot [3] ✅ · feature library [4] ✅ · surrogate fit [5] ✅ · perturbation harness [6] ✅
 - [x] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] ✅ · WarCraft [11] ✅
-- [ ] **Final:** E4 detector [12] ✅ · write-up with explicit negative results ⬜.
+- [ ] **Final:** E4 detector [12] ✅ · gradient + adaptive attacks [13] ✅ · write-up with explicit negative results ⬜.
 
 **Everything planned for mazes and forest is done.** Three `forest` seeds
 settled the mediation question (the difference was noise; see step 7b), and
@@ -868,13 +928,12 @@ attacks, probes and a seam control.
 
 **Next steps** (every step in `PLAN.md` is done; these are what remains open):
 
-1. **A gradient-guided attack on mazes** (`PLAN.md` step 9's conditional branch,
-   and the one item step 12 lists as not done). It is the one experiment that
-   could overturn step 12's surviving claim: an alteration optimised directly
-   against the encoder might be quiet in the grid *and* quiet in the residual.
-   On WarCraft the same kind of attack (PGD at 1/255 per pixel) breaks 84–85 %
-   of baseline-optimal maps against 4–8 % for random noise. It needs no download.
-2. **The final write-up**, with the negative results stated explicitly.
+1. **The final write-up**, with the negative results stated explicitly.
+2. **A joint two-cell adaptive attack** (step 13 § 8): choose both cells for
+   stealth rather than keeping step 12's first one. It is the cheapest
+   experiment that could remove step 12's last claim on the two models where it
+   survived, and a defender who refits on adaptive changes is the matching
+   next round.
 3. **WarCraft with random start and goal tiles.** The only direct test that the
    position shortcut of step 11 comes from the fixed corners; it changes the
    task and needs retraining (~3 h).
@@ -883,7 +942,9 @@ Smaller items, in descending order of value: a streaming version of the
 detector (a threshold fixed in advance, with no altered examples at fitting
 time); a map-only control trained on *selected* rather than random flips; and
 the 64×64 families, which need `MAP_SIZE` and the unreachable sentinel to
-become per-dataset values first.
+become per-dataset values first; a relax-and-round (PGD) version of the maze
+gradient attack; and the gradient attack on the trained encoders, which so far
+ran on the shipped checkpoint only.
 
 ---
 

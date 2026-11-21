@@ -422,6 +422,53 @@ def checks() -> List[Tuple[str, Callable[[], bool]]]:
             ("step 12: on forest the activation baseline collapses as well",
              lambda: max(baselines) < 0.65)
         )
+
+    gradient = load("e2_gradient.json")
+    if gradient:
+        ranking = gradient["ranking"]["all"]
+        versus_random = [g for g in gradient["gaps"] if g["comparison"] == "gradient − random"]
+        broken = {(r["candidate_source"], r["budget"]): r["frac_optimal_broken"]
+                  for r in gradient["damage"] if r["objective"] == "optimality"}
+        out += [
+            ("step 13: gradient magnitude vs true single-flip effect, Spearman 0.109 (path)",
+             lambda: near(ranking["optimality"]["spearman_abs"], 0.109)),
+            ("step 13: ... and 0.201 (effort)",
+             lambda: near(ranking["efficiency"]["spearman_abs"], 0.201)),
+            ("step 13: gradient pool beats random pool, 7 of 8 intervals clear of zero",
+             lambda: sum(g["all"]["lo"] > 0 for g in versus_random) == 7
+             and all(g["all"]["gap"] > 0 for g in versus_random)),
+            ("step 13: at k=8 the gradient breaks 94.0 % of optimal maps, sweep greedy 85.5 %",
+             lambda: near(broken[("gradient", 8)], 0.940, 1e-3) and near(broken[("k1_sweep", 8)], 0.855, 1e-3)),
+        ]
+    if detector and "gradient_eff_b1" in {row["condition"] for row in detector["conditions"]}:
+        rows = {row["condition"]: row for row in detector["conditions"]}
+        out += [
+            ("step 13: residual over the CNN control on gradient effort flips, +0.100, clear of zero",
+             lambda: near(rows["gradient_eff_b1"]["grid_cnn"]["gap"]["gap"], 0.100, 1e-3)
+             and rows["gradient_eff_b1"]["grid_cnn"]["gap"]["lo"] > 0),
+            ("step 13: the CNN control alone reaches >= 0.999 on every gradient alteration of 4+ cells",
+             lambda: all(rows[c]["grid_cnn"]["auc"] >= 0.999 for c in
+                         ("gradient_opt_b4", "gradient_opt_b8", "gradient_eff_b4", "gradient_eff_b8"))),
+        ]
+    adaptive = {tag: load(f"e4_adaptive{suffix}.json") for tag, suffix in
+                (("shipped", ""), ("mazes_seed0", "_mazes_seed0"),
+                 ("mazes_seed1", "_mazes_seed1"), ("mazes_seed2", "_mazes_seed2"))}
+    if all(adaptive.values()):
+        def rows_of(tag, family):
+            return {r["fraction"]: r for r in adaptive[tag]["results"] if r["family"] == family}
+        out += [
+            ("step 13: against a single-flip adaptive attacker keeping >= 75 % of the damage, "
+             "the gain stays clear of zero in all four models",
+             lambda: all(rows_of(t, "single")[f]["gap"]["lo"] > 0
+                         for t in adaptive for f in (1.0, 0.9, 0.75))),
+            ("step 13: at 50 % it stays clear in two of four",
+             lambda: sum(rows_of(t, "single")[0.5]["gap"]["lo"] > 0 for t in adaptive) == 2),
+            ("step 13: a camouflage pair erases the gain on mazes_seed2 at every damage level",
+             lambda: all(r["gap"]["lo"] <= 0 for r in rows_of("mazes_seed2", "pair").values())),
+            ("step 13: ... but not on seeds 0 and 1 at any level",
+             lambda: all(r["gap"]["lo"] > 0 for t in ("mazes_seed0", "mazes_seed1")
+                         for r in rows_of(t, "pair").values())),
+        ]
     return out
 
 
