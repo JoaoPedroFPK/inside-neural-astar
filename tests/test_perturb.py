@@ -427,3 +427,64 @@ def test_greedy_rejects_an_unknown_objective(pretrained_planner, test_split) -> 
         greedy_flip_search(
             pretrained_planner, inst, budget=1, objective="speed", candidate_pool=[(1, 1)]
         )
+
+
+# Gradient-guided search (step 13)
+
+
+def test_flip_sensitivity_is_a_finite_nonnegative_map(pretrained_planner, test_split) -> None:
+    """The first-order score exists, has the map's shape and is not all zero.
+
+    All zero would mean no gradient reaches the input through the
+    straight-through search, and the gradient pool would be a fixed
+    row-major order in disguise.
+    """
+    from src.perturb import flip_sensitivity
+
+    inst = test_split.instance(0, seed=0)
+    for objective in ("optimality", "efficiency"):
+        score = flip_sensitivity(pretrained_planner, inst, objective)
+        assert score.shape == inst.map_design.shape
+        assert np.isfinite(score).all() and (score >= 0).all()
+        assert score.max() > 0
+    with pytest.raises(ValueError, match="unknown objective"):
+        flip_sensitivity(pretrained_planner, inst, "speed")
+
+
+def test_gradient_search_reranks_on_the_altered_map(pretrained_planner, test_split) -> None:
+    """A callable pool is asked again every round, with the map altered so far."""
+    from src.grid import flip_cells
+    from src.perturb import gradient_pool, greedy_flip_search
+
+    inst = test_split.instance(0, seed=0)
+    inner = gradient_pool(pretrained_planner, inst, "efficiency", size=4)
+    seen = []
+
+    def pool(current, chosen):
+        seen.append((current.copy(), list(chosen)))
+        return inner(current, chosen)
+
+    history = greedy_flip_search(
+        pretrained_planner, inst, budget=2, objective="optimality",
+        candidate_pool=pool, method="gradient", extra={"candidate_source": "gradient"},
+    )
+    assert [row["method"] for row in history] == ["gradient"] * len(history)
+    assert all(row["candidate_source"] == "gradient" for row in history)
+    assert len(seen) == len(history)
+    assert not seen[0][1]
+    if len(seen) == 2:
+        first = [tuple(rc) for rc in history[0]["flip_cells"]]
+        assert seen[1][1] == first
+        assert np.array_equal(seen[1][0], flip_cells(inst.map_design, first))
+
+
+def test_random_pool_is_deterministic_and_excludes_endpoints(test_split) -> None:
+    """Same seed, same draws; start, goal and chosen cells never offered."""
+    from src.perturb import random_pool
+
+    inst = test_split.instance(0, seed=0)
+    chosen = [(5, 5)]
+    a = random_pool(inst, size=50, seed=3)(inst.map_design, chosen)
+    b = random_pool(inst, size=50, seed=3)(inst.map_design, chosen)
+    assert a == b and len(set(a)) == 50
+    assert not {inst.start_rc, inst.goal_rc, (5, 5)} & set(a)

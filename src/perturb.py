@@ -7,8 +7,8 @@ reachable from the fixed start).
 
 This module provides the sampler for the random baseline (PLAN.md step 3) and
 the evaluation harness every later step reuses. Only the *random* method lives
-here so far; `exhaustive` (step 6), `greedy` (step 9) and `gradient` (step 9,
-conditional) get added when those steps come up.
+here; `exhaustive` (step 6), `greedy` (step 9) and `gradient` (step 13) are
+built on top of it.
 
 What an evaluation measures, for each alteration:
 
@@ -30,7 +30,7 @@ computed here; the row schema leaves room for them.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple  # noqa: F401
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union  # noqa: F401
 
 import numpy as np
 import torch
@@ -612,10 +612,12 @@ def greedy_flip_search(
     instance: MazeInstance,
     budget: int,
     objective: str,
-    candidate_pool: Sequence[RC],
+    candidate_pool: Union[Sequence[RC], Callable[[np.ndarray, List[RC]], Sequence[RC]]],
     baselines: Optional[Dict[int, Baseline]] = None,
     batch_size: int = 128,
     opt_cap: float = OPT_CAP_FOR_EFFICIENCY,
+    method: str = "greedy",
+    extra: Optional[Dict[str, object]] = None,
 ) -> List[Dict[str, object]]:
     """Grow a damaging flip set one cell at a time, keeping the best each round.
 
@@ -639,10 +641,16 @@ def greedy_flip_search(
         objective: ``"optimality"`` (maximise the Opt ratio) or
             ``"efficiency"`` (maximise the Exp ratio subject to the Opt ratio
             staying at or below `opt_cap`).
-        candidate_pool: Cells the search may choose from.
+        candidate_pool: Cells the search may choose from, or a function
+            ``(current_map, chosen) -> cells`` called at the start of every
+            round, so the pool can be re-ranked on the map as altered so far
+            (the gradient-guided search of step 13 does this).
         baselines: Shared `Baseline` cache, as for `evaluate_alterations`.
         batch_size: Planner batch size per round.
         opt_cap: Opt ratio cap for the efficiency objective.
+        method: Recorded in each row's ``method`` column.
+        extra: Extra columns recorded on every row (e.g. where the pool came
+            from).
 
     Returns:
         list[dict]: One results row per round, i.e. the chosen set at budgets
@@ -660,9 +668,14 @@ def greedy_flip_search(
 
     chosen: List[RC] = []
     history: List[Dict[str, object]] = []
-    pool = [tuple(rc) for rc in candidate_pool]
 
     for _ in range(budget):
+        source = (
+            candidate_pool(flip_cells(instance.map_design, chosen), list(chosen))
+            if callable(candidate_pool)
+            else candidate_pool
+        )
+        pool = [tuple(rc) for rc in source]
         requests = []
         for candidate in pool:
             if candidate in chosen:
@@ -675,9 +688,9 @@ def greedy_flip_search(
                 AlterationRequest(
                     instance=instance,
                     flip_cells=cells,
-                    method="greedy",
+                    method=method,
                     objective=objective,
-                    extra={"candidate": list(candidate)},
+                    extra={**(extra or {}), "candidate": list(candidate)},
                 )
             )
         if not requests:
@@ -729,3 +742,128 @@ def candidate_pool_from_rows(
         raise ValueError(f"unknown objective {objective!r}")
     ranked = sorted(rows, key=lambda r: -float(r[key]))
     return [tuple(r["flip_cells"][0]) for r in ranked[:size]]
+
+
+def flip_sensitivity(
+    planner,
+    instance: MazeInstance,
+    objective: str,
+    map_design: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """First-order estimate of how much flipping each cell moves the objective.
+
+    The planner is differentiable end to end: upstream trains it by
+    backpropagating through the search, using a *straight-through* estimator
+    for the discrete choice of the next node to expand (the forward pass picks
+    the best node exactly; the backward pass pretends the choice was a soft
+    weighting). So the gradient of a search output with respect to the input
+    map exists, and ``gradient x change`` is the first term of a Taylor
+    expansion of what one flip does.
+
+    Two differentiable stand-ins are used, because the project's metrics are
+    counts and path lengths that have no useful gradient:
+
+    * ``efficiency`` — the number of expanded nodes, ``sum(histories)``;
+    * ``optimality`` — upstream's own training loss, the L1 distance between
+      the expanded nodes and the certified optimal path of the map. Pushing
+      the search away from that path is what makes it return a worse one.
+
+    The map enters twice — as the encoder's input and as the search's obstacle
+    mask — and the gradient flows through both.
+
+    Args:
+        planner: A `NeuralAstar` in eval mode.
+        instance: Supplies start, goal and, by default, the map.
+        objective: ``"optimality"`` or ``"efficiency"``.
+        map_design: The map to differentiate at, e.g. one already altered by
+            earlier rounds of a search; defaults to the instance's map.
+
+    Returns:
+        np.ndarray: ``(H, W)`` absolute first-order effect of flipping each
+        cell. The magnitude, not the sign, is returned: step 13 measured the
+        signed estimate to be uncorrelated with the real effect (Spearman
+        about 0), while the magnitude ranks damaging cells above random ones.
+
+    Raises:
+        ValueError: If `objective` is unknown.
+    """
+    if objective not in ("optimality", "efficiency"):
+        raise ValueError(f"unknown objective {objective!r}")
+    design = instance.map_design if map_design is None else map_design
+    maps, starts, goals = instance.to_tensors()
+    x = torch.from_numpy(design.astype(np.float32)).reshape_as(maps).clone().requires_grad_(True)
+    with torch.enable_grad():
+        histories = planner.astar(planner.encode(x, starts, goals), starts, goals, x).histories
+        if objective == "efficiency":
+            loss = histories.sum()
+        else:
+            optimal = torch.zeros_like(histories)
+            for rc in solve_dijkstra(design, instance.start_rc, instance.goal_rc).path:
+                optimal[0, 0][rc] = 1.0
+            loss = (histories - optimal).abs().sum()
+        (grad,) = torch.autograd.grad(loss, x)
+    # A flip moves a free cell (1) to 0 and an obstacle (0) to 1.
+    change = 1.0 - 2.0 * torch.from_numpy(design.astype(np.float32)).reshape_as(maps)
+    return (grad * change).abs()[0, 0].numpy()
+
+
+def gradient_pool(
+    planner,
+    instance: MazeInstance,
+    objective: str,
+    size: int = 64,
+) -> Callable[[np.ndarray, List[RC]], List[RC]]:
+    """Candidate pool for `greedy_flip_search` ranked by `flip_sensitivity`.
+
+    Re-ranked every round on the map as altered so far, so it needs nothing
+    precomputed — unlike the pool of step 9, which is read off the exhaustive
+    sweep and therefore assumes an attacker who has already tried every cell.
+
+    Args:
+        planner: A `NeuralAstar` in eval mode.
+        instance: The instance under attack.
+        objective: ``"optimality"`` or ``"efficiency"``.
+        size: Cells per round.
+
+    Returns:
+        Callable: ``(current_map, chosen) -> cells``, best first; start, goal
+        and already chosen cells are excluded, ties break row-major.
+    """
+
+    def pool(current: np.ndarray, chosen: List[RC]) -> List[RC]:
+        score = flip_sensitivity(planner, instance, objective, current)
+        cells = [rc for rc in candidate_cells(current, instance.start_rc, instance.goal_rc)
+                 if rc not in chosen]
+        order = np.argsort([-score[rc] for rc in cells], kind="stable")
+        return [cells[i] for i in order[:size]]
+
+    return pool
+
+
+def random_pool(
+    instance: MazeInstance,
+    size: int = 64,
+    seed: int = 0,
+) -> Callable[[np.ndarray, List[RC]], List[RC]]:
+    """Candidate pool of uniformly random cells: the control for `gradient_pool`.
+
+    Same search, same number of evaluations per round, no information about
+    the planner. The gap between the two is what the gradient contributes.
+
+    Args:
+        instance: The instance under attack.
+        size: Cells per round.
+        seed: Combined with the instance id, so every map gets its own draws.
+
+    Returns:
+        Callable: ``(current_map, chosen) -> cells``.
+    """
+    rng = np.random.default_rng([seed, instance.instance_id])
+
+    def pool(current: np.ndarray, chosen: List[RC]) -> List[RC]:
+        cells = [rc for rc in candidate_cells(current, instance.start_rc, instance.goal_rc)
+                 if rc not in chosen]
+        picked = rng.choice(len(cells), size=min(size, len(cells)), replace=False)
+        return [cells[i] for i in picked]
+
+    return pool

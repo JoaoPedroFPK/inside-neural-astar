@@ -1,7 +1,7 @@
 # Convenience targets. Everything runs inside the project venv (.venv).
 PY := .venv/bin/python
 
-.PHONY: help env lock test test-env e0 step2 pilot probe features spotcheck figures surrogate sweep swap attribution budgets families damaging train seed-pipeline verify seeds warcraft-data warcraft-train warcraft pipeline clean
+.PHONY: help env lock test test-env e0 step2 pilot probe features spotcheck figures surrogate sweep swap attribution budgets families damaging train seed-pipeline verify seeds warcraft-data warcraft-train warcraft detector gradient adaptive pipeline clean
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -88,6 +88,15 @@ warcraft-train:  ## PLAN.md step 11: three WarCraft encoders (~80 min each on CP
 warcraft:  ## PLAN.md step 11: every WarCraft stage per model, then the report (~45 min per model)
 	for s in 0 1 2; do $(PY) scripts/warcraft_study.py --tag warcraft_seed$$s --stage all || exit 1; done
 	$(PY) scripts/warcraft_report.py --tags warcraft_seed0 warcraft_seed1 warcraft_seed2
+
+detector:  ## PLAN.md step 12: the altered-map detector on every condition, with the CNN control (~2 min)
+	$(PY) scripts/e4_detector.py --grid-cnn
+
+gradient:  ## PLAN.md step 13: gradient-guided flip attack vs random pool and sweep-seeded greedy (~45 min)
+	$(PY) scripts/gradient_attack.py --split test --seed 0
+
+adaptive:  ## PLAN.md step 13: detector-aware attack on step 12's surviving claim (~30 min)
+	$(PY) scripts/adaptive_attack.py
 
 pipeline:  ## every experiment in dependency order (~1h15 on a laptop CPU)
 	@echo "==> step 0: reproduction"      && $(MAKE) --no-print-directory e0

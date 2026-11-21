@@ -74,6 +74,14 @@ CONDITIONS: Dict[str, Dict[str, object]] = {
     "greedy_eff_b1": {"method": "greedy", "objective": "efficiency", "budget": 1},
     "greedy_eff_b4": {"method": "greedy", "objective": "efficiency", "budget": 4},
     "greedy_eff_b8": {"method": "greedy", "objective": "efficiency", "budget": 8},
+    #: Step 13: the same search with candidates ranked by the planner's own
+    #: gradient instead of read off the exhaustive sweep.
+    "gradient_opt_b1": {"method": "gradient", "objective": "optimality", "budget": 1},
+    "gradient_opt_b4": {"method": "gradient", "objective": "optimality", "budget": 4},
+    "gradient_opt_b8": {"method": "gradient", "objective": "optimality", "budget": 8},
+    "gradient_eff_b1": {"method": "gradient", "objective": "efficiency", "budget": 1},
+    "gradient_eff_b4": {"method": "gradient", "objective": "efficiency", "budget": 4},
+    "gradient_eff_b8": {"method": "gradient", "objective": "efficiency", "budget": 8},
     #: Built rather than looked up. Both take the worst single flip and add a
     #: second one elsewhere: `balanced_2` frees an obstacle, leaving the
     #: obstacle count unchanged, and `blocked_2` blocks another free cell. The
@@ -106,6 +114,10 @@ def select_alterations(manifest: pd.DataFrame, condition: str) -> Dict[int, List
     rows = rows[rows["budget"] == spec["budget"]]
     if "objective" in spec:
         rows = rows[rows["objective"] == spec["objective"]]
+    # Step 13 added greedy rows with a random candidate pool; the greedy
+    # conditions mean the sweep-seeded search of step 9, as they always have.
+    if spec["method"] == "greedy" and "candidate_source" in rows.columns:
+        rows = rows[rows["candidate_source"].fillna("k1_sweep") == "k1_sweep"]
     if "flag" in spec and spec["flag"] in rows.columns:
         rows = rows[rows[spec["flag"]].to_numpy(dtype=bool, na_value=False)]
     rows = rows[rows["reachable"].astype(bool)]

@@ -260,6 +260,42 @@ class MahalanobisScorer:
         return float(delta @ self.precision @ delta)
 
 
+def residual_features(
+    planner,
+    surrogate,
+    instance: MazeInstance,
+    design: np.ndarray,
+    feature_builder,
+    clean_sd: Optional[float] = None,
+) -> List[float]:
+    """The residual detector's feature vector for one map.
+
+    Args:
+        planner: The planner whose encoder is being monitored.
+        surrogate: A fitted surrogate (`src.surrogate.FitResult`).
+        instance: Supplies start and goal.
+        design: The map the planner is handed, clean or altered.
+        feature_builder: ``(instance, map_design) -> (matrix, mask)``.
+        clean_sd: Passed through to `residual_statistics`.
+
+    Returns:
+        list[float]: The statistics in `RESIDUAL_FEATURES` order.
+    """
+    from dataclasses import replace
+
+    from .planner import encode_cost_map
+
+    maps, starts, goals = replace(instance, map_design=design).to_tensors()
+    with torch.no_grad():
+        cost = encode_cost_map(planner, maps, starts, goals)[0, 0].numpy()
+    matrix, mask = feature_builder(instance, design)
+    prediction = np.zeros_like(cost, dtype=np.float64)
+    prediction[mask] = surrogate.model.predict(matrix)
+    residual = np.where(mask, cost - prediction, 0.0)
+    statistics = residual_statistics(residual, mask, clean_sd=clean_sd)
+    return [statistics[name] for name in RESIDUAL_FEATURES]
+
+
 def build_examples(
     planner,
     surrogate,
@@ -289,10 +325,6 @@ def build_examples(
         0 for clean. Rows of every array line up: index ``i`` is the same
         example everywhere.
     """
-    from dataclasses import replace
-
-    from .planner import encode_cost_map
-
     residual_rows: List[List[float]] = []
     activation_rows: Dict[str, List[np.ndarray]] = {}
     map_only_rows: List[List[float]] = []
@@ -304,15 +336,9 @@ def build_examples(
         if cells is None:
             continue
         for label, design in ((0, instance.map_design), (1, flip_cells(instance.map_design, cells))):
-            maps, starts, goals = replace(instance, map_design=design).to_tensors()
-            with torch.no_grad():
-                cost = encode_cost_map(planner, maps, starts, goals)[0, 0].numpy()
-            matrix, mask = feature_builder(instance, design)
-            prediction = np.zeros_like(cost, dtype=np.float64)
-            prediction[mask] = surrogate.model.predict(matrix)
-            residual = np.where(mask, cost - prediction, 0.0)
-            statistics = residual_statistics(residual, mask, clean_sd=clean_sd)
-            residual_rows.append([statistics[name] for name in RESIDUAL_FEATURES])
+            residual_rows.append(
+                residual_features(planner, surrogate, instance, design, feature_builder, clean_sd)
+            )
             for variant, vector in pooled_activations(
                 planner, instance, design, layers=layers
             ).items():

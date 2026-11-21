@@ -180,8 +180,9 @@ def encode_cost_map(
         torch.Tensor: ``(B, 1, H, W)`` cost maps, detached.
 
     Note:
-        Gradients are disabled here. The gradient-guided attack of PLAN.md
-        step 9 needs them, and must call `planner.encode` directly instead.
+        Gradients are disabled here. The gradient-guided attack
+        (`src.perturb.flip_sensitivity`) needs them and calls `planner.encode`
+        directly instead.
     """
     return planner.encode(map_designs, start_maps, goal_maps)
 
