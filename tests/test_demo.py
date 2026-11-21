@@ -1,34 +1,37 @@
-"""The interactive demo: its state logic and its click/key wiring, run headless."""
+"""The browser demo: its state logic and its local HTTP API, run headless."""
 
 from __future__ import annotations
 
-from types import SimpleNamespace
+import json
+import threading
+import urllib.request
 
-import matplotlib
 import numpy as np
 import pytest
 
-matplotlib.use("Agg")
-
-from scripts.demo import DemoState, DemoView, explain, order_path  # noqa: E402
+from scripts.demo import Demo, DemoState, explain, make_server, order_path
 
 
-def test_order_path_walks_the_route_from_the_start() -> None:
-    """A set of marked cells comes back as a chain of 8-neighbours from the start."""
+def test_order_path_never_jumps_between_touching_but_distant_cells() -> None:
+    """The drawn chain follows the route, start to goal, one 8-neighbour step at a time.
+
+    A greedy walk from the start can jump between two marked cells that touch
+    but are not consecutive, drawing a segment across a wall; the ordered
+    chain here must have exactly as many steps as the shortest chain.
+    """
     path = np.zeros((5, 5))
-    for rc in [(0, 0), (1, 1), (2, 1), (3, 2), (4, 3)]:
+    for rc in [(0, 0), (1, 0), (2, 0), (2, 1), (1, 2), (0, 2)]:  # a U shape
         path[rc] = 1
-    assert order_path(path, (0, 0)) == [(0, 0), (1, 1), (2, 1), (3, 2), (4, 3)]
+    route = order_path(path, (0, 0), (0, 2))
+    assert route[0] == (0, 0) and route[-1] == (0, 2)
+    assert all(max(abs(a[0] - b[0]), abs(a[1] - b[1])) == 1 for a, b in zip(route, route[1:]))
 
 
 def test_explain_attributes_damage_by_majority_share() -> None:
     """The network gets the blame when its costs alone reproduce half the change."""
-    values = {"C0O0": 10, "C0O1": 10, "C1O0": 13, "C1O1": 14}
-    assert "network" in explain("Route", values, "moves", 0.5, "{:+.0f}")[0]
-    values = {"C0O0": 10, "C0O1": 11, "C1O0": 11, "C1O1": 14}
-    assert "together" in explain("Route", values, "moves", 0.5, "{:+.0f}")[0]
-    values = {"C0O0": 10, "C0O1": 10, "C1O0": 10, "C1O1": 10}
-    assert "barely" in explain("Route", values, "moves", 0.5, "{:+.0f}")[0]
+    assert "network" in explain({"C0O0": 10, "C0O1": 10, "C1O0": 13, "C1O1": 14}, 0.5)
+    assert "together" in explain({"C0O0": 10, "C0O1": 11, "C1O0": 11, "C1O1": 14}, 0.5)
+    assert "barely" in explain({"C0O0": 10, "C0O1": 10, "C1O0": 10, "C1O1": 10}, 0.5)
 
 
 @pytest.fixture(scope="module")
@@ -49,22 +52,35 @@ def test_toggle_refuses_endpoints_and_round_trips(state) -> None:
     assert state.flips == [cell]
 
 
-def test_route_is_never_shorter_than_the_optimum(state) -> None:
-    """Opt >= 1 by definition; the verdict follows the project's error rule."""
+def test_drawn_route_matches_the_planner_on_attacked_maps(state) -> None:
+    """After attacks, the drawn route is legal and as long as the planner's path."""
     state.load_map(3)
-    state.gradient_step("optimality")
-    v = state.view
-    assert v["opt"] >= 1 - 1e-9
+    for _ in range(3):
+        state.gradient_step("optimality")
+        v = state.view
+        route = v["path"]
+        assert route[0] == state.instance.start_rc and route[-1] == state.instance.goal_rc
+        assert all(v["map"][rc] == 1 for rc in route)
+        assert len(route) - 1 == v["moves"]
     level, _ = state.verdict()
     assert (level == "fail") == (v["moves"] > v["optimal_moves"])
 
 
-def test_clicks_and_keys_reach_the_state(state) -> None:
-    """A click on the map flips the cell under it; `0` resets."""
+def test_http_api_serves_the_page_state_and_actions(state) -> None:
+    """GET / is the page, GET /api/state the JSON, POST /api/action changes it."""
     state.load_map(0)
-    view = DemoView(state, interactive=True)
-    view._on_click(SimpleNamespace(inaxes=view.ax_map, xdata=10.2, ydata=9.8))
-    assert state.flips == [(10, 10)]
-    view._on_key(SimpleNamespace(key="0"))
-    assert state.flips == []
-    view.plt.close(view.fig)
+    server = make_server(Demo(state), 0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{server.server_port}"
+    try:
+        assert b"<canvas" in urllib.request.urlopen(base + "/").read()
+        snap = json.loads(urllib.request.urlopen(base + "/api/state?x=1").read())
+        assert snap["mode"] == "maze" and len(snap["grid"]) == 32 and snap["flips"] == []
+        request = urllib.request.Request(base + "/api/action", data=json.dumps(
+            {"name": "flip", "arg": [10, 10]}).encode(), method="POST")
+        snap = json.loads(urllib.request.urlopen(request).read())
+        assert snap["flips"] == [[10, 10]]
+    finally:
+        server.shutdown()
+        server.server_close()

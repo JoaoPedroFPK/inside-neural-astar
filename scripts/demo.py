@@ -1,28 +1,28 @@
-"""Interactive demo: flip cells of a maze and watch Neural A* respond.
+"""Interactive demo: flip cells of a maze and watch Neural A* respond, in the browser.
 
-Click any cell to flip it (free <-> obstacle) and every panel updates from the
+Runs a small local web server (standard library only) and opens the page.
+Click any cell to flip it (free <-> obstacle); every view is recomputed by the
 real pretrained planner:
 
-* **map** — obstacles, the cells Neural A* expanded, its route, and the true
-  optimal route on the map as it now stands (classical exact search);
-* **cost map** — what the network outputs for every cell, and how much each
-  cell's cost moved because of the flips (only cells within the network's
-  11 x 11 receptive field of a flip can move);
-* **verdict** — the project's error rule: the planner fails only if its route
-  is longer than the *altered* map's optimum; finding a new route because the
-  map changed is the correct response;
-* **where the damage comes from** — the search rerun with only the network's
-  costs changed and with only the obstacles changed (the 2x2 swap of step 7).
+* the maze, with the cells Neural A* expanded, its route, and the exact
+  optimal route on the map as it now stands; or, by switching layers, the
+  network's cost map or how the flips changed it (only cells within the
+  network's 11 x 11 reach of a flip can move);
+* the verdict by the project's error rule: the planner fails only if its route
+  is longer than the *altered* map's optimum; replanning because the map
+  changed is the correct response;
+* where the damage comes from: the search rerun with only the new costs and
+  with only the new obstacles (the 2x2 swap of step 7);
+* optionally, step 12's tamper detector.
 
-Buttons (and keys): worst single cell for path / effort, looked up in the
-exhaustive sweep (`w` / `e`); one round of the gradient-guided attack of step
-13 (`g` / `h`); a random flip (`r`); undo (`u`); reset (`0`); previous / next
-map (`[` / `]`).
+Actions: worst single cell for path / effort from the exhaustive sweep, one
+round of the gradient-guided attack of step 13, a random flip, undo, reset,
+previous / next map. The page lists the keyboard shortcuts.
 
 Usage:
-    python scripts/demo.py                       # interactive window
-    python scripts/demo.py --map 7
-    python scripts/demo.py --actions "worst:opt grad:opt" --snapshots out/   # headless
+    python scripts/demo.py                      # opens http://127.0.0.1:8765/
+    python scripts/demo.py --map 63 --detector
+    python scripts/demo.py --actions "worst:opt grad:opt"   # headless, prints verdicts
 """
 
 from __future__ import annotations
@@ -43,7 +43,6 @@ from src.data import load_split  # noqa: E402
 from src.exact_solver import solve_astar, solve_dijkstra  # noqa: E402
 from src.grid import RC, flip_cells, is_reachable  # noqa: E402
 from src.perturb import (  # noqa: E402
-    OPT_CAP_FOR_EFFICIENCY,
     candidate_cells,
     gradient_pool,
     greedy_flip_search,
@@ -123,34 +122,51 @@ class TamperDetector:
         return float(self.control.predict_proba(x[:, :1])[0, 1]), float(self.combined.predict_proba(x)[0, 1])
 
 
-def order_path(path_map: np.ndarray, start: RC) -> List[RC]:
-    """Order the cells of a binary path map from the start, for drawing a line.
+def order_path(path_map: np.ndarray, start: RC, goal: Optional[RC] = None) -> List[RC]:
+    """Order the cells of a binary path map from start to goal, for drawing.
 
-    The search returns its route as a set of marked cells. A route is a chain
-    of 8-connected cells, so it is walked from the start, always to the one
-    unvisited marked neighbour.
+    The search returns its route as a set of marked cells, not a sequence.
+    Walking greedily from the start to "the next neighbour" can jump between
+    two marked cells that touch but are not consecutive on the route, and a
+    line drawn that way cuts across obstacles that the route itself goes
+    around. Instead this takes the shortest chain of 8-neighbouring marked
+    cells from start to goal (breadth-first search restricted to the marked
+    cells), so every drawn segment joins two cells the route really steps
+    between.
 
     Args:
         path_map: ``(H, W)`` binary map of the route.
-        start: The start cell, which lies on the route.
+        start: The start cell.
+        goal: The goal cell; when omitted, the marked cell farthest from the
+            start along the chain.
 
     Returns:
-        list[tuple[int, int]]: The route in order; stops early if the marked
-        cells are not a simple chain.
+        list[tuple[int, int]]: The route in order, start first.
     """
-    cells = {tuple(rc) for rc in np.argwhere(path_map > 0)}
-    order = [tuple(start)]
-    cells.discard(tuple(start))
-    while cells:
-        r, c = order[-1]
-        nxt = [rc for rc in cells if max(abs(rc[0] - r), abs(rc[1] - c)) == 1]
-        if not nxt:
+    from collections import deque
+
+    cells = {tuple(int(v) for v in rc) for rc in np.argwhere(path_map > 0)}
+    start = tuple(int(v) for v in start)
+    cells.add(start)
+    parent: Dict[RC, Optional[RC]] = {start: None}
+    queue = deque([start])
+    last = start
+    while queue:
+        r, c = last = queue.popleft()
+        if goal is not None and last == tuple(goal):
             break
-        # Prefer orthogonal steps when two neighbours qualify, as a route would.
-        nxt.sort(key=lambda rc: abs(rc[0] - r) + abs(rc[1] - c))
-        order.append(nxt[0])
-        cells.discard(nxt[0])
-    return order
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                nxt = (r + dr, c + dc)
+                if nxt in cells and nxt not in parent:
+                    parent[nxt] = last
+                    queue.append(nxt)
+    end = tuple(goal) if goal is not None and tuple(goal) in parent else last
+    order = []
+    while end is not None:
+        order.append(end)
+        end = parent[end]
+    return order[::-1]
 
 
 class DemoState:
@@ -180,7 +196,7 @@ class DemoState:
         self.instance_id = int(instance_id) % len(self.split)
         self.instance = self.split.instance(self.instance_id, seed=self.seed)
         self.flips, self.undo_stack = [], []
-        self.message = f"map {self.instance_id} of {len(self.split)}"
+        self.message = f"Test map {self.instance_id} (of 0–{len(self.split) - 1}). Click a cell to flip it."
         self._clean = self._evaluate([])
         self.view = self._clean
 
@@ -297,7 +313,7 @@ class DemoState:
             "cost0": cost0[0, 0].numpy(),
             "cost1": cost1[0, 0].numpy(),
             "histories": out.histories[0, 0].numpy(),
-            "path": order_path(path_map, inst.start_rc),
+            "path": order_path(path_map, inst.start_rc, inst.goal_rc),
             "optimal_path": optimum.path,
             "moves": moves,
             "optimal_moves": float(optimum.cost),
@@ -314,356 +330,465 @@ class DemoState:
         v = self.view
         extra = v["moves"] - v["optimal_moves"]
         if extra > TOL:
-            return "fail", f"PLANNER FAILED — route {extra:.0f} moves longer than this map's optimum"
+            moves = "move" if round(extra) == 1 else "moves"
+            return "fail", f"The planner failed: its route is {extra:.0f} {moves} longer than the shortest"
         if v["exp"] > 1 + TOL:
-            return "warn", "route optimal, but the search did more work than classical A*"
-        return "ok", "route optimal, with less work than classical A*"
+            return "warn", "Shortest route found, but with more work than classical A*"
+        return "ok", "Shortest route found, with less work than classical A*"
 
 
-# ===================================================================== view
-COLORS = {
-    "free": (1.0, 1.0, 1.0), "obstacle": (0.17, 0.18, 0.22),
-    "expanded": (0.36, 0.62, 0.90, 0.45), "route": "#ff7a1a", "optimal": "#16a394",
-    "flip": "#ffd400", "start": "#2fbf4a", "goal": "#e5383b",
-    "ok": "#2fbf4a", "warn": "#f2a81d", "fail": "#e5383b",
-}
+def explain(values: Dict[str, float], floor: float) -> str:
+    """Which change produced the damage, as one plain-language phrase.
 
-
-def explain(name: str, values: Dict[str, float], unit: str, floor: float, fmt: str) -> Tuple[str, None, str]:
-    """One plain-language line on which change produced the damage.
-
-    `values` holds one metric under the four swap conditions (the bars of the
-    panel next to it). The change is attributed to the network when its new
-    costs on the old obstacles reproduce at least half of it, to the search
-    when the old costs on the new obstacles do. Changes smaller than `floor`
-    are called negligible instead of being split into noisy shares.
+    `values` holds one metric under the four swap conditions. The change is
+    attributed to the network when its new costs on the old obstacles
+    reproduce at least half of it, to the search when the old costs on the new
+    obstacles do. Changes smaller than `floor` are called negligible instead
+    of being split into noisy shares.
     """
     base, total = values["C0O0"], values["C1O1"] - values["C0O0"]
-    amount = (fmt.format(total) + (f" {unit}" if unit else "")).strip()
     if abs(total) < floor:
-        return (f"{name}: barely changed ({amount}).", None, "#444")
+        return "barely changed"
     network = (values["C1O0"] - base) / total >= 0.5
     search = (values["C0O1"] - base) / total >= 0.5
     if network and search:
-        verdict = "either change alone is enough."
-    elif network:
-        verdict = "mostly the network: its new costs alone do it."
-    elif search:
-        verdict = "mostly the search: the old costs fail on the new obstacles."
-    else:
-        verdict = "neither alone; costs and obstacles only hurt together."
-    return (f"{name} {amount}: {verdict}", None, "#444")
+        return "either change alone is enough"
+    if network:
+        return "the network: its new costs alone do it"
+    if search:
+        return "the search: the old costs fail on the new obstacles"
+    return "neither alone: costs and obstacles only hurt together"
 
 
-class DemoView:
-    """Draws a `DemoState` into one matplotlib figure; wires buttons when interactive."""
-
-    def __init__(self, state: DemoState, interactive: bool) -> None:
-        import matplotlib.pyplot as plt
-
-        self.state = state
-        self.plt = plt
-        self.fig = plt.figure(figsize=(16, 9), facecolor="white")
-        self.fig.canvas.manager.set_window_title("Neural A* — flip a cell") if interactive else None
-        grid = self.fig.add_gridspec(2, 3, left=0.02, right=0.975, top=0.88, bottom=0.14,
-                                     wspace=0.22, hspace=0.3, width_ratios=[1.5, 1, 1.05])
-        self.ax_map = self.fig.add_subplot(grid[:, 0])
-        self.ax_cost = self.fig.add_subplot(grid[0, 1])
-        self.ax_delta = self.fig.add_subplot(grid[0, 2])
-        self.ax_swap = self.fig.add_subplot(grid[1, 1])
-        self.ax_text = self.fig.add_subplot(grid[1, 2])
-        self.colorbars = []
-        self.buttons = []
-        self._add_buttons()
-        if interactive:
-            self.fig.canvas.mpl_connect("button_press_event", self._on_click)
-            self.fig.canvas.mpl_connect("key_press_event", self._on_key)
-        self.draw()
-
-    # ------------------------------------------------------------ controls
-    def _add_buttons(self) -> None:
-        from matplotlib.widgets import Button
-
-        s = self.state
-        spec = [
-            ("worst cell: path  [w]", lambda: s.worst("optimality")),
-            ("worst cell: effort  [e]", lambda: s.worst("efficiency")),
-            ("gradient +1: path  [g]", lambda: s.gradient_step("optimality")),
-            ("gradient +1: effort  [h]", lambda: s.gradient_step("efficiency")),
-            ("random flip  [r]", s.random_flip),
-            ("undo  [u]", s.undo),
-            ("reset  [0]", s.reset),
-            ("◀ map  [", lambda: s.load_map(s.instance_id - 1)),
-            ("map ▶  ]", lambda: s.load_map(s.instance_id + 1)),
-        ]
-        width, gap, left = 0.098, 0.008, 0.03
-        for i, (label, action) in enumerate(spec):
-            ax = self.fig.add_axes([left + i * (width + gap), 0.025, width, 0.05])
-            button = Button(ax, label, color="#eef1f5", hovercolor="#d7e3f4")
-            button.label.set_fontsize(9)
-            button.on_clicked(lambda _event, a=action: self._run(a))
-            self.buttons.append(button)
-
-    def _run(self, action) -> None:
-        self.fig.suptitle("working…", fontsize=13, color="#666")
-        self.fig.canvas.draw_idle()
-        self.fig.canvas.flush_events()
-        action()
-        self.draw()
-
-    def _on_click(self, event) -> None:
-        if event.inaxes is self.ax_map and event.xdata is not None:
-            rc = (int(round(event.ydata)), int(round(event.xdata)))
-            self._run(lambda: self.state.toggle(rc))
-
-    def _on_key(self, event) -> None:
-        s = self.state
-        keys = {
-            "w": lambda: s.worst("optimality"), "e": lambda: s.worst("efficiency"),
-            "g": lambda: s.gradient_step("optimality"), "h": lambda: s.gradient_step("efficiency"),
-            "r": s.random_flip, "u": s.undo, "0": s.reset,
-            "[": lambda: s.load_map(s.instance_id - 1), "]": lambda: s.load_map(s.instance_id + 1),
+def snapshot(state: DemoState) -> Dict[str, object]:
+    """Everything the page draws, as JSON-ready values."""
+    v, clean, inst = state.view, state._clean, state.instance
+    level, headline = state.verdict()
+    swap = v["swap"]
+    out: Dict[str, object] = {
+        "map_id": state.instance_id,
+        "n_maps": len(state.split),
+        "grid": v["map"].astype(int).tolist(),
+        "start": list(inst.start_rc),
+        "goal": list(inst.goal_rc),
+        "flips": [list(rc) for rc in state.flips],
+        "expanded": (v["histories"] > 0).astype(int).tolist(),
+        "route": [list(rc) for rc in v["path"]],
+        "optimal_route": [list(map(int, rc)) for rc in v["optimal_path"]],
+        "cost": np.round(v["cost1"], 3).tolist(),
+        "cost_change": np.round(v["cost1"] - v["cost0"], 3).tolist(),
+        "level": level,
+        "headline": headline,
+        "message": state.message,
+        "now": {"moves": v["moves"], "optimum": v["optimal_moves"], "expanded": v["expanded"],
+                "classical": v["classical_expanded"]},
+        "clean": {"moves": clean["moves"], "optimum": clean["optimal_moves"],
+                  "expanded": clean["expanded"], "classical": clean["classical_expanded"]},
+        "swap": None,
+        "tamper": None,
+        "has_sweep": state.manifest() is not None,
+    }
+    if swap is not None:
+        out["swap"] = {
+            "moves": swap.path_cost, "expanded": swap.expansions,
+            "optimum": {"O0": swap.references["O0"][0], "O1": swap.references["O1"][0]},
+            "classical": {"O0": swap.references["O0"][1], "O1": swap.references["O1"][1]},
+            "optimum_changed": swap.optimum_changed,
+            "route_reading": explain(swap.path_cost, 0.5),
+            "work_reading": explain(swap.exp, 0.05),
         }
-        if event.key in keys:
-            self._run(keys[event.key])
-
-    # ------------------------------------------------------------- drawing
-    def draw(self) -> None:
-        for bar in self.colorbars:
-            bar.remove()
-        self.colorbars = []
-        for ax in (self.ax_map, self.ax_cost, self.ax_delta, self.ax_swap, self.ax_text):
-            ax.clear()
-        s, v = self.state, self.state.view
-        self._draw_map(s, v)
-        self._draw_costs(s, v)
-        self._draw_swap(v)
-        self._draw_text(s, v)
-        level, text = s.verdict()
-        self.fig.suptitle(text, fontsize=15, fontweight="bold", color=COLORS[level], y=0.975)
-        clean = s._clean
-        for artist in getattr(self, "_texts", []):
-            artist.remove()
-        compare = (f"against the clean map: route {v['moves'] - clean['moves']:+.0f} moves, "
-                   f"work ×{v['expanded'] / clean['expanded']:.2f} "
-                   f"({clean['expanded']:.0f} → {v['expanded']:.0f} cells expanded)"
-                   if s.flips else "clean map — nothing flipped yet")
-        self._texts = [
-            self.fig.text(0.5, 0.925, compare, ha="center", fontsize=11, color="#555"),
-            self.fig.text(0.02, 0.095, "▸ " + s.message, fontsize=10.5, color="#1f4e9c",
-                          fontweight="bold"),
-        ]
-        self.fig.canvas.draw_idle()
-
-    def _cells(self, ax, cells, **style) -> None:
-        from matplotlib.patches import Rectangle
-
-        for r, c in cells:
-            ax.add_patch(Rectangle((c - 0.5, r - 0.5), 1, 1, fill=False, **style))
-
-    def _draw_map(self, s: DemoState, v: Dict[str, object]) -> None:
-        ax = self.ax_map
-        grid = v["map"]
-        rgb = np.where(grid[..., None] > 0, COLORS["free"], COLORS["obstacle"])
-        ax.imshow(rgb, interpolation="nearest")
-        layer = np.zeros(grid.shape + (4,))
-        layer[v["histories"] > 0] = COLORS["expanded"]
-        ax.imshow(layer, interpolation="nearest")
-        opt = np.array(v["optimal_path"])
-        ax.plot(opt[:, 1], opt[:, 0], color=COLORS["optimal"], lw=7, alpha=0.45,
-                solid_capstyle="round", label=f"optimal route ({v['optimal_moves']:.0f} moves)")
-        route = np.array(v["path"])
-        ax.plot(route[:, 1], route[:, 0], color=COLORS["route"], lw=2.6, marker="o", ms=3,
-                label=f"Neural A* route ({v['moves']:.0f} moves)")
-        self._cells(ax, s.flips, edgecolor=COLORS["flip"], lw=3)
-        sr, sc = s.instance.start_rc
-        gr, gc = s.instance.goal_rc
-        ax.plot(sc, sr, "o", ms=14, color=COLORS["start"], mec="white", mew=2)
-        ax.plot(gc, gr, "*", ms=20, color=COLORS["goal"], mec="white", mew=1.5)
-        ax.set_xticks([]), ax.set_yticks([])
-        from matplotlib.patches import Patch
-
-        handles, _ = ax.get_legend_handles_labels()
-        handles += [Patch(color=COLORS["expanded"], label=f"expanded ({v['expanded']:.0f} cells)"),
-                    Patch(fill=False, edgecolor=COLORS["flip"], lw=2, label="flipped cell")]
-        ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=2,
-                  fontsize=9.5, frameon=False)
-        ax.set_title(f"test map {s.instance_id} — click a cell to flip it", fontsize=12, loc="left")
-
-    def _draw_costs(self, s: DemoState, v: Dict[str, object]) -> None:
-        free = v["map"] > 0
-        cost = np.ma.masked_where(~free, v["cost1"])
-        image = self.ax_cost.imshow(cost, cmap="magma", vmin=0, vmax=1, interpolation="nearest")
-        self.ax_cost.set_facecolor("#9aa0a6")
-        self._cells(self.ax_cost, s.flips, edgecolor=COLORS["flip"], lw=2)
-        for ax in (self.ax_cost, self.ax_delta):
-            ax.plot(s.instance.start_rc[1], s.instance.start_rc[0], "o", ms=6, color=COLORS["start"], mec="white")
-            ax.plot(s.instance.goal_rc[1], s.instance.goal_rc[0], "*", ms=9, color=COLORS["goal"], mec="white")
-        self.ax_cost.set_title("network's cost map (dark = cheap)", fontsize=10.5, loc="left")
-        self.colorbars.append(self.fig.colorbar(image, ax=self.ax_cost, fraction=0.046, pad=0.03))
-
-        delta = v["cost1"] - v["cost0"]
-        limit = max(float(np.abs(delta).max()), 0.05)
-        image = self.ax_delta.imshow(delta, cmap="RdBu_r", vmin=-limit, vmax=limit, interpolation="nearest")
-        from matplotlib.patches import Rectangle
-
-        for r, c in s.flips:
-            k = RECEPTIVE_RADIUS
-            self.ax_delta.add_patch(Rectangle((c - k - 0.5, r - k - 0.5), 2 * k + 1, 2 * k + 1,
-                                              fill=False, ls=":", lw=1.2, edgecolor="#333"))
-        self._cells(self.ax_delta, s.flips, edgecolor="black", lw=1.8)
-        self.ax_delta.set_title("cost change from the flips\n(dotted: the network's 11×11 reach)",
-                                fontsize=10.5, loc="left")
-        self.colorbars.append(self.fig.colorbar(image, ax=self.ax_delta, fraction=0.046, pad=0.03,
-                                                format="%.2f"))
-        if not s.flips:
-            self.ax_delta.text(0.5, 0.5, "no cell flipped yet", ha="center", va="center",
-                               color="#777", fontsize=11, transform=self.ax_delta.transAxes)
-        for ax in (self.ax_cost, self.ax_delta):
-            ax.set_xticks([]), ax.set_yticks([])
-
-    def _draw_swap(self, v: Dict[str, object]) -> None:
-        ax = self.ax_swap
-        swap = v["swap"]
-        ax.set_title("where the damage comes from\n(the search rerun four ways)", fontsize=10.5, loc="left")
-        if swap is None:
-            ax.text(0.5, 0.5, "flip a cell to decompose its effect", ha="center", va="center",
-                    color="#777", fontsize=11, transform=ax.transAxes)
-            ax.axis("off")
-            return
-        labels = ["clean map", "obstacles changed,\nold costs (search)",
-                  "costs changed,\nold obstacles (network)", "both changed\n(what happens)"]
-        keys = ["C0O0", "C0O1", "C1O0", "C1O1"]
-        y = np.arange(4)[::-1]
-        opt = [swap.opt[k] for k in keys]
-        exp = [swap.exp[k] for k in keys]
-        ax.barh(y + 0.19, opt, 0.36, color=COLORS["route"], label="route length ÷ optimum")
-        ax.barh(y - 0.19, exp, 0.36, color=COLORS["expanded"][:3], label="cells expanded ÷ classical A*")
-        for yy, a, b in zip(y, opt, exp):
-            ax.text(a + 0.02, yy + 0.19, f"{a:.2f}", va="center", fontsize=8.5)
-            ax.text(b + 0.02, yy - 0.19, f"{b:.2f}", va="center", fontsize=8.5)
-        ax.axvline(1, color="#555", lw=0.8, ls="--")
-        ax.set_yticks(y)
-        ax.set_yticklabels(labels, fontsize=8.5)
-        ax.set_xlim(0, max(max(opt), max(exp), 1.0) * 1.22)
-        ax.legend(fontsize=8.5, loc="upper center", bbox_to_anchor=(0.4, -0.1), ncol=2, frameon=False)
-        for side in ("top", "right"):
-            ax.spines[side].set_visible(False)
-
-    def _draw_text(self, s: DemoState, v: Dict[str, object]) -> None:
-        import textwrap
-
-        ax = self.ax_text
-        ax.axis("off")
-        clean = s._clean
-        lines = [
-            ("This map, as altered" if s.flips else "This map (clean)", "bold", "#222"),
-            (f"route: {v['moves']:.0f} moves vs optimum {v['optimal_moves']:.0f}   (Opt {v['opt']:.3f})",
-             None, "#222"),
-            (f"work: {v['expanded']:.0f} cells vs classical A* {v['classical_expanded']:.0f}   "
-             f"(Exp {v['exp']:.2f})", None, "#222"),
-            ("", None, None),
-        ]
-        swap = v["swap"]
-        if swap is not None:
-            lines.append(("Why", "bold", "#222"))
-            if swap.optimum_changed:
-                lines.append((f"The flips changed the true optimum ({clean['optimal_moves']:.0f} → "
-                              f"{v['optimal_moves']:.0f} moves); the planner must adapt to that.", None, "#b26b00"))
-            lines.append(explain("Route", swap.path_cost, "moves", 0.5, "{:+.0f}"))
-            lines.append(explain("Work vs classical A*", swap.exp, "", 0.05, "{:+.2f}"))
-        if v["tamper"] is not None:
-            control, combined = v["tamper"]
-            seen = "" if s.instance_id >= TamperDetector.TRAIN_MAPS else " (map used to fit it)"
-            lines += [("", None, None), (f"Tamper detector{seen}", "bold", "#222"),
-                      (f"map-only network: P(altered) {control:.2f}", None, "#444"),
-                      (f"+ planner's cost map: P(altered) {combined:.2f}", None,
-                       COLORS["fail"] if combined > 0.5 else COLORS["ok"])]
-        y = 1.0
-        for text, weight, color in lines:
-            for piece in textwrap.wrap(text, 50) or [""]:
-                ax.text(0.0, y, piece, fontsize=10.5 if weight else 10, fontweight=weight or "normal",
-                        color=color or "#222", transform=ax.transAxes, va="top")
-                y -= 0.075
-
-    def save(self, path: Path) -> None:
-        self.fig.savefig(path, dpi=90)
+    if v["tamper"] is not None:
+        out["tamper"] = {"map_only": v["tamper"][0], "with_planner": v["tamper"][1],
+                         "fitted_on_this_map": state.instance_id < TamperDetector.TRAIN_MAPS}
+    return out
 
 
-def run_actions(state: DemoState, view: DemoView, actions: Sequence[str], out_dir: Optional[Path],
-                gif: Optional[Path] = None, frame_ms: int = 2200) -> None:
-    """Apply scripted actions, saving a snapshot after each (headless mode).
+def apply_action(state: DemoState, name: str, arg: object = None) -> None:
+    """Run one named action on the state (shared by the web page and headless mode)."""
+    objective = {"opt": "optimality", "eff": "efficiency"}
+    if name == "flip":
+        state.toggle(tuple(int(x) for x in arg))
+    elif name == "map":
+        state.load_map(int(arg))
+    elif name == "worst":
+        state.worst(objective[arg])
+    elif name == "grad":
+        state.gradient_step(objective[arg])
+    elif name == "random":
+        state.random_flip()
+    elif name == "undo":
+        state.undo()
+    elif name == "reset":
+        state.reset()
+    else:
+        raise ValueError(f"unknown action {name!r}")
 
-    Actions: ``map:N``, ``flip:R,C``, ``worst:opt|eff``, ``grad:opt|eff``,
-    ``random``, ``undo``, ``reset``. With `gif`, every state is also a frame
-    of an animation — a recorded walkthrough to fall back on if a live demo
-    is not possible.
-    """
+
+def png_data_url(image: np.ndarray) -> str:
+    """A ``(H, W, 3)`` image in [0, 1] or uint8 as an inline PNG for the page."""
+    import base64
+    import io
+
     from PIL import Image
 
-    objective = {"opt": "optimality", "eff": "efficiency"}
-    frames = []
+    array = image if image.dtype == np.uint8 else (np.clip(image, 0, 1) * 255).round().astype(np.uint8)
+    buffer = io.BytesIO()
+    Image.fromarray(array).save(buffer, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
 
-    def snapshot(name: str) -> None:
-        if out_dir:
-            view.save(out_dir / name)
-        if gif:
-            view.fig.canvas.draw()
-            frames.append(Image.fromarray(np.asarray(view.fig.canvas.buffer_rgba())).convert("RGB"))
 
-    if out_dir:
-        out_dir.mkdir(parents=True, exist_ok=True)
-    snapshot("step_00_start.png")
-    for i, action in enumerate(actions, start=1):
-        name, _, arg = action.partition(":")
-        if name == "map":
-            state.load_map(int(arg))
-        elif name == "flip":
-            state.toggle(tuple(int(x) for x in arg.split(",")))
-        elif name == "worst":
-            state.worst(objective[arg])
-        elif name == "grad":
-            state.gradient_step(objective[arg])
-        elif name in ("random", "undo", "reset"):
-            getattr(state, {"random": "random_flip"}.get(name, name))()
+class WarcraftState:
+    """The demo on WarCraft terrain pictures (step 11).
+
+    Each map is a 96 x 96 picture of 12 x 12 terrain tiles with a hidden true
+    cost each (0.8 to 9.2); the planner sees only the picture. Two kinds of
+    change are offered: repainting a tile with a real tile of another terrain
+    from the training maps (the true costs change, so the shortest route may
+    move), and an invisible pixel attack (every pixel nudged by at most
+    eps/255; the true costs do not change at all).
+    """
+
+    def __init__(self, seed: int = 0) -> None:
+        import glob
+
+        from src import warcraft as wc
+
+        self.wc = wc
+        checkpoints = sorted(glob.glob(str(config.RESULTS_DIR / "models" / "warcraft_seed0" / "**" / "*.ckpt"),
+                                       recursive=True))
+        if not checkpoints:
+            raise FileNotFoundError("no WarCraft model: run `make warcraft-train`")
+        self.planner = wc.load_warcraft_planner(Path(checkpoints[-1]))
+        self.test = wc.load_warcraft_split("test")
+        self.train = wc.load_warcraft_split("train")
+        self.pool = wc.donor_pool(self.train.weights)
+        self.rng = np.random.default_rng(seed)
+        outputs = config.RESULTS_DIR / "warcraft" / "warcraft_seed0" / "test_outputs.npz"
+        self.solved = (np.load(outputs)["opt"] <= 1 + wc.OPT_TOL) if outputs.exists() else None
+        # One real training tile per terrain class, shown as the paint palette.
+        # The dataset does not name its terrains, so neither does the demo.
+        self.swatches = []
+        for cls in wc.TERRAIN_COSTS:
+            m, r, c = (int(v) for v in self.pool[cls][0])
+            self.swatches.append({"cost": cls, "image": png_data_url(self.train.images[m][wc.tile_slice((r, c))])})
+        sweep = config.RESULTS_DIR / "warcraft" / "warcraft_seed0" / "manifest.parquet"
+        self.sweep = None
+        if sweep.exists():
+            import pandas as pd
+
+            self.sweep = pd.read_parquet(sweep, columns=["instance_id", "flip_cells", "new_weight",
+                                                       "donors", "opt_C1", "opt_C0_on_W1"])
+        self.load_map(0)
+
+    def load_map(self, instance_id: int) -> None:
+        self.instance_id = int(instance_id) % len(self.test)
+        self.image = self.test.images[self.instance_id].copy()
+        self.weights = self.test.weights[self.instance_id].copy()
+        self.delta: Optional[np.ndarray] = None
+        self.eps = 0
+        self.edits: List[Tuple[RC, float]] = []
+        self.undo_stack: List[tuple] = []
+        self.message = f"WarCraft test map {self.instance_id}. Pick a terrain, then click a tile to repaint it."
+        self.clean = self._evaluate()
+        self.view = self.clean
+
+    def next_solved(self, step: int) -> None:
+        """Jump to the next map the planner solves optimally when untouched."""
+        if self.solved is None:
+            self.load_map(self.instance_id + step)
+            return
+        i = self.instance_id
+        for _ in range(len(self.test)):
+            i = (i + step) % len(self.test)
+            if self.solved[i]:
+                break
+        self.load_map(i)
+        self.message = f"WarCraft test map {i}: one the planner solves when nothing is changed."
+
+    def _push(self) -> None:
+        self.undo_stack.append((self.image.copy(), self.weights.copy(), self.delta, self.eps, list(self.edits)))
+
+    def undo(self) -> None:
+        if self.undo_stack:
+            self.image, self.weights, self.delta, self.eps, self.edits = self.undo_stack.pop()
+            self.view = self._evaluate()
+            self.message = "undone"
+
+    def reset(self) -> None:
+        if self.edits or self.delta is not None:
+            self._push()
+            self.image = self.test.images[self.instance_id].copy()
+            self.weights = self.test.weights[self.instance_id].copy()
+            self.delta, self.eps, self.edits = None, 0, []
+            self.view = self._evaluate()
+            self.message = "reset to the original picture"
+
+    def paint(self, rc: RC, cls: float) -> None:
+        """Replace tile `rc` with a real tile of terrain `cls` from a training map."""
+        rc = (int(rc[0]), int(rc[1]))
+        if rc in (self.wc.START_RC, self.wc.GOAL_RC):
+            self.message = "start and goal tiles cannot be repainted"
+            return
+        cls = min(self.wc.TERRAIN_COSTS, key=lambda c: abs(c - float(cls)))
+        donor = self.wc.draw_donor(self.pool, cls, self.rng)
+        self._push()
+        self.image, self.weights = self.wc.transplant_tiles(
+            self.image, self.weights, [rc], [self.train.images[donor[0]]], [(donor[1], donor[2])], [cls])
+        self.edits = [e for e in self.edits if e[0] != rc] + [(rc, cls)]
+        self.view = self._evaluate()
+        self.message = f"tile {rc} repainted with terrain of true cost {cls}"
+
+    def worst(self) -> None:
+        """The single tile repaint that hurt the planner most, from the exhaustive sweep."""
+        if self.sweep is None:
+            self.message = "no WarCraft sweep found: run `make warcraft`"
+            return
+        rows = self.sweep[self.sweep["instance_id"] == self.instance_id]
+        if rows.empty:
+            self.message = "the sweep covered test maps 0-299 only; pick one of those"
+            return
+        row = rows.loc[rows["opt_C1"].idxmax()]
+        rc = tuple(int(v) for v in row["flip_cells"][0])
+        donor = tuple(int(v) for v in row["donors"][0])
+        cls = float(row["new_weight"][0])
+        self.reset_silently()
+        self._push()
+        self.image, self.weights = self.wc.transplant_tiles(
+            self.image, self.weights, [rc], [self.train.images[donor[0]]], [(donor[1], donor[2])], [cls])
+        self.edits = [(rc, cls)]
+        self.view = self._evaluate()
+        self.message = (f"worst single repaint out of {len(rows)} tried: tile {rc}, "
+                        f"terrain of true cost {cls}")
+
+    def reset_silently(self) -> None:
+        self.image = self.test.images[self.instance_id].copy()
+        self.weights = self.test.weights[self.instance_id].copy()
+        self.delta, self.eps, self.edits = None, 0, []
+
+    def pixel_attack(self, eps_255: int, kind: str) -> None:
+        """Nudge every pixel by at most eps/255: gradient-guided (PGD) or random signs."""
+        from scripts.warcraft_study import pgd
+
+        eps = int(eps_255) / 255.0
+        self._push()
+        base = self.image.astype(np.float32) / 255.0
+        if kind == "pgd":
+            target = np.zeros((1, self.wc.GRID, self.wc.GRID), dtype=np.float32)
+            for rc in self.wc.optimal_solution(self.weights).path:
+                target[0][rc] = 1.0
+            attacked = pgd(self.planner, self.image[None], target, eps, 10)[0]
         else:
-            raise ValueError(f"unknown action {action!r}")
-        view.draw()
-        print(f"{action:>14}: {state.verdict()[1]} | {state.message}")
-        snapshot(f"step_{i:02d}_{name}.png")
-    if gif and frames:
-        gif.parent.mkdir(parents=True, exist_ok=True)
-        frames[0].save(gif, save_all=True, append_images=frames[1:], duration=frame_ms, loop=0)
-        print(f"wrote {gif} ({len(frames)} frames)")
+            attacked = np.clip(base + self.rng.choice([-eps, eps], size=base.shape), 0, 1)
+        self.delta = (attacked - base).astype(np.float32)
+        self.eps = int(eps_255)
+        self.view = self._evaluate()
+        what = "gradient attack" if kind == "pgd" else "random noise"
+        self.message = f"{what}: every pixel moved by at most {eps_255}/255 — the true costs did not change"
+
+    def _evaluate(self) -> Dict[str, object]:
+        wc = self.wc
+        x = self.image.astype(np.float32) / 255.0
+        if self.delta is not None:
+            x = np.clip(x + self.delta, 0, 1)
+        costs, paths, hists = wc.plan(self.planner, x[None])
+        sc = wc.score(self.weights[None], paths, hists, costs)
+        from scipy.stats import spearmanr
+
+        return {
+            "input": x,
+            "cost": costs[0],
+            "route": order_path(paths[0], wc.START_RC, wc.GOAL_RC),
+            "expanded": hists[0] > 0,
+            "optimal_route": [tuple(int(v) for v in rc) for rc in wc.optimal_solution(self.weights).path],
+            "exact_route": order_path(wc.exact_path_on(costs[0]), wc.START_RC, wc.GOAL_RC),
+            "path_cost": float(sc["path_cost"][0]), "optimum": float(sc["optimum"][0]),
+            "exact_cost": float(sc["opt_exact"][0] * sc["optimum"][0]),
+            "expanded_n": float(sc["expansions"][0]), "classical": float(sc["classical_expansions"][0]),
+            "spearman": float(spearmanr(costs[0].ravel(), self.weights.ravel()).correlation),
+        }
+
+    def verdict(self) -> Tuple[str, str]:
+        v = self.view
+        extra = v["path_cost"] - v["optimum"]
+        if extra > 1e-6:
+            return "fail", f"The planner failed: its route costs {extra / v['optimum']:.0%} more than the cheapest"
+        return "ok", "Cheapest route found"
+
+    def snapshot(self) -> Dict[str, object]:
+        v, c = self.view, self.clean
+        level, headline = self.verdict()
+        cost = v["cost"]
+        span = float(cost.max() - cost.min()) or 1.0
+        out = {
+            "mode": "warcraft",
+            "map_id": self.instance_id,
+            "n_maps": len(self.test),
+            "image": png_data_url(v["input"]),
+            "perturbation": png_data_url(0.5 + self.delta / (2 * self.eps / 255.0)) if self.delta is not None else None,
+            "eps": self.eps,
+            "weights": self.weights.tolist(),
+            "cost": np.round((cost - cost.min()) / span, 3).tolist(),
+            "cost_raw": np.round(cost, 3).tolist(),
+            # Colour by rank: the network's costs span two orders of magnitude,
+            # and a linear ramp would leave most tiles the same pale shade.
+            "cost_rank": np.round(np.argsort(np.argsort(cost.ravel())).reshape(cost.shape) / (cost.size - 1), 3).tolist(),
+            "route": [list(rc) for rc in v["route"]],
+            "optimal_route": [list(rc) for rc in v["optimal_route"]],
+            "exact_route": [list(rc) for rc in v["exact_route"]],
+            "expanded": v["expanded"].astype(int).tolist(),
+            "edits": [[list(rc), cls] for rc, cls in self.edits],
+            "start": list(self.wc.START_RC), "goal": list(self.wc.GOAL_RC),
+            "terrains": self.swatches,
+            "level": level, "headline": headline, "message": self.message,
+            "now": {k: v[k] for k in ("path_cost", "optimum", "exact_cost", "expanded_n", "classical", "spearman")},
+            "clean": {k: c[k] for k in ("path_cost", "optimum", "exact_cost", "expanded_n", "classical", "spearman")},
+            "has_sweep": self.sweep is not None and self.instance_id < 300,
+            "solved_clean": bool(c["path_cost"] <= c["optimum"] + 1e-6),
+        }
+        return out
+
+
+class Demo:
+    """Both demos behind one server; the page switches between them."""
+
+    def __init__(self, maze: DemoState, seed: int = 0) -> None:
+        self.maze = maze
+        self.seed = seed
+        self.warcraft: Optional[WarcraftState] = None
+        self.mode = "maze"
+        self.warcraft_error = ""
+
+    def snapshot(self) -> Dict[str, object]:
+        if self.mode == "warcraft" and self.warcraft is not None:
+            return self.warcraft.snapshot()
+        out = snapshot(self.maze)
+        out["mode"] = "maze"
+        if self.warcraft_error:
+            out["message"] = self.warcraft_error
+            self.warcraft_error = ""
+        return out
+
+    def apply(self, name: str, arg: object = None) -> None:
+        if name == "mode":
+            if arg == "warcraft" and self.warcraft is None:
+                try:
+                    self.warcraft = WarcraftState(self.seed)
+                except (FileNotFoundError, OSError) as error:
+                    self.warcraft_error = f"WarCraft is not available here: {error}. Run `make warcraft-data` and `make warcraft-train`."
+                    return
+            self.mode = "warcraft" if arg == "warcraft" else "maze"
+            return
+        if self.mode == "maze":
+            apply_action(self.maze, name, arg)
+            return
+        w = self.warcraft
+        if name == "paint":
+            w.paint(arg[:2], arg[2])
+        elif name == "map":
+            w.load_map(int(arg))
+        elif name == "solved":
+            w.next_solved(int(arg))
+        elif name == "worst":
+            w.worst()
+        elif name == "pixels":
+            w.pixel_attack(int(arg[0]), arg[1])
+        elif name in ("undo", "reset"):
+            getattr(w, name)()
+        else:
+            raise ValueError(f"unknown action {name!r}")
+
+
+PAGE = Path(__file__).with_name("demo_page.html")
+
+
+def make_server(state: "Demo", port: int):
+    """A single-threaded local HTTP server: the page, its state, and its actions.
+
+    One request at a time on purpose: the planner is not shared across threads,
+    and one person drives the demo.
+    """
+    import json
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class Handler(BaseHTTPRequestHandler):
+        def _send(self, body: bytes, kind: str, code: int = 200) -> None:
+            self.send_response(code)
+            self.send_header("Content-Type", kind)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self) -> None:  # noqa: N802 (http.server API)
+            self.path = self.path.split("?", 1)[0]
+            if self.path in ("/", "/index.html"):
+                self._send(PAGE.read_bytes(), "text/html; charset=utf-8")
+            elif self.path == "/api/state":
+                self._send(json.dumps(state.snapshot()).encode(), "application/json")
+            else:
+                self._send(b"not found", "text/plain", 404)
+
+        def do_POST(self) -> None:  # noqa: N802
+            if self.path != "/api/action":
+                self._send(b"not found", "text/plain", 404)
+                return
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                request = json.loads(self.rfile.read(length) or b"{}")
+                state.apply(request.get("name", ""), request.get("arg"))
+            except (ValueError, KeyError, TypeError, IndexError) as error:
+                target = state.warcraft if state.mode == "warcraft" else state.maze
+                target.message = f"could not do that: {error}"
+            self._send(json.dumps(state.snapshot()).encode(), "application/json")
+
+        def log_message(self, *args) -> None:  # keep the terminal quiet
+            pass
+
+    return HTTPServer(("127.0.0.1", port), Handler)
 
 
 def main() -> int:
-    """Open the interactive window, or run scripted actions headless."""
+    """Serve the demo page locally, or run scripted actions headless."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--map", type=int, default=0, help="test map to start on")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--checkpoint", type=Path, default=None)
     parser.add_argument("--detector", action="store_true",
-                        help="show step 12's tamper detector (fitted once, ~2 min, then cached)")
-    parser.add_argument("--actions", default=None, help="headless: space-separated actions")
-    parser.add_argument("--snapshots", type=Path, default=None, help="headless: save a PNG per action here")
-    parser.add_argument("--gif", type=Path, default=None, help="headless: record the actions as an animation")
+                        help="show step 12's tamper detector (fitted once, ~1 min, then cached)")
+    parser.add_argument("--warcraft", action="store_true", help="open on the WarCraft terrain maps")
+    parser.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
+    parser.add_argument("--actions", default=None,
+                        help="headless: space-separated actions, e.g. 'worst:opt grad:opt flip:5,7'")
     args = parser.parse_args()
 
-    import matplotlib
-
-    if args.actions is not None:
-        matplotlib.use("Agg")
     config.set_global_seeds(args.seed)
     planner = load_pretrained_neural_astar(checkpoint_path=args.checkpoint)
     detector = TamperDetector(planner, seed=args.seed) if args.detector else None
     state = DemoState(planner, seed=args.seed, detector=detector)
     state.load_map(args.map)
-    view = DemoView(state, interactive=args.actions is None)
+
     if args.actions is not None:
-        run_actions(state, view, args.actions.split(), args.snapshots, args.gif)
+        for action in args.actions.split():
+            name, _, arg = action.partition(":")
+            apply_action(state, name, arg.split(",") if name == "flip" else (arg or None))
+            print(f"{action:>14}: {state.verdict()[1]} | {state.message}")
         return 0
-    view.plt.show()
+
+    demo = Demo(state, seed=args.seed)
+    if args.warcraft:
+        demo.apply("mode", "warcraft")
+    server = make_server(demo, args.port)
+    url = f"http://127.0.0.1:{server.server_port}/"
+    print(f"demo running at {url}  (Ctrl+C to stop)", flush=True)
+    if not args.no_browser:
+        import webbrowser
+
+        webbrowser.open(url)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
     return 0
 
 

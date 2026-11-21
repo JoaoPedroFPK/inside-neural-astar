@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neural A* — flip a cell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #e9edf0;
+    --panel: #f8fafb;
+    --ink: #1b2530;
+    --muted: #5d6b78;
+    --rule: #cfd7de;
+    --route: #f05a28;
+    --optimal: #149e8e;
+    --expanded: rgba(110, 160, 222, 0.42);
+    --flip: #ffc21a;
+    --fail: #c9342a;
+    --warn: #b97c00;
+    --ok: #257a4d;
+    --focus: #2d6cb5;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+  }
+  .app {
+    display: grid;
+    grid-template-columns: 210px auto minmax(400px, 470px);
+    justify-content: center;
+    column-gap: 30px;
+    padding: 22px 28px 20px;
+    height: 100vh;
+    max-width: 1500px;
+    margin: 0 auto;
+  }
+  /* ---- left: the maze is the hero ---- */
+  .stage { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .stage-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+  .title { font-size: 22px; font-weight: 700; margin: 0; }
+  .mapnav { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .board-wrap { position: relative; }
+  canvas#board {
+    background: var(--panel);
+    border-radius: 6px;
+    box-shadow: 0 0 0 1px var(--rule);
+    cursor: crosshair;
+    touch-action: manipulation;
+  }
+  .board-wrap.busy canvas#board { cursor: progress; opacity: 0.82; }
+  .tip {
+    position: absolute; pointer-events: none; background: var(--ink); color: #fff;
+    font-size: 13px; padding: 4px 8px; border-radius: 4px; white-space: nowrap;
+    transform: translate(-50%, -130%); opacity: 0; transition: opacity 80ms;
+  }
+  .under { display: flex; align-items: center; gap: 10px 18px; flex-wrap: wrap; }
+  .layers button { white-space: nowrap; }
+  #maplabel { min-width: 104px; text-align: center; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .sw { display: inline-block; width: 22px; height: 10px; border-radius: 2px; }
+  .layers { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: var(--panel); }
+  .layers button { border: 0; background: transparent; padding: 6px 12px; font: inherit; font-size: 14px; color: var(--muted); cursor: pointer; }
+  .layers button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .actions button, .mapnav button {
+    font: inherit; font-size: 14px; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--rule); border-radius: 6px; padding: 8px 12px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .actions button:hover, .mapnav button:hover { border-color: var(--ink); }
+  .actions button.attack { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .actions button.attack kbd { background: rgba(255,255,255,0.16); color: #fff; }
+  .actions .gap { width: 10px; }
+  button:disabled { opacity: 0.45; cursor: progress; }
+  button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  kbd {
+    font: inherit; font-size: 12px; background: var(--bg); color: var(--muted);
+    border-radius: 4px; padding: 0 6px; line-height: 20px;
+  }
+  .status { font-size: 14px; color: var(--muted); min-height: 20px; }
+
+  /* ---- right: the reading ---- */
+  .reading { display: flex; flex-direction: column; gap: 18px; overflow-y: auto; padding-top: 4px; }
+  .verdict { font-size: 24px; line-height: 1.2; font-weight: 700; margin: 0; }
+  .verdict.fail { color: var(--fail); }
+  .verdict.warn { color: var(--warn); }
+  .verdict.ok { color: var(--ok); }
+  .sub { color: var(--muted); margin: 6px 0 0; }
+  section h2 { font-size: 16px; margin: 0 0 10px; }
+  .meter { display: grid; grid-template-columns: 78px 1fr; gap: 6px 12px; align-items: center; font-size: 14px; }
+  .meter .bar { position: relative; height: 16px; background: #dde3e8; border-radius: 3px; }
+  .meter .fill { position: absolute; inset: 0 auto 0 0; border-radius: 3px; transition: width 260ms ease; }
+  .meter .ref { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); }
+  .meter .val { grid-column: 2; color: var(--muted); margin-top: -2px; }
+  .swap { display: grid; grid-template-columns: 74px 1fr 1fr; gap: 6px; font-size: 14px; }
+  .swap .hdr { color: var(--muted); align-self: end; }
+  .swap .rowhdr { align-self: center; }
+  .swap .cell { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; }
+  .swap .cell b { font-size: 15px; }
+  .swap .cell .w { color: var(--muted); }
+  .swap .cell.actual { border: 2px solid var(--ink); }
+  .swap .cell.hurt b { color: var(--fail); }
+  .reading p { margin: 6px 0 0; }
+  .note { color: var(--warn); }
+  .empty { color: var(--muted); }
+  .small { font-size: 14px; margin: -4px 0 10px !important; }
+  .topbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 20px; }
+  .app { grid-template-rows: auto 1fr; row-gap: 14px; }
+  .palette { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .palette .lbl { color: var(--muted); font-size: 14px; margin-right: 2px; }
+  .swatch {
+    display: inline-flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px;
+    border: 2px solid transparent; border-radius: 7px; background: var(--panel); cursor: pointer; font: inherit; font-size: 13px; color: var(--ink);
+  }
+  .swatch { flex-direction: row; padding: 3px 8px 3px 3px; gap: 6px; }
+  .swatch img { width: 26px; height: 26px; image-rendering: pixelated; border-radius: 3px; display: block; }
+  .swatch[aria-pressed="true"] { border-color: var(--ink); }
+  select { font: inherit; font-size: 14px; padding: 7px 8px; border-radius: 6px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); }
+  .pert { display: flex; gap: 14px; align-items: flex-start; }
+  .pert img { width: 150px; height: 150px; image-rendering: pixelated; border-radius: 4px; box-shadow: 0 0 0 1px var(--rule); }
+  [hidden] { display: none !important; }
+  .tools { display: flex; flex-direction: column; gap: 22px; min-height: 0; overflow-y: auto; }
+  .tools .group { display: flex; flex-direction: column; gap: 8px; }
+  .tools h2 { font-size: 14px; color: var(--muted); font-weight: 400; margin: 4px 0 0; }
+  .tools button { width: 100%; justify-content: space-between; }
+  .tools .pair { display: flex; gap: 8px; }
+  .tools .mapnav button { width: auto; }
+  .tools .mapnav { justify-content: space-between; }
+  .layers.vertical { display: flex; flex-direction: column; }
+  .layers.vertical button { text-align: left; padding: 8px 12px; }
+  .palette { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .palette .swatch { width: 100%; justify-content: flex-start; }
+  .tools button, .tools select { font: inherit; font-size: 14px; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--rule); border-radius: 6px; padding: 8px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  .tools button:hover { border-color: var(--ink); }
+  .tools button.attack { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .tools button.attack kbd { background: rgba(255,255,255,0.16); color: #fff; }
+  .tools .layers button { border: 0; border-radius: 0; }
+  .tools .layers button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  .tools .swatch { padding: 3px 8px 3px 3px; border: 2px solid transparent; }
+  .tools .swatch[aria-pressed="true"] { border-color: var(--ink); }
+  .stage .legend { max-width: 100%; }
+  @media (max-width: 1100px) {
+    .app { grid-template-columns: 1fr; height: auto; }
+    .tools { overflow: visible; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <h1 class="title" id="title">Neural A*, one change at a time</h1>
+    <div class="layers modes" role="group" aria-label="which maps">
+      <button data-mode="maze" aria-pressed="true">Mazes</button>
+      <button data-mode="warcraft" aria-pressed="false">WarCraft terrain</button>
+    </div>
+  </header>
+  <aside class="tools">
+    <div class="group">
+      <div class="mapnav">
+        <button id="prev" title="previous map ( [ )" aria-label="previous map">◀</button>
+        <span id="maplabel">map 0</span>
+        <button id="next" title="next map ( ] )" aria-label="next map">▶</button>
+      </div>
+      <div class="layers vertical" role="group" aria-label="what the board shows" id="layers"></div>
+    </div>
+    <div class="group" id="actions-maze">
+      <h2>Change the map</h2>
+      <button class="attack" data-act="grad:opt" title="add the cell the planner's gradient says hurts the route most">Attack the route <kbd>g</kbd></button>
+      <button class="attack" data-act="grad:eff" title="add the cell the planner's gradient says adds the most work">Attack the work <kbd>h</kbd></button>
+      <button data-act="worst:opt" title="the single cell that hurts the route most, out of every cell tried">Worst cell: route <kbd>w</kbd></button>
+      <button data-act="worst:eff" title="the single cell that adds the most work, out of every cell tried">Worst cell: work <kbd>e</kbd></button>
+      <button data-act="random">Random cell <kbd>r</kbd></button>
+      <div class="pair"><button data-act="undo">Undo <kbd>u</kbd></button><button data-act="reset">Reset <kbd>0</kbd></button></div>
+    </div>
+    <div class="group" id="actions-wc" hidden>
+      <h2>Repaint a tile</h2>
+      <div class="palette" id="palette"></div>
+      <h2>Change the pixels</h2>
+      <select id="eps" aria-label="largest change per pixel" title="largest change per pixel">
+        <option value="1" selected>at most ±1/255 per pixel</option>
+        <option value="2">at most ±2/255 per pixel</option>
+        <option value="4">at most ±4/255 per pixel</option>
+        <option value="8">at most ±8/255 per pixel</option>
+      </select>
+      <button class="attack" data-wact="pgd" title="every pixel moved in the direction the planner's gradient says hurts most">Pixel attack <kbd>g</kbd></button>
+      <button data-wact="noise" title="the same size of change, in random directions">Random noise <kbd>r</kbd></button>
+      <button data-wact="worst" title="the single tile repaint that hurt the planner most, out of every one tried">Worst repaint <kbd>w</kbd></button>
+      <div class="pair"><button data-wact="undo">Undo <kbd>u</kbd></button><button data-wact="reset">Reset <kbd>0</kbd></button></div>
+    </div>
+    <div class="status" id="status" aria-live="polite"></div>
+  </aside>
+  <div class="stage">
+    <div class="board-wrap" id="wrap">
+      <canvas id="board" width="640" height="640" aria-label="the map; click a cell to change it"></canvas>
+      <div class="tip" id="tip"></div>
+    </div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="reading">
+    <div>
+      <p class="verdict" id="verdict"></p>
+      <p class="sub" id="sub"></p>
+    </div>
+    <section>
+      <h2>Route and work on this map</h2>
+      <p class="empty small">The black mark is the yardstick: the shortest route, and the work classical A* does.</p>
+      <div class="meter" id="meters"></div>
+    </section>
+    <section>
+      <h2>Where the damage comes from</h2>
+      <div id="why"></div>
+    </section>
+    <section id="pixel-section" hidden>
+      <h2>The pixel change, magnified</h2>
+      <div class="pert"><img id="pert" alt="the pixel change, magnified"><p class="empty" id="pert-note"></p></div>
+    </section>
+    <section id="tamper-section" hidden>
+      <h2>Would a detector notice?</h2>
+      <div class="meter" id="tamper"></div>
+      <p class="empty" id="tamper-note"></p>
+    </section>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+let S = null, layer = "maze", busy = false, hover = null, brush = 9.2, mode = "maze";
+const LAYERS = {
+  maze: [["maze", "Maze"], ["cost", "Cost map"], ["change", "Cost change"]],
+  warcraft: [["picture", "Picture"], ["truth", "True cost"], ["cost", "Network's cost"]],
+};
+function buildLayers() {
+  $("layers").innerHTML = LAYERS[mode].map(([k, t]) => `<button data-layer="${k}" aria-pressed="${k === layer}">${t}</button>`).join("");
+  $("layers").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { layer = b.dataset.layer; buildLayers(); render(); }));
+}
+const picture = new Image();
+let pictureSrc = "";
+picture.onload = () => drawBoard();
+
+// ---------- server
+async function load() { S = await (await fetch("/api/state")).json(); render(); }
+async function act(name, arg) {
+  if (busy) return;
+  busy = true; setBusy(true);
+  $("status").textContent = name === "grad" ? "Trying 64 cells the gradient points at…" : "Working…";
+  try {
+    const r = await fetch("/api/action", {method: "POST", body: JSON.stringify({name, arg})});
+    S = await r.json();
+  } catch (e) { $("status").textContent = "The demo server stopped. Start it again with make demo."; }
+  busy = false; setBusy(false); render();
+}
+function setBusy(on) {
+  $("wrap").classList.toggle("busy", on);
+  document.querySelectorAll("button").forEach((b) => (b.disabled = on));
+}
+
+// ---------- board
+const board = $("board"), ctx = board.getContext("2d");
+let cell = 20, n = 32;
+function fit() {
+  // The board is the largest square that fits between the tools and the reading,
+  // under the title bar, with room for its legend.
+  const narrow = window.innerWidth < 1100;
+  const legend = $("legend").offsetHeight + 10;
+  const top = document.querySelector(".topbar").offsetHeight + 14;
+  const byHeight = window.innerHeight - 42 - top - legend;
+  const byWidth = narrow ? window.innerWidth - 56 : window.innerWidth - 56 - 210 - 400 - 60;
+  const size = Math.floor(Math.max(300, narrow ? byWidth : Math.min(byHeight, byWidth)));
+  document.querySelector(".stage").style.width = size + "px";
+  const dpr = window.devicePixelRatio || 1;
+  board.style.width = board.style.height = size + "px";
+  board.width = board.height = Math.round(size * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cell = size / n;
+  if (S) drawBoard();
+}
+function costColor(t) {  // cheap = pale, costly = deep blue-grey
+  const a = [243, 246, 248], b = [35, 54, 79];
+  const k = Math.max(0, Math.min(1, t));
+  return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * k)).join(",")})`;
+}
+function changeColor(d, lim) {   // cheaper = blue, costlier = red
+  const k = Math.max(-1, Math.min(1, d / lim));
+  const end = k < 0 ? [45, 108, 181] : [201, 52, 42], base = [248, 250, 251];
+  const m = Math.abs(k);
+  return `rgb(${base.map((v, i) => Math.round(v + (end[i] - v) * m)).join(",")})`;
+}
+function center(rc) { return [rc[1] * cell + cell / 2, rc[0] * cell + cell / 2]; }
+function polyline(pts, color, width, alpha) {
+  if (pts.length < 2) return;
+  ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width;
+  ctx.lineJoin = ctx.lineCap = "round"; ctx.beginPath();
+  pts.forEach((p, i) => { const [x, y] = center(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  ctx.stroke(); ctx.restore();
+}
+function drawBoard() {
+  if (!S) return;
+  if (S.mode === "warcraft") return drawWarcraft();
+  n = S.grid.length;
+  const size = cell * n;
+  ctx.clearRect(0, 0, size, size);
+  let lim = 0.05;
+  if (layer === "change") S.cost_change.forEach((row) => row.forEach((d) => (lim = Math.max(lim, Math.abs(d)))));
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+    const free = S.grid[r][c] === 1;
+    let fill = free ? css("--panel") : css("--ink");
+    if (free && layer === "cost") fill = costColor(S.cost[r][c]);
+    if (free && layer === "change") fill = changeColor(S.cost_change[r][c], lim);
+    ctx.fillStyle = fill; ctx.fillRect(c * cell, r * cell, cell + 0.5, cell + 0.5);
+    if (free && layer === "maze" && S.expanded[r][c]) { ctx.fillStyle = css("--expanded"); ctx.fillRect(c * cell, r * cell, cell + 0.5, cell + 0.5); }
+  }
+  if (layer === "maze") {  // faint grid helps aim clicks
+    ctx.strokeStyle = "rgba(27,37,48,0.06)"; ctx.lineWidth = 1;
+    for (let i = 1; i < n; i++) { ctx.beginPath(); ctx.moveTo(i * cell, 0); ctx.lineTo(i * cell, size); ctx.moveTo(0, i * cell); ctx.lineTo(size, i * cell); ctx.stroke(); }
+  }
+  if (layer === "change" && S.flips.length) {   // the newest flip's 11 x 11 reach
+    const [r, c] = S.flips[S.flips.length - 1];
+    ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = css("--ink"); ctx.lineWidth = 1.5;
+    ctx.strokeRect((c - 5) * cell, (r - 5) * cell, 11 * cell, 11 * cell); ctx.restore();
+  }
+  const routeAlpha = layer === "maze" ? 1 : 0.85;
+  polyline(S.optimal_route, css("--optimal"), Math.max(6, cell * 0.55), layer === "maze" ? 0.45 : 0.35);
+  polyline(S.route, css("--route"), Math.max(2.5, cell * 0.17), routeAlpha);
+  // flipped cells: a yellow ring inside the cell, so the cell's new state stays visible
+  S.flips.forEach(([r, c]) => {
+    ctx.save(); ctx.strokeStyle = css("--flip"); ctx.lineWidth = Math.max(2.5, cell * 0.16);
+    const inset = ctx.lineWidth / 2 + 0.5;
+    ctx.strokeRect(c * cell + inset, r * cell + inset, cell - 2 * inset, cell - 2 * inset); ctx.restore();
+  });
+  endpoint(S.start, css("--ok"), "S"); endpoint(S.goal, css("--fail"), "G");
+  if (hover) {
+    ctx.save(); ctx.strokeStyle = css("--focus"); ctx.lineWidth = 2;
+    ctx.strokeRect(hover[1] * cell + 1, hover[0] * cell + 1, cell - 2, cell - 2); ctx.restore();
+  }
+}
+function endpoint(rc, color, label) {
+  const [x, y] = center(rc), rad = cell > 30 ? cell * 0.3 : Math.max(8, cell * 0.62);
+  ctx.save(); ctx.fillStyle = color; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#fff"; ctx.font = `700 ${Math.round(rad * 1.15)}px Atkinson Hyperlegible, system-ui`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(label, x, y + 1); ctx.restore();
+}
+function cellAt(ev) {
+  const b = board.getBoundingClientRect();
+  const c = Math.floor((ev.clientX - b.left) / cell), r = Math.floor((ev.clientY - b.top) / cell);
+  return r >= 0 && c >= 0 && r < n && c < n ? [r, c] : null;
+}
+board.addEventListener("click", (ev) => {
+  const rc = cellAt(ev); if (!rc) return;
+  if (S.mode === "warcraft") act("paint", [rc[0], rc[1], brush]); else act("flip", rc);
+});
+board.addEventListener("mousemove", (ev) => {
+  const rc = cellAt(ev), tip = $("tip");
+  if (!rc || !S) { hover = null; tip.style.opacity = 0; drawBoard(); return; }
+  hover = rc;
+  const isEnd = (p) => p[0] === rc[0] && p[1] === rc[1];
+  const flipped = S.flips.some(isEnd);
+  let text;
+  if (isEnd(S.start) || isEnd(S.goal)) text = isEnd(S.start) ? "start" : "goal";
+  else if (S.mode === "warcraft") text = `true cost ${S.weights[rc[0]][rc[1]]} · network's cost ${S.cost_raw[rc[0]][rc[1]].toFixed(2)} · click to paint ${brush}`;
+  else if (layer === "cost") text = `cost ${S.cost[rc[0]][rc[1]].toFixed(2)}`;
+  else if (layer === "change") text = `cost change ${S.cost_change[rc[0]][rc[1]] >= 0 ? "+" : ""}${S.cost_change[rc[0]][rc[1]].toFixed(2)}`;
+  else text = flipped ? "click to restore" : S.grid[rc[0]][rc[1]] ? "click to add a wall" : "click to remove this wall";
+  tip.textContent = text;
+  const b = board.getBoundingClientRect(), w = $("wrap").getBoundingClientRect();
+  tip.style.left = (b.left - w.left + (rc[1] + 0.5) * cell) + "px";
+  tip.style.top = (b.top - w.top + rc[0] * cell) + "px";
+  tip.style.opacity = 1;
+  drawBoard();
+});
+board.addEventListener("mouseleave", () => { hover = null; $("tip").style.opacity = 0; if (S) drawBoard(); });
+
+// ---------- reading
+function legend() {
+  const items = layer === "maze"
+    ? [["--optimal", "shortest route", 0.45], ["--route", "Neural A* route", 1], ["--expanded", "cells it expanded", 1], ["--flip", "flipped cell", 1], [null, "diagonal steps may pass a wall's corner", 0]]
+    : layer === "cost"
+      ? [["--route", "Neural A* route", 1], ["--optimal", "shortest route", 0.45]]
+      : [["--route", "Neural A* route", 1], ["--flip", "flipped cell", 1]];
+  let html = items.map(([v, t, a]) => v ? `<span><i class="sw" style="background:${css(v)};opacity:${a}"></i>${t}</span>` : `<span>${t}</span>`).join("");
+  if (layer === "cost") html += `<span><i class="sw" style="background:linear-gradient(90deg,${costColor(0)},${costColor(1)})"></i>the network's cost, cheap to costly</span>`;
+  if (layer === "change") html += `<span><i class="sw" style="background:linear-gradient(90deg,${changeColor(-1,1)},${changeColor(0,1)},${changeColor(1,1)})"></i>cheaper · unchanged · costlier</span><span>dashed square: the newest flip's 11 × 11 reach</span>`;
+  $("legend").innerHTML = html;
+}
+function meter(label, value, ref, max, color, note) {
+  const pct = (x) => `${Math.min(100, (x / max) * 100)}%`;
+  return `<div>${label}</div><div class="bar"><div class="fill" style="width:${pct(value)};background:${color}"></div>
+    ${ref == null ? "" : `<div class="ref" style="left:${pct(ref)}"></div>`}</div><div></div><div class="val">${note}</div>`;
+}
+const plural = (x, w) => `${x} ${w}${Math.round(x) === 1 ? "" : "s"}`;
+function render() {
+  if (!S) return;
+  if (S.mode !== mode) { mode = S.mode; layer = LAYERS[mode][0][0]; buildLayers(); }
+  document.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+  const wc = mode === "warcraft";
+  $("actions-maze").hidden = wc; $("actions-wc").hidden = !wc;
+  $("pixel-section").hidden = !wc || !S.perturbation;
+  if (wc) { renderWarcraft(); fit(); return; }
+  $("tamper-section").hidden = !S.tamper;
+  $("maplabel").textContent = `maze ${S.map_id}`;
+  $("verdict").textContent = S.headline;
+  $("verdict").className = "verdict " + S.level;
+  const now = S.now, clean = S.clean, f = S.flips.length;
+  $("sub").textContent = f === 0
+    ? "Nothing changed yet. Click a cell to add or remove a wall, or try an attack below."
+    : `${plural(f, "cell")} flipped. Against the clean map: route ${signed(now.moves - clean.moves)} moves, ` +
+      `${now.expanded} cells expanded instead of ${clean.expanded}.`;
+  const maxMoves = Math.max(now.moves, now.optimum) * 1.15, maxWork = Math.max(now.expanded, now.classical) * 1.08;
+  $("meters").innerHTML =
+    meter("Route", now.moves, now.optimum, maxMoves, now.moves > now.optimum ? css("--fail") : css("--route"),
+      `${now.moves} moves; the shortest takes ${now.optimum}`) +
+    meter("Work", now.expanded, now.classical, maxWork, css("--focus"),
+      `${now.expanded} cells expanded; classical A* expands ${now.classical}`);
+  renderWhy(); renderTamper(); legend();
+  $("status").textContent = S.message + (S.has_sweep ? "" : " — worst-cell buttons need the exhaustive sweep (make sweep).");
+  drawBoard();
+}
+const signed = (x) => (x > 0 ? "+" : x < 0 ? "−" : "±") + Math.abs(x);
+function renderWhy() {
+  const sw = S.swap;
+  if (!sw) {
+    $("why").innerHTML = `<p class="empty">After a flip, the search is rerun four ways — old or new costs from the network, on old or new obstacles — to show which change did the damage.</p>`;
+    return;
+  }
+  const opt = (k) => sw.optimum[k.endsWith("O1") ? "O1" : "O0"];
+  const box = (k) => {
+    const extra = sw.moves[k] - opt(k);
+    return `<div class="cell ${k === "C1O1" ? "actual" : ""} ${extra > 0 ? "hurt" : ""}">
+      <b>${extra > 0 ? plural(extra, "move") + " too long" : "shortest"}</b><div class="w">${sw.expanded[k]} cells expanded</div></div>`;
+  };
+  $("why").innerHTML = `
+    <div class="swap">
+      <div></div><div class="hdr">old obstacles</div><div class="hdr">new obstacles</div>
+      <div class="hdr rowhdr">old costs</div>${box("C0O0")}${box("C0O1")}
+      <div class="hdr rowhdr">new costs</div>${box("C1O0")}${box("C1O1")}
+    </div>
+    <p><b>Route:</b> ${sw.route_reading}.</p>
+    <p><b>Work, against classical A*:</b> ${sw.work_reading}.</p>
+    ${sw.optimum_changed ? `<p class="note">The flips changed the shortest route itself (${sw.optimum.O0} → ${sw.optimum.O1} moves), so the planner has to find a new one.</p>` : ""}
+    <p class="empty">Framed: what actually happens. The other squares rerun the search with the network's old costs or the old walls swapped back in.</p>`;
+}
+function renderTamper() {
+  const t = S.tamper;
+  $("tamper-section").hidden = !t;
+  if (!t) return;
+  const col = (p) => (p > 0.5 ? css("--fail") : css("--ok"));
+  $("tamper").innerHTML =
+    meter("Map only", t.map_only, 0.5, 1, col(t.map_only), `${Math.round(t.map_only * 100)} % sure the map was altered`) +
+    meter("+ planner", t.with_planner, 0.5, 1, col(t.with_planner), `${Math.round(t.with_planner * 100)} % with the network's cost map added`);
+  $("tamper-note").textContent = t.fitted_on_this_map
+    ? "This map was used to fit the detector; maps 50–99 are a fair test."
+    : "The detector never saw this map.";
+}
+
+// ---------- WarCraft
+function truthColor(w) {  // true terrain cost, 0.8 .. 9.2, same ramp as the network's cost
+  return costColor((w - 0.8) / (9.2 - 0.8));
+}
+function drawWarcraft() {
+  n = 12;
+  const size = cell * n;
+  ctx.clearRect(0, 0, size, size);
+  if (layer === "picture") {
+    if (pictureSrc !== S.image) { pictureSrc = S.image; picture.src = S.image; }
+    ctx.imageSmoothingEnabled = false;
+    if (picture.complete && picture.naturalWidth) ctx.drawImage(picture, 0, 0, size, size);
+  } else {
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+      ctx.fillStyle = layer === "truth" ? truthColor(S.weights[r][c]) : costColor(S.cost_rank[r][c]);
+      ctx.fillRect(c * cell, r * cell, cell + 0.5, cell + 0.5);
+      const dark = layer === "truth" ? S.weights[r][c] > 4 : S.cost_rank[r][c] > 0.55;
+      ctx.fillStyle = dark ? "rgba(255,255,255,0.8)" : "rgba(27,37,48,0.55)";
+      ctx.font = `${Math.round(cell * 0.2)}px Atkinson Hyperlegible, system-ui`;
+      ctx.textAlign = "right"; ctx.textBaseline = "alphabetic";
+      ctx.fillText(layer === "truth" ? S.weights[r][c].toFixed(1) : S.cost_raw[r][c].toFixed(1), (c + 0.93) * cell, (r + 0.93) * cell);
+    }
+  }
+  ctx.strokeStyle = layer === "picture" ? "rgba(255,255,255,0.18)" : "rgba(27,37,48,0.08)"; ctx.lineWidth = 1;
+  for (let i = 1; i < n; i++) { ctx.beginPath(); ctx.moveTo(i * cell, 0); ctx.lineTo(i * cell, size); ctx.moveTo(0, i * cell); ctx.lineTo(size, i * cell); ctx.stroke(); }
+  // the shortest route needs a dark halo to read on the busy picture
+  if (layer === "picture") polyline(S.optimal_route, "#ffffff", cell * 0.34, 0.55);
+  polyline(S.optimal_route, css("--optimal"), cell * 0.24, 0.95);
+  if (layer === "cost" && S.now.exact_cost > S.now.optimum + 1e-6) {
+    ctx.save(); ctx.setLineDash([cell * 0.12, cell * 0.12]);
+    polyline(S.exact_route, "#7a4fd0", cell * 0.06, 1); ctx.restore();
+  }
+  if (layer === "picture") polyline(S.route, "#ffffff", cell * 0.17, 0.7);
+  polyline(S.route, css("--route"), cell * 0.1, 1);
+  S.edits.forEach(([[r, c]]) => {
+    ctx.save(); ctx.strokeStyle = css("--flip"); ctx.lineWidth = Math.max(3, cell * 0.07);
+    const inset = ctx.lineWidth / 2 + 1;
+    ctx.strokeRect(c * cell + inset, r * cell + inset, cell - 2 * inset, cell - 2 * inset); ctx.restore();
+  });
+  endpoint(S.start, css("--ok"), "S"); endpoint(S.goal, css("--fail"), "G");
+  if (hover) { ctx.save(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.strokeRect(hover[1] * cell + 2, hover[0] * cell + 2, cell - 4, cell - 4); ctx.restore(); }
+}
+function renderPalette() {
+  $("palette").innerHTML = S.terrains.map((t, i) =>
+    `<button class="swatch" data-cost="${t.cost}" aria-pressed="${t.cost === brush}" title="click a tile to repaint it with this terrain, true cost ${t.cost} (key ${i + 1})"><img src="${t.image}" alt="">${t.cost}</button>`).join("");
+  $("palette").querySelectorAll(".swatch").forEach((b) => b.addEventListener("click", () => { brush = parseFloat(b.dataset.cost); renderPalette(); }));
+}
+function renderWarcraft() {
+  const now = S.now, clean = S.clean;
+  $("maplabel").textContent = `terrain map ${S.map_id}`;
+  $("prev").title = "previous map the planner solves untouched ( [ )";
+  $("next").title = "next map the planner solves untouched ( ] )";
+  $("verdict").textContent = S.headline;
+  $("verdict").className = "verdict " + S.level;
+  const changed = S.edits.length || S.eps;
+  $("sub").textContent = !changed
+    ? (S.solved_clean
+        ? "Untouched, the planner finds the cheapest route here. Repaint a tile or attack the pixels."
+        : "Even untouched, the planner misses the cheapest route on this map. The arrows jump to maps it solves.")
+    : (Math.abs(now.path_cost - clean.path_cost) < 1e-6
+        ? `Against the untouched picture: the planner's route still costs ${now.path_cost.toFixed(1)}; `
+        : `Against the untouched picture: the planner's route went from ${clean.path_cost.toFixed(1)} to ${now.path_cost.toFixed(1)}; `) +
+      (Math.abs(now.optimum - clean.optimum) < 1e-6 ? `the cheapest route still costs ${now.optimum.toFixed(1)}.` : `the cheapest went from ${clean.optimum.toFixed(1)} to ${now.optimum.toFixed(1)}.`);
+  const maxC = Math.max(now.path_cost, now.optimum) * 1.12, maxW = Math.max(now.expanded_n, now.classical) * 1.08;
+  $("meters").innerHTML =
+    meter("Route", now.path_cost, now.optimum, maxC, now.path_cost > now.optimum + 1e-6 ? css("--fail") : css("--route"),
+      `costs ${now.path_cost.toFixed(1)}; the cheapest costs ${now.optimum.toFixed(1)}`) +
+    meter("Work", now.expanded_n, now.classical, maxW, css("--focus"),
+      `${now.expanded_n} tiles expanded; classical A* expands ${now.classical}`);
+  const failed = now.path_cost > now.optimum + 1e-6, exactBad = now.exact_cost > now.optimum + 1e-6;
+  const rho = now.spearman.toFixed(2);
+  $("why").innerHTML = `
+    <p>The network never sees the true costs, only the picture. On this map its costs follow the true costs' order only ${now.spearman < 0.5 ? "weakly" : "moderately"} (rank correlation ${rho}; 1 would be perfect). Compare the <b>True cost</b> and <b>Network's cost</b> views.</p>
+    ${failed ? (exactBad
+      ? `<p><b>The costs are to blame.</b> Even a perfect search on the network's costs takes a route costing ${now.exact_cost.toFixed(1)} instead of ${now.optimum.toFixed(1)} (dashed purple in the Network's cost view).</p>`
+      : `<p><b>The search is to blame.</b> A perfect search on the network's own costs finds the cheapest route; the planner's search rule loses it.</p>`)
+      : `<p>Here the costs are good enough for the search to find the cheapest route.</p>`}
+    <p class="empty">${S.eps
+      ? "Across 300 maps the planner solved, a 1/255 gradient attack broke 84–85 % of them; random noise of the same size broke 4–8 % (step 11)."
+      : "Across the tested maps, 82–85 % of the damage from a repainted tile is in the costs, not the search (step 11)."}</p>`;
+  if (S.perturbation) {
+    $("pert").src = S.perturbation;
+    $("pert-note").textContent = `Every pixel moved by at most ${S.eps}/255, shown ${Math.round(255 / (2 * S.eps))}× magnified. The true costs, and so the cheapest route, did not change at all.`;
+  }
+  $("tamper-section").hidden = true;
+  renderPalette();
+  legendWarcraft();
+  $("status").textContent = S.message + (S.has_sweep ? "" : " The worst-repaint button covers terrain maps 0–299 (the step-11 sweep).");
+  drawBoard();
+}
+function legendWarcraft() {
+  let html = [["--optimal", "cheapest route (true costs)"], ["--route", "Neural A* route"], ["--flip", "repainted tile"]]
+    .map(([v, t]) => `<span><i class="sw" style="background:${css(v)}"></i>${t}</span>`).join("");
+  if (layer !== "picture") html += `<span><i class="sw" style="background:linear-gradient(90deg,${costColor(0)},${costColor(1)})"></i>${layer === "truth" ? "cheap to costly" : "cheapest to costliest, by rank on this map"}</span>`;
+  if (layer === "cost") html += `<span><i class="sw" style="background:#7a4fd0"></i>perfect search on the network's costs, when it differs</span>`;
+  $("legend").innerHTML = html;
+}
+
+// ---------- controls
+document.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", () => {
+  const [name, arg] = b.dataset.act.split(":"); act(name, arg);
+}));
+$("prev").onclick = () => S.mode === "warcraft" ? act("solved", -1) : act("map", S.map_id - 1);
+$("next").onclick = () => S.mode === "warcraft" ? act("solved", 1) : act("map", S.map_id + 1);
+document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => act("mode", b.dataset.mode)));
+const wact = (k) => k === "pgd" || k === "noise" ? act("pixels", [$("eps").value, k]) : act(k);
+document.querySelectorAll("[data-wact]").forEach((b) => b.addEventListener("click", () => wact(b.dataset.wact)));
+document.addEventListener("keydown", (ev) => {
+  if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.target.tagName === "SELECT") return;
+  if (S && S.mode === "warcraft") {
+    const k = {g: "pgd", r: "noise", w: "worst", u: "undo", "0": "reset"}[ev.key];
+    if (k) { ev.preventDefault(); wact(k); }
+    if (ev.key === "[" || ev.key === "]") act("solved", ev.key === "]" ? 1 : -1);
+    const i = "12345".indexOf(ev.key);
+    if (i >= 0 && !ev.shiftKey) { brush = S.terrains[i].cost; renderPalette(); }
+    return;
+  }
+  const keys = {w: ["worst", "opt"], e: ["worst", "eff"], g: ["grad", "opt"], h: ["grad", "eff"],
+    r: ["random"], u: ["undo"], "0": ["reset"], "[": ["map", () => S.map_id - 1], "]": ["map", () => S.map_id + 1]};
+  const k = keys[ev.key];
+  if (k) { ev.preventDefault(); act(k[0], typeof k[1] === "function" ? k[1]() : k[1]); }
+  const layers = {"1": "maze", "2": "cost", "3": "change"};
+  if (layers[ev.key]) document.querySelector(`[data-layer="${layers[ev.key]}"]`)?.click();
+});
+window.addEventListener("resize", () => { fit(); fit(); });
+buildLayers(); fit();
+load().then(() => {
+  // ?layer=cost opens on another layer (handy for screenshots)
+  const wanted = new URLSearchParams(location.search).get("layer");
+  if (wanted) { layer = wanted; buildLayers(); render(); }
+  fit(); fit();  // twice: wrapped rows change once the width is set
+});
+</script>
+</body>
+</html>
