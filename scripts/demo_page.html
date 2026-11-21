@@ -90,13 +90,15 @@
 
   /* ---- right: the reading ---- */
   .reading { display: flex; flex-direction: column; gap: 18px; overflow-y: auto; padding-top: 4px; }
-  .verdict { font-size: 24px; line-height: 1.2; font-weight: 700; margin: 0; }
+  /* the verdict sits in the title bar, so it is visible at every window size */
+  .verdict { font-size: 22px; line-height: 1.2; font-weight: 700; margin: 0 0 0 auto; text-align: right; }
   .verdict.fail { color: var(--fail); }
   .verdict.warn { color: var(--warn); }
   .verdict.ok { color: var(--ok); }
-  .sub { color: var(--muted); margin: 6px 0 0; }
+  .sub { color: var(--muted); margin: 0; }
   section h2 { font-size: 16px; margin: 0 0 10px; }
-  .meter { display: grid; grid-template-columns: 78px 1fr; gap: 6px 12px; align-items: center; font-size: 14px; }
+  .meter { display: grid; grid-template-columns: 74px 1fr 84px; gap: 12px; align-items: center; font-size: 15px; }
+  .meter .num { text-align: right; color: var(--muted); }
   .meter .bar { position: relative; height: 16px; background: #dde3e8; border-radius: 3px; }
   .meter .fill { position: absolute; inset: 0 auto 0 0; border-radius: 3px; transition: width 260ms ease; }
   .meter .ref { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); }
@@ -150,8 +152,12 @@
   .tools .swatch[aria-pressed="true"] { border-color: var(--ink); }
   .stage .legend { max-width: 100%; }
   @media (max-width: 1100px) {
-    .app { grid-template-columns: 1fr; height: auto; }
+    .app { grid-template-columns: 200px auto; height: auto; justify-content: start; }
+    .reading { grid-column: 1 / -1; overflow: visible; }
     .tools { overflow: visible; }
+  }
+  @media (max-width: 720px) {
+    .app { grid-template-columns: 1fr; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -164,6 +170,7 @@
       <button data-mode="maze" aria-pressed="true">Mazes</button>
       <button data-mode="warcraft" aria-pressed="false">WarCraft terrain</button>
     </div>
+    <p class="verdict" id="verdict" aria-live="polite"></p>
   </header>
   <aside class="tools">
     <div class="group">
@@ -209,25 +216,20 @@
   </div>
 
   <div class="reading">
-    <div>
-      <p class="verdict" id="verdict"></p>
-      <p class="sub" id="sub"></p>
-    </div>
+    <p class="sub" id="sub"></p>
     <section>
-      <h2>Route and work on this map</h2>
-      <p class="empty small">The black mark is the yardstick: the shortest route, and the work classical A* does.</p>
       <div class="meter" id="meters"></div>
     </section>
-    <section>
-      <h2>Where the damage comes from</h2>
+    <section id="why-section" hidden>
+      <h2 id="why-title">Which change did it?</h2>
       <div id="why"></div>
     </section>
     <section id="pixel-section" hidden>
-      <h2>The pixel change, magnified</h2>
+      <h2>The pixel change</h2>
       <div class="pert"><img id="pert" alt="the pixel change, magnified"><p class="empty" id="pert-note"></p></div>
     </section>
     <section id="tamper-section" hidden>
-      <h2>Would a detector notice?</h2>
+      <h2>Tamper detector</h2>
       <div class="meter" id="tamper"></div>
       <p class="empty" id="tamper-note"></p>
     </section>
@@ -274,12 +276,12 @@ let cell = 20, n = 32, boardSize = 640;
 function fit() {
   // The board is the largest square that fits between the tools and the reading,
   // under the title bar, with room for its legend.
-  const narrow = window.innerWidth < 1100;
+  const narrow = window.innerWidth < 1100, tiny = window.innerWidth <= 720;
   const legend = $("legend").offsetHeight + 10;
   const top = document.querySelector(".topbar").offsetHeight + 14;
   const byHeight = window.innerHeight - 42 - top - legend;
-  const byWidth = narrow ? window.innerWidth - 56 : window.innerWidth - 56 - 210 - 400 - 60;
-  const size = Math.floor(Math.max(300, narrow ? byWidth : Math.min(byHeight, byWidth)));
+  const byWidth = tiny ? window.innerWidth - 56 : narrow ? window.innerWidth - 56 - 200 - 30 : window.innerWidth - 56 - 210 - 400 - 60;
+  const size = Math.floor(Math.max(280, tiny ? byWidth : Math.min(byHeight, byWidth)));
   document.querySelector(".stage").style.width = size + "px";
   const dpr = window.devicePixelRatio || 1;
   board.style.width = board.style.height = size + "px";
@@ -382,8 +384,13 @@ function updateTip() {
   else text = changed ? "click to restore" : S.grid[rc[0]][rc[1]] ? "click to add a wall" : "click to remove this wall";
   tip.textContent = text;
   const b = board.getBoundingClientRect(), w = $("wrap").getBoundingClientRect();
-  tip.style.left = (b.left - w.left + (rc[1] + 0.5) * cell) + "px";
-  tip.style.top = (b.top - w.top + rc[0] * cell) + "px";
+  // keep the hint inside the board, also over edge cells
+  const half = tip.offsetWidth / 2, x = b.left - w.left + (rc[1] + 0.5) * cell;
+  tip.style.left = Math.min(Math.max(x, half), b.width - half) + "px";
+  // over the top row the hint goes below the cell, so it never covers the title bar
+  const below = rc[0] === 0;
+  tip.style.top = (b.top - w.top + (below ? (rc[0] + 1) * cell : rc[0] * cell)) + "px";
+  tip.style.transform = below ? "translate(-50%, 30%)" : "translate(-50%, -130%)";
   tip.style.opacity = 1;
 }
 board.addEventListener("mousemove", (ev) => {
@@ -396,21 +403,21 @@ board.addEventListener("mouseleave", () => { hover = null; $("tip").style.opacit
 // ---------- reading
 function legend() {
   const items = layer === "maze"
-    ? [["--optimal", "shortest route", 0.45], ["--route", "Neural A* route", 1], ["--expanded", "cells it expanded", 1], ["--flip", "flipped cell", 1], [null, "diagonal steps may pass a wall's corner", 0]]
-    : layer === "cost"
-      ? [["--route", "Neural A* route", 1], ["--optimal", "shortest route", 0.45]]
-      : [["--route", "Neural A* route", 1], ["--flip", "flipped cell", 1]];
-  let html = items.map(([v, t, a]) => v ? `<span><i class="sw" style="background:${css(v)};opacity:${a}"></i>${t}</span>` : `<span>${t}</span>`).join("");
-  if (layer === "cost") html += `<span><i class="sw" style="background:linear-gradient(90deg,${costColor(0)},${costColor(1)})"></i>the network's cost, cheap to costly</span>`;
-  if (layer === "change") html += `<span><i class="sw" style="background:linear-gradient(90deg,${changeColor(-1,1)},${changeColor(0,1)},${changeColor(1,1)})"></i>cheaper · unchanged · costlier</span><span>dashed square: the newest flip's 11 × 11 reach</span>`;
+    ? [["--optimal", "shortest route", 0.45], ["--route", "Neural A*", 1], ["--expanded", "expanded", 1], ["--flip", "changed", 1]]
+    : [["--route", "Neural A*", 1], ["--optimal", "shortest", 0.45]];
+  let html = items.map(([v, t, a]) => `<span><i class="sw" style="background:${css(v)};opacity:${a}"></i>${t}</span>`).join("");
+  if (layer === "cost") html += `<span><i class="sw" style="background:linear-gradient(90deg,${costColor(0)},${costColor(1)})"></i>cheap → costly</span>`;
+  if (layer === "change") html += `<span><i class="sw" style="background:linear-gradient(90deg,${changeColor(-1,1)},${changeColor(0,1)},${changeColor(1,1)})"></i>cheaper → costlier</span><span>dashed: reach of the last change</span>`;
   $("legend").innerHTML = html;
 }
-function meter(label, value, ref, max, color, note) {
+// One row: label, bar with a black yardstick mark, the two numbers.
+function meter(label, value, ref, max, color, numbers, refName) {
   const pct = (x) => `${Math.min(100, (x / max) * 100)}%`;
-  return `<div>${label}</div><div class="bar"><div class="fill" style="width:${pct(value)};background:${color}"></div>
-    ${ref == null ? "" : `<div class="ref" style="left:${pct(ref)}"></div>`}</div><div></div><div class="val">${note}</div>`;
+  return `<div>${label}</div><div class="bar" title="black mark: ${refName}"><div class="fill" style="width:${pct(value)};background:${color}"></div>
+    ${ref == null ? "" : `<div class="ref" style="left:${pct(ref)}"></div>`}</div><div class="num">${numbers}</div>`;
 }
 const plural = (x, w) => `${x} ${w}${Math.round(x) === 1 ? "" : "s"}`;
+function setSub(text) { $("sub").textContent = text; $("sub").hidden = !text; }
 function render() {
   if (!S) return;
   if (S.mode !== mode) { mode = S.mode; layer = LAYERS[mode][0][0]; hover = null; buildLayers(); }
@@ -419,49 +426,41 @@ function render() {
   $("actions-maze").hidden = wc; $("actions-wc").hidden = !wc;
   $("pixel-section").hidden = !wc || !S.perturbation;
   if (wc) { renderWarcraft(); fit(); return; }
-  $("tamper-section").hidden = !S.tamper;
   $("maplabel").textContent = `maze ${S.map_id}`;
   $("verdict").textContent = S.headline;
   $("verdict").className = "verdict " + S.level;
   const now = S.now, clean = S.clean, f = S.flips.length;
-  $("sub").textContent = f === 0
-    ? "Nothing changed yet. Click a cell to add or remove a wall, or try an attack below."
-    : `${plural(f, "cell")} flipped. Against the clean map: route ${signed(now.moves - clean.moves)} moves, ` +
-      `${now.expanded} cells expanded instead of ${clean.expanded}.`;
-  const maxMoves = Math.max(now.moves, now.optimum) * 1.15, maxWork = Math.max(now.expanded, now.classical) * 1.08;
+  setSub(f ? `${plural(f, "cell")} changed. Route ${signed(now.moves - clean.moves)}, work ${clean.expanded} → ${now.expanded}.` : "");
   $("meters").innerHTML =
-    meter("Route", now.moves, now.optimum, maxMoves, now.moves > now.optimum ? css("--fail") : css("--route"),
-      `${now.moves} moves; the shortest takes ${now.optimum}`) +
-    meter("Work", now.expanded, now.classical, maxWork, css("--focus"),
-      `${now.expanded} cells expanded; classical A* expands ${now.classical}`);
+    meter("Route", now.moves, now.optimum, Math.max(now.moves, now.optimum) * 1.15,
+      now.moves > now.optimum ? css("--fail") : css("--route"), `${now.moves} / ${now.optimum}`, "the shortest route") +
+    meter("Work", now.expanded, now.classical, Math.max(now.expanded, now.classical) * 1.08,
+      css("--focus"), `${now.expanded} / ${now.classical}`, "cells classical A* expands");
   renderWhy(); renderTamper(); legend();
-  $("status").textContent = S.message + (S.has_sweep ? "" : " — worst-cell buttons need the exhaustive sweep (make sweep).");
+  $("status").textContent = S.message + (S.has_sweep ? "" : " (worst-cell needs make sweep)");
   drawBoard();
   updateTip();
 }
 const signed = (x) => (x > 0 ? "+" : x < 0 ? "−" : "±") + Math.abs(x);
 function renderWhy() {
   const sw = S.swap;
-  if (!sw) {
-    $("why").innerHTML = `<p class="empty">After a flip, the search is rerun four ways — old or new costs from the network, on old or new obstacles — to show which change did the damage.</p>`;
-    return;
-  }
+  $("why-section").hidden = !sw;
+  $("why-title").textContent = "Which change did it?";
+  if (!sw) return;
   const opt = (k) => sw.optimum[k.endsWith("O1") ? "O1" : "O0"];
   const box = (k) => {
     const extra = sw.moves[k] - opt(k);
-    return `<div class="cell ${k === "C1O1" ? "actual" : ""} ${extra > 0 ? "hurt" : ""}">
-      <b>${extra > 0 ? plural(extra, "move") + " too long" : "shortest"}</b><div class="w">${sw.expanded[k]} cells expanded</div></div>`;
+    return `<div class="cell ${k === "C1O1" ? "actual" : ""} ${extra > 0 ? "hurt" : ""}" ${k === "C1O1" ? 'title="what actually happens"' : ""}>
+      <b>${extra > 0 ? "+" + plural(extra, "move") : "shortest"}</b><div class="w">${sw.expanded[k]} expanded</div></div>`;
   };
   $("why").innerHTML = `
     <div class="swap">
-      <div></div><div class="hdr">old obstacles</div><div class="hdr">new obstacles</div>
+      <div></div><div class="hdr">old walls</div><div class="hdr">new walls</div>
       <div class="hdr rowhdr">old costs</div>${box("C0O0")}${box("C0O1")}
       <div class="hdr rowhdr">new costs</div>${box("C1O0")}${box("C1O1")}
     </div>
-    <p><b>Route:</b> ${sw.route_reading}.</p>
-    <p><b>Work, against classical A*:</b> ${sw.work_reading}.</p>
-    ${sw.optimum_changed ? `<p class="note">The flips changed the shortest route itself (${sw.optimum.O0} → ${sw.optimum.O1} moves), so the planner has to find a new one.</p>` : ""}
-    <p class="empty">Framed: what actually happens. The other squares rerun the search with the network's old costs or the old walls swapped back in.</p>`;
+    <p>${sw.route_reading[0].toUpperCase() + sw.route_reading.slice(1)}.</p>
+    ${sw.optimum_changed ? `<p class="note">The shortest route itself changed: ${sw.optimum.O0} → ${sw.optimum.O1}.</p>` : ""}`;
 }
 function renderTamper() {
   const t = S.tamper;
@@ -469,11 +468,9 @@ function renderTamper() {
   if (!t) return;
   const col = (p) => (p > 0.5 ? css("--fail") : css("--ok"));
   $("tamper").innerHTML =
-    meter("Map only", t.map_only, 0.5, 1, col(t.map_only), `${Math.round(t.map_only * 100)} % sure the map was altered`) +
-    meter("+ planner", t.with_planner, 0.5, 1, col(t.with_planner), `${Math.round(t.with_planner * 100)} % with the network's cost map added`);
-  $("tamper-note").textContent = t.fitted_on_this_map
-    ? "This map was used to fit the detector; maps 50–99 are a fair test."
-    : "The detector never saw this map.";
+    meter("Map only", t.map_only, 0.5, 1, col(t.map_only), `${Math.round(t.map_only * 100)} %`, "50 %") +
+    meter("+ planner", t.with_planner, 0.5, 1, col(t.with_planner), `${Math.round(t.with_planner * 100)} %`, "50 %");
+  $("tamper-note").textContent = t.fitted_on_this_map ? "Fitted on this map (maps 50–99 are unseen)." : "";
 }
 
 // ---------- WarCraft
@@ -526,54 +523,46 @@ function renderPalette() {
 }
 function renderWarcraft() {
   const now = S.now, clean = S.clean;
-  $("maplabel").textContent = `terrain map ${S.map_id}`;
-  $("prev").title = "previous map the planner solves untouched ( [ )";
-  $("next").title = "next map the planner solves untouched ( ] )";
+  $("maplabel").textContent = `terrain ${S.map_id}`;
+  $("prev").title = "previous map the planner solves ( [ )";
+  $("next").title = "next map the planner solves ( ] )";
   $("verdict").textContent = S.headline;
   $("verdict").className = "verdict " + S.level;
   const changed = S.edits.length || S.eps;
-  $("sub").textContent = !changed
-    ? (S.solved_clean
-        ? "Untouched, the planner finds the cheapest route here. Repaint a tile or attack the pixels."
-        : "Even untouched, the planner misses the cheapest route on this map. The arrows jump to maps it solves.")
-    : (Math.abs(now.path_cost - clean.path_cost) < 1e-6
-        ? `Against the untouched picture: the planner's route still costs ${now.path_cost.toFixed(1)}; `
-        : `Against the untouched picture: the planner's route went from ${clean.path_cost.toFixed(1)} to ${now.path_cost.toFixed(1)}; `) +
-      (Math.abs(now.optimum - clean.optimum) < 1e-6 ? `the cheapest route still costs ${now.optimum.toFixed(1)}.` : `the cheapest went from ${clean.optimum.toFixed(1)} to ${now.optimum.toFixed(1)}.`);
-  const maxC = Math.max(now.path_cost, now.optimum) * 1.12, maxW = Math.max(now.expanded_n, now.classical) * 1.08;
+  const same = Math.abs(now.path_cost - clean.path_cost) < 1e-6;
+  setSub(!changed ? S.context
+    : same ? `Route unchanged at ${now.path_cost.toFixed(1)}.`
+    : `Route ${clean.path_cost.toFixed(1)} → ${now.path_cost.toFixed(1)}, cheapest ${now.optimum.toFixed(1)}.`);
   $("meters").innerHTML =
-    meter("Route", now.path_cost, now.optimum, maxC, now.path_cost > now.optimum + 1e-6 ? css("--fail") : css("--route"),
-      `costs ${now.path_cost.toFixed(1)}; the cheapest costs ${now.optimum.toFixed(1)}`) +
-    meter("Work", now.expanded_n, now.classical, maxW, css("--focus"),
-      `${now.expanded_n} tiles expanded; classical A* expands ${now.classical}`);
+    meter("Route", now.path_cost, now.optimum, Math.max(now.path_cost, now.optimum) * 1.12,
+      now.path_cost > now.optimum + 1e-6 ? css("--fail") : css("--route"),
+      `${now.path_cost.toFixed(1)} / ${now.optimum.toFixed(1)}`, "the cheapest route") +
+    meter("Work", now.expanded_n, now.classical, Math.max(now.expanded_n, now.classical) * 1.08,
+      css("--focus"), `${now.expanded_n} / ${now.classical}`, "tiles classical A* expands");
   const failed = now.path_cost > now.optimum + 1e-6, exactBad = now.exact_cost > now.optimum + 1e-6;
-  const rho = now.spearman.toFixed(2);
+  $("why-section").hidden = false;
+  $("why-title").textContent = "What the network sees";
   $("why").innerHTML = `
-    <p class="note">${S.context}</p>
-    <p>The network never sees the true costs, only the picture. On this map its costs follow the true costs' order only ${now.spearman < 0.5 ? "weakly" : "moderately"} (rank correlation ${rho}; 1 would be perfect). Compare the <b>True cost</b> and <b>Network's cost</b> views.</p>
+    <p>Its costs vs the true costs: rank correlation <b>${now.spearman.toFixed(2)}</b>.</p>
     ${failed ? (exactBad
-      ? `<p><b>The costs are to blame.</b> Even a perfect search on the network's costs takes a route costing ${now.exact_cost.toFixed(1)} instead of ${now.optimum.toFixed(1)} (dashed purple in the Network's cost view).</p>`
-      : `<p><b>The search is to blame.</b> A perfect search on the network's own costs finds the cheapest route; the planner's search rule loses it.</p>`)
-      : `<p>Here the costs are good enough for the search to find the cheapest route.</p>`}
-    <p class="empty">${S.eps
-      ? "Across 300 maps the planner solved, a 1/255 gradient attack broke 84–85 % of them; random noise of the same size broke 4–8 % (step 11)."
-      : "Across the tested maps, 82–85 % of the damage from a repainted tile is in the costs, not the search (step 11)."}</p>`;
+      ? `<p>To blame: <b>the costs</b>. A perfect search on them also misses (${now.exact_cost.toFixed(1)}).</p>`
+      : `<p>To blame: <b>the search</b>. A perfect search on these costs finds the cheapest route.</p>`) : ""}`;
   if (S.perturbation) {
     $("pert").src = S.perturbation;
-    $("pert-note").textContent = `Every pixel moved by at most ${S.eps}/255, shown ${Math.round(255 / (2 * S.eps))}× magnified. The true costs, and so the cheapest route, did not change at all.`;
+    $("pert-note").textContent = `±${S.eps}/255 per pixel, shown ×${Math.round(255 / (2 * S.eps))}. True costs unchanged.`;
   }
   $("tamper-section").hidden = true;
   renderPalette();
   legendWarcraft();
-  $("status").textContent = S.message + (S.has_sweep ? "" : " The worst-repaint button covers terrain maps 0–299 (the step-11 sweep).");
+  $("status").textContent = S.message;
   drawBoard();
   updateTip();
 }
 function legendWarcraft() {
-  let html = [["--optimal", "cheapest route (true costs)"], ["--route", "Neural A* route"], ["--flip", "repainted tile"]]
+  let html = [["--optimal", "cheapest route"], ["--route", "Neural A*"], ["--flip", "repainted"]]
     .map(([v, t]) => `<span><i class="sw" style="background:${css(v)}"></i>${t}</span>`).join("");
-  if (layer !== "picture") html += `<span><i class="sw" style="background:linear-gradient(90deg,${costColor(0)},${costColor(1)})"></i>${layer === "truth" ? "cheap to costly" : "cheapest to costliest, by rank on this map"}</span>`;
-  if (layer === "cost") html += `<span><i class="sw" style="background:#7a4fd0"></i>perfect search on the network's costs, when it differs</span>`;
+  if (layer !== "picture") html += `<span><i class="sw" style="background:linear-gradient(90deg,${costColor(0)},${costColor(1)})"></i>cheap → costly</span>`;
+  if (layer === "cost") html += `<span><i class="sw" style="background:#7a4fd0"></i>perfect search on these costs</span>`;
   $("legend").innerHTML = html;
 }
 

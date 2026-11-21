@@ -196,7 +196,7 @@ class DemoState:
         self.instance_id = int(instance_id) % len(self.split)
         self.instance = self.split.instance(self.instance_id, seed=self.seed)
         self.flips, self.undo_stack = [], []
-        self.message = f"Test map {self.instance_id} (of 0–{len(self.split) - 1}). Click a cell to flip it."
+        self.message = "Click a cell to add or remove a wall."
         self._clean = self._evaluate([])
         self.view = self._clean
 
@@ -216,17 +216,18 @@ class DemoState:
         rc = (int(rc[0]), int(rc[1]))
         h, w = self.instance.map_design.shape
         if not (0 <= rc[0] < h and 0 <= rc[1] < w):
+            self.message = "Outside the map."
             return False
         if rc in (self.instance.start_rc, self.instance.goal_rc):
-            self.message = "start and goal cannot be flipped"
+            self.message = "Start and goal stay as they are."
             return False
         flips = [c for c in self.flips if c != rc] if rc in self.flips else self.flips + [rc]
         if not is_reachable(flip_cells(self.instance.map_design, flips),
                             self.instance.start_rc, self.instance.goal_rc):
-            self.message = f"refused: flipping {rc} cuts the goal off from the start"
+            self.message = "Not allowed: that would wall off the goal."
             return False
         verb = "free" if self.instance.map_design[rc] == 0 else "obstacle"
-        self._set(flips, f"cell {rc} -> {verb}" if rc not in self.flips else f"cell {rc} restored")
+        self._set(flips, ("Wall added." if verb == "obstacle" else "Wall removed.") if rc not in self.flips else "Cell restored.")
         return True
 
     def undo(self) -> None:
@@ -234,12 +235,12 @@ class DemoState:
         if self.undo_stack:
             self.flips = self.undo_stack.pop()
             self.view = self._evaluate(self.flips)
-            self.message = "undone"
+            self.message = "Undone."
 
     def reset(self) -> None:
         """Back to the clean map."""
         if self.flips:
-            self._set([], "reset to the clean map")
+            self._set([], "Reset.")
 
     def worst(self, objective: str) -> None:
         """Replace the flips with the single worst cell found by the exhaustive sweep."""
@@ -251,11 +252,11 @@ class DemoState:
         rows = manifest[(manifest["instance_id"] == self.instance_id)
                         & manifest[flag].to_numpy(dtype=bool, na_value=False)]
         if rows.empty:
-            self.message = f"no single cell damages {objective} on this map"
+            self.message = "No single cell hurts this map."
             return
         cell = tuple(int(v) for v in rows.iloc[0]["flip_cells"][0])
         tried = int(((manifest["instance_id"] == self.instance_id)).sum())
-        self._set([cell], f"worst single cell for {objective}, out of {tried} tried: {cell}")
+        self._set([cell], f"Worst of {tried} single cells.")
 
     def gradient_step(self, objective: str) -> None:
         """Add one cell chosen by the gradient-guided attack (step 13)."""
@@ -266,12 +267,10 @@ class DemoState:
             method="gradient", initial=self.flips,
         )
         if not history:
-            self.message = "gradient attack found no admissible cell to add"
+            self.message = "The attack found no cell to add."
             return
         cells = [tuple(int(v) for v in rc) for rc in history[0]["flip_cells"]]
-        added = [rc for rc in cells if rc not in self.flips]
-        self._set(cells, f"gradient attack ({objective}): added {added[0] if added else '-'}"
-                         f" — 64 cells tried in {time.perf_counter() - started:.1f} s")
+        self._set(cells, f"Attack added a cell ({time.perf_counter() - started:.1f} s).")
 
     def random_flip(self) -> None:
         """Flip one uniformly random cell that keeps the goal reachable."""
@@ -279,7 +278,7 @@ class DemoState:
         for _ in range(200):
             rc = cells[self.rng.integers(len(cells))]
             if rc not in self.flips and self.toggle(rc):
-                self.message = "random " + self.message
+                self.message = "Random cell flipped."
                 return
 
     def manifest(self):
@@ -331,10 +330,10 @@ class DemoState:
         extra = v["moves"] - v["optimal_moves"]
         if extra > TOL:
             moves = "move" if round(extra) == 1 else "moves"
-            return "fail", f"The planner failed: its route is {extra:.0f} {moves} longer than the shortest"
+            return "fail", f"Failed: route {extra:.0f} {moves} too long"
         if v["exp"] > 1 + TOL:
-            return "warn", "Shortest route found, but with more work than classical A*"
-        return "ok", "Shortest route found, with less work than classical A*"
+            return "warn", "Shortest route, but more work than classical A*"
+        return "ok", "Shortest route found"
 
 
 def explain(values: Dict[str, float], floor: float) -> str:
@@ -356,8 +355,8 @@ def explain(values: Dict[str, float], floor: float) -> str:
     if network:
         return "the network: its new costs alone do it"
     if search:
-        return "the search: the old costs fail on the new obstacles"
-    return "neither alone: costs and obstacles only hurt together"
+        return "the search: the old costs fail on the new walls"
+    return "neither alone: costs and walls only hurt together"
 
 
 def snapshot(state: DemoState) -> Dict[str, object]:
@@ -492,7 +491,7 @@ class WarcraftState:
         self.eps = 0
         self.edits: List[Tuple[RC, float]] = []
         self.undo_stack: List[tuple] = []
-        self.message = f"WarCraft test map {self.instance_id}. Pick a terrain, then click a tile to repaint it."
+        self.message = "Pick a terrain, then click a tile."
         self.clean = self._evaluate()
         self.view = self.clean
 
@@ -507,7 +506,7 @@ class WarcraftState:
             if self.solved[i]:
                 break
         self.load_map(i)
-        self.message = f"WarCraft test map {i}: one the planner solves when nothing is changed."
+        self.message = "Pick a terrain, then click a tile."
 
     def _push(self) -> None:
         self.undo_stack.append((self.image.copy(), self.weights.copy(), self.delta, self.eps, list(self.edits)))
@@ -516,7 +515,7 @@ class WarcraftState:
         if self.undo_stack:
             self.image, self.weights, self.delta, self.eps, self.edits = self.undo_stack.pop()
             self.view = self._evaluate()
-            self.message = "undone"
+            self.message = "Undone."
 
     def reset(self) -> None:
         if self.edits or self.delta is not None:
@@ -525,13 +524,21 @@ class WarcraftState:
             self.weights = self.test.weights[self.instance_id].copy()
             self.delta, self.eps, self.edits = None, 0, []
             self.view = self._evaluate()
-            self.message = "reset to the original picture"
+            self.message = "Reset."
 
     def paint(self, rc: RC, cls: float) -> None:
         """Replace tile `rc` with a real tile of terrain `cls` from a training map."""
         rc = (int(rc[0]), int(rc[1]))
+        # Checked before anything is pushed to undo: a negative index would
+        # otherwise silently repaint a tile on the far side of the map.
+        if not (0 <= rc[0] < self.wc.GRID and 0 <= rc[1] < self.wc.GRID):
+            self.message = "Outside the map."
+            return
         if rc in (self.wc.START_RC, self.wc.GOAL_RC):
-            self.message = "start and goal tiles cannot be repainted"
+            self.message = "Start and goal stay as they are."
+            return
+        if not any(abs(float(cls) - c) < 1e-6 for c in self.wc.TERRAIN_COSTS):
+            self.message = f"{cls} is not one of the terrain costs {self.wc.TERRAIN_COSTS}"
             return
         if any(e[0] == rc for e in self.edits):
             # Clicking a repainted tile puts the original back, as a click on a
@@ -545,7 +552,7 @@ class WarcraftState:
             self.weights[rc] = self.test.weights[self.instance_id][rc]
             self.edits = [e for e in self.edits if e[0] != rc]
             self.view = self._evaluate()
-            self.message = f"tile {rc} restored"
+            self.message = "Tile restored."
             return
         cls = min(self.wc.TERRAIN_COSTS, key=lambda c: abs(c - float(cls)))
         donor = self.wc.draw_donor(self.pool, cls, self.rng)
@@ -554,7 +561,7 @@ class WarcraftState:
             self.image, self.weights, [rc], [self.train.images[donor[0]]], [(donor[1], donor[2])], [cls])
         self.edits = [e for e in self.edits if e[0] != rc] + [(rc, cls)]
         self.view = self._evaluate()
-        self.message = f"tile {rc} repainted with terrain of true cost {cls}"
+        self.message = f"Tile repainted, true cost {cls}."
 
     def worst(self) -> None:
         """The single tile repaint that hurt the planner most, from the exhaustive sweep."""
@@ -563,20 +570,19 @@ class WarcraftState:
             return
         rows = self.sweep[self.sweep["instance_id"] == self.instance_id]
         if rows.empty:
-            self.message = "the sweep covered test maps 0-299 only; pick one of those"
+            self.message = "Worst repaint is known for maps 0–299 only."
             return
         row = rows.loc[rows["opt_C1"].idxmax()]
         rc = tuple(int(v) for v in row["flip_cells"][0])
         donor = tuple(int(v) for v in row["donors"][0])
         cls = float(row["new_weight"][0])
+        self._push()  # before clearing, so undo returns to the edits the user had
         self.reset_silently()
-        self._push()
         self.image, self.weights = self.wc.transplant_tiles(
             self.image, self.weights, [rc], [self.train.images[donor[0]]], [(donor[1], donor[2])], [cls])
         self.edits = [(rc, cls)]
         self.view = self._evaluate()
-        self.message = (f"worst single repaint out of {len(rows)} tried: tile {rc}, "
-                        f"terrain of true cost {cls}")
+        self.message = f"Worst of {len(rows)} single repaints."
 
     def reset_silently(self) -> None:
         self.image = self.test.images[self.instance_id].copy()
@@ -587,6 +593,9 @@ class WarcraftState:
         """Nudge every pixel by at most eps/255: gradient-guided (PGD) or random signs."""
         from scripts.warcraft_study import pgd
 
+        if int(eps_255) not in (1, 2, 4, 8, 16) or kind not in ("pgd", "noise"):
+            self.message = "pixel changes come in 1, 2, 4, 8 or 16 /255, by gradient (pgd) or noise"
+            return
         eps = int(eps_255) / 255.0
         self._push()
         base = self.image.astype(np.float32) / 255.0
@@ -600,8 +609,8 @@ class WarcraftState:
         self.delta = (attacked - base).astype(np.float32)
         self.eps = int(eps_255)
         self.view = self._evaluate()
-        what = "gradient attack" if kind == "pgd" else "random noise"
-        self.message = f"{what}: every pixel moved by at most {eps_255}/255 — the true costs did not change"
+        what = "Pixel attack" if kind == "pgd" else "Random noise"
+        self.message = f"{what}, ±{eps_255}/255 per pixel."
 
     def _evaluate(self) -> Dict[str, object]:
         wc = self.wc
@@ -628,19 +637,17 @@ class WarcraftState:
     def context(self) -> str:
         """How good this planner is untouched, so a failure can be read correctly."""
         if self.solved is None:
-            return "This planner is weak on terrain maps: untouched, it finds the cheapest route on about a third of them."
+            return "Untouched, this planner solves about a third of terrain maps."
         n, k = len(self.solved), int(self.solved.sum())
-        return (f"This planner is weak on terrain maps: untouched, it finds the exact cheapest route on {k} of "
-                f"{n} test maps ({k / n:.0%}). The arrows visit only those, so a failure after a change is "
-                f"caused by the change.")
+        return f"Untouched, this planner solves {k / n:.0%} of terrain maps. The arrows visit only those."
 
     def verdict(self) -> Tuple[str, str]:
         v = self.view
         extra = v["path_cost"] - v["optimum"]
         if extra > 1e-6 and not self.edits and self.delta is None:
-            return "warn", f"Untouched, the planner's route already costs {extra / v['optimum']:.0%} more than the cheapest"
+            return "warn", f"Already {extra / v['optimum']:.0%} too costly, untouched"
         if extra > 1e-6:
-            return "fail", f"The planner failed: its route costs {extra / v['optimum']:.0%} more than the cheapest"
+            return "fail", f"Failed: route {extra / v['optimum']:.0%} too costly"
         return "ok", "Cheapest route found"
 
     def snapshot(self) -> Dict[str, object]:
@@ -782,7 +789,7 @@ def make_server(state: "Demo", port: int):
                 request = json.loads(self.rfile.read(length) or b"{}")
                 mode = request.get("mode")
                 mode = state.apply(request.get("name", ""), request.get("arg"), mode)
-            except (ValueError, KeyError, TypeError, IndexError) as error:
+            except (ValueError, KeyError, TypeError, IndexError, AttributeError) as error:
                 target = state.warcraft if mode == "warcraft" and state.warcraft else state.maze
                 target.message = f"could not do that: {error}"
             self._send(json.dumps(state.snapshot(mode)).encode(), "application/json")
