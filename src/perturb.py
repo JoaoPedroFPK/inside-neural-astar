@@ -618,6 +618,7 @@ def greedy_flip_search(
     opt_cap: float = OPT_CAP_FOR_EFFICIENCY,
     method: str = "greedy",
     extra: Optional[Dict[str, object]] = None,
+    initial: Sequence[RC] = (),
 ) -> List[Dict[str, object]]:
     """Grow a damaging flip set one cell at a time, keeping the best each round.
 
@@ -651,6 +652,8 @@ def greedy_flip_search(
         method: Recorded in each row's ``method`` column.
         extra: Extra columns recorded on every row (e.g. where the pool came
             from).
+        initial: Cells already flipped before the first round; the search
+            continues from them (the interactive demo adds one cell per click).
 
     Returns:
         list[dict]: One results row per round, i.e. the chosen set at budgets
@@ -666,7 +669,7 @@ def greedy_flip_search(
         raise ValueError(f"unknown objective {objective!r}")
     baselines = {} if baselines is None else baselines
 
-    chosen: List[RC] = []
+    chosen: List[RC] = [tuple(rc) for rc in initial]
     history: List[Dict[str, object]] = []
 
     for _ in range(budget):
