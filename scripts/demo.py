@@ -478,7 +478,11 @@ class WarcraftState:
 
             self.sweep = pd.read_parquet(sweep, columns=["instance_id", "flip_cells", "new_weight",
                                                        "donors", "opt_C1", "opt_C0_on_W1"])
+        # Open on a map the planner solves: an attack is only meaningful where
+        # the untouched planner was right, as in step 11.
         self.load_map(0)
+        if self.solved is not None and not self.solved[0]:
+            self.next_solved(1)
 
     def load_map(self, instance_id: int) -> None:
         self.instance_id = int(instance_id) % len(self.test)
@@ -528,6 +532,20 @@ class WarcraftState:
         rc = (int(rc[0]), int(rc[1]))
         if rc in (self.wc.START_RC, self.wc.GOAL_RC):
             self.message = "start and goal tiles cannot be repainted"
+            return
+        if any(e[0] == rc for e in self.edits):
+            # Clicking a repainted tile puts the original back, as a click on a
+            # flipped maze cell does.
+            self._push()
+            original = self.test.images[self.instance_id]
+            sl = self.wc.tile_slice(rc)
+            self.image = self.image.copy()
+            self.image[sl] = original[sl]
+            self.weights = self.weights.copy()
+            self.weights[rc] = self.test.weights[self.instance_id][rc]
+            self.edits = [e for e in self.edits if e[0] != rc]
+            self.view = self._evaluate()
+            self.message = f"tile {rc} restored"
             return
         cls = min(self.wc.TERRAIN_COSTS, key=lambda c: abs(c - float(cls)))
         donor = self.wc.draw_donor(self.pool, cls, self.rng)
@@ -607,9 +625,20 @@ class WarcraftState:
             "spearman": float(spearmanr(costs[0].ravel(), self.weights.ravel()).correlation),
         }
 
+    def context(self) -> str:
+        """How good this planner is untouched, so a failure can be read correctly."""
+        if self.solved is None:
+            return "This planner is weak on terrain maps: untouched, it finds the cheapest route on about a third of them."
+        n, k = len(self.solved), int(self.solved.sum())
+        return (f"This planner is weak on terrain maps: untouched, it finds the exact cheapest route on {k} of "
+                f"{n} test maps ({k / n:.0%}). The arrows visit only those, so a failure after a change is "
+                f"caused by the change.")
+
     def verdict(self) -> Tuple[str, str]:
         v = self.view
         extra = v["path_cost"] - v["optimum"]
+        if extra > 1e-6 and not self.edits and self.delta is None:
+            return "warn", f"Untouched, the planner's route already costs {extra / v['optimum']:.0%} more than the cheapest"
         if extra > 1e-6:
             return "fail", f"The planner failed: its route costs {extra / v['optimum']:.0%} more than the cheapest"
         return "ok", "Cheapest route found"
@@ -644,6 +673,7 @@ class WarcraftState:
             "clean": {k: c[k] for k in ("path_cost", "optimum", "exact_cost", "expanded_n", "classical", "spearman")},
             "has_sweep": self.sweep is not None and self.instance_id < 300,
             "solved_clean": bool(c["path_cost"] <= c["optimum"] + 1e-6),
+            "context": self.context(),
         }
         return out
 
@@ -658,8 +688,10 @@ class Demo:
         self.mode = "maze"
         self.warcraft_error = ""
 
-    def snapshot(self) -> Dict[str, object]:
-        if self.mode == "warcraft" and self.warcraft is not None:
+    def snapshot(self, mode: Optional[str] = None) -> Dict[str, object]:
+        """The state of one map type: the one the page names, else the default."""
+        mode = mode or self.mode
+        if mode == "warcraft" and self.warcraft is not None:
             return self.warcraft.snapshot()
         out = snapshot(self.maze)
         out["mode"] = "maze"
@@ -668,7 +700,14 @@ class Demo:
             self.warcraft_error = ""
         return out
 
-    def apply(self, name: str, arg: object = None) -> None:
+    def apply(self, name: str, arg: object = None, mode: Optional[str] = None) -> str:
+        """Run one action on the map type the page is showing; returns that type.
+
+        The page sends its own map type with every action. Keeping it per
+        request, rather than as server state, means a second browser tab (or a
+        stale one from an earlier `make demo`) can never switch the map type
+        under another tab, nor send a maze click to the terrain maps.
+        """
         if name == "mode":
             if arg == "warcraft" and self.warcraft is None:
                 try:
@@ -677,10 +716,11 @@ class Demo:
                     self.warcraft_error = f"WarCraft is not available here: {error}. Run `make warcraft-data` and `make warcraft-train`."
                     return
             self.mode = "warcraft" if arg == "warcraft" else "maze"
-            return
-        if self.mode == "maze":
+            return self.mode
+        mode = mode or self.mode
+        if mode != "warcraft" or self.warcraft is None:
             apply_action(self.maze, name, arg)
-            return
+            return "maze"
         w = self.warcraft
         if name == "paint":
             w.paint(arg[:2], arg[2])
@@ -696,6 +736,7 @@ class Demo:
             getattr(w, name)()
         else:
             raise ValueError(f"unknown action {name!r}")
+        return "warcraft"
 
 
 PAGE = Path(__file__).with_name("demo_page.html")
@@ -720,11 +761,14 @@ def make_server(state: "Demo", port: int):
             self.wfile.write(body)
 
         def do_GET(self) -> None:  # noqa: N802 (http.server API)
-            self.path = self.path.split("?", 1)[0]
-            if self.path in ("/", "/index.html"):
+            from urllib.parse import parse_qs, urlsplit
+
+            url = urlsplit(self.path)
+            mode = parse_qs(url.query).get("mode", [""])[0] or None
+            if url.path in ("/", "/index.html"):
                 self._send(PAGE.read_bytes(), "text/html; charset=utf-8")
-            elif self.path == "/api/state":
-                self._send(json.dumps(state.snapshot()).encode(), "application/json")
+            elif url.path == "/api/state":
+                self._send(json.dumps(state.snapshot(mode)).encode(), "application/json")
             else:
                 self._send(b"not found", "text/plain", 404)
 
@@ -733,13 +777,15 @@ def make_server(state: "Demo", port: int):
                 self._send(b"not found", "text/plain", 404)
                 return
             length = int(self.headers.get("Content-Length", 0))
+            mode = None
             try:
                 request = json.loads(self.rfile.read(length) or b"{}")
-                state.apply(request.get("name", ""), request.get("arg"))
+                mode = request.get("mode")
+                mode = state.apply(request.get("name", ""), request.get("arg"), mode)
             except (ValueError, KeyError, TypeError, IndexError) as error:
-                target = state.warcraft if state.mode == "warcraft" else state.maze
+                target = state.warcraft if mode == "warcraft" and state.warcraft else state.maze
                 target.message = f"could not do that: {error}"
-            self._send(json.dumps(state.snapshot()).encode(), "application/json")
+            self._send(json.dumps(state.snapshot(mode)).encode(), "application/json")
 
         def log_message(self, *args) -> None:  # keep the terminal quiet
             pass

@@ -251,13 +251,14 @@ let pictureSrc = "";
 picture.onload = () => drawBoard();
 
 // ---------- server
-async function load() { S = await (await fetch("/api/state")).json(); render(); }
+async function load() { S = await (await fetch("/api/state?mode=" + (S ? S.mode : ""))).json(); render(); }
 async function act(name, arg) {
   if (busy) return;
   busy = true; setBusy(true);
   $("status").textContent = name === "grad" ? "Trying 64 cells the gradient points at…" : "Working…";
   try {
-    const r = await fetch("/api/action", {method: "POST", body: JSON.stringify({name, arg})});
+    // The page says which map type it is showing: actions never land on the other one.
+    const r = await fetch("/api/action", {method: "POST", body: JSON.stringify({name, arg, mode: name === "mode" ? arg : S.mode})});
     S = await r.json();
   } catch (e) { $("status").textContent = "The demo server stopped. Start it again with make demo."; }
   busy = false; setBusy(false); render();
@@ -269,7 +270,7 @@ function setBusy(on) {
 
 // ---------- board
 const board = $("board"), ctx = board.getContext("2d");
-let cell = 20, n = 32;
+let cell = 20, n = 32, boardSize = 640;
 function fit() {
   // The board is the largest square that fits between the tools and the reading,
   // under the title bar, with room for its legend.
@@ -284,7 +285,7 @@ function fit() {
   board.style.width = board.style.height = size + "px";
   board.width = board.height = Math.round(size * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  cell = size / n;
+  boardSize = size;
   if (S) drawBoard();
 }
 function costColor(t) {  // cheap = pale, costly = deep blue-grey
@@ -310,6 +311,7 @@ function drawBoard() {
   if (!S) return;
   if (S.mode === "warcraft") return drawWarcraft();
   n = S.grid.length;
+  cell = boardSize / n;  // recomputed on every draw: switching map type changes n
   const size = cell * n;
   ctx.clearRect(0, 0, size, size);
   let lim = 0.05;
@@ -362,23 +364,31 @@ board.addEventListener("click", (ev) => {
   const rc = cellAt(ev); if (!rc) return;
   if (S.mode === "warcraft") act("paint", [rc[0], rc[1], brush]); else act("flip", rc);
 });
-board.addEventListener("mousemove", (ev) => {
-  const rc = cellAt(ev), tip = $("tip");
-  if (!rc || !S) { hover = null; tip.style.opacity = 0; drawBoard(); return; }
-  hover = rc;
+function updateTip() {
+  // Called on every mouse move and after every change, so the hint under the
+  // pointer always describes the cell as it is now (a flipped cell says "restore").
+  const tip = $("tip"), rc = hover;
+  if (!rc || !S) { tip.style.opacity = 0; return; }
   const isEnd = (p) => p[0] === rc[0] && p[1] === rc[1];
-  const flipped = S.flips.some(isEnd);
+  const wc = S.mode === "warcraft";
+  if (rc[0] >= (wc ? S.weights.length : S.grid.length) || rc[1] >= (wc ? S.weights.length : S.grid.length)) { tip.style.opacity = 0; return; }
+  const changed = (wc ? S.edits.map((e) => e[0]) : S.flips).some(isEnd);
   let text;
   if (isEnd(S.start) || isEnd(S.goal)) text = isEnd(S.start) ? "start" : "goal";
-  else if (S.mode === "warcraft") text = `true cost ${S.weights[rc[0]][rc[1]]} · network's cost ${S.cost_raw[rc[0]][rc[1]].toFixed(2)} · click to paint ${brush}`;
+  else if (wc) text = `true cost ${S.weights[rc[0]][rc[1]]}, network's cost ${S.cost_raw[rc[0]][rc[1]].toFixed(2)}: ` +
+    (changed ? "click to restore the original tile" : `click to repaint as cost ${brush}`);
   else if (layer === "cost") text = `cost ${S.cost[rc[0]][rc[1]].toFixed(2)}`;
   else if (layer === "change") text = `cost change ${S.cost_change[rc[0]][rc[1]] >= 0 ? "+" : ""}${S.cost_change[rc[0]][rc[1]].toFixed(2)}`;
-  else text = flipped ? "click to restore" : S.grid[rc[0]][rc[1]] ? "click to add a wall" : "click to remove this wall";
+  else text = changed ? "click to restore" : S.grid[rc[0]][rc[1]] ? "click to add a wall" : "click to remove this wall";
   tip.textContent = text;
   const b = board.getBoundingClientRect(), w = $("wrap").getBoundingClientRect();
   tip.style.left = (b.left - w.left + (rc[1] + 0.5) * cell) + "px";
   tip.style.top = (b.top - w.top + rc[0] * cell) + "px";
   tip.style.opacity = 1;
+}
+board.addEventListener("mousemove", (ev) => {
+  hover = cellAt(ev);
+  updateTip();
   drawBoard();
 });
 board.addEventListener("mouseleave", () => { hover = null; $("tip").style.opacity = 0; if (S) drawBoard(); });
@@ -403,7 +413,7 @@ function meter(label, value, ref, max, color, note) {
 const plural = (x, w) => `${x} ${w}${Math.round(x) === 1 ? "" : "s"}`;
 function render() {
   if (!S) return;
-  if (S.mode !== mode) { mode = S.mode; layer = LAYERS[mode][0][0]; buildLayers(); }
+  if (S.mode !== mode) { mode = S.mode; layer = LAYERS[mode][0][0]; hover = null; buildLayers(); }
   document.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
   const wc = mode === "warcraft";
   $("actions-maze").hidden = wc; $("actions-wc").hidden = !wc;
@@ -427,6 +437,7 @@ function render() {
   renderWhy(); renderTamper(); legend();
   $("status").textContent = S.message + (S.has_sweep ? "" : " — worst-cell buttons need the exhaustive sweep (make sweep).");
   drawBoard();
+  updateTip();
 }
 const signed = (x) => (x > 0 ? "+" : x < 0 ? "−" : "±") + Math.abs(x);
 function renderWhy() {
@@ -470,7 +481,8 @@ function truthColor(w) {  // true terrain cost, 0.8 .. 9.2, same ramp as the net
   return costColor((w - 0.8) / (9.2 - 0.8));
 }
 function drawWarcraft() {
-  n = 12;
+  n = S.weights.length;
+  cell = boardSize / n;
   const size = cell * n;
   ctx.clearRect(0, 0, size, size);
   if (layer === "picture") {
@@ -537,6 +549,7 @@ function renderWarcraft() {
   const failed = now.path_cost > now.optimum + 1e-6, exactBad = now.exact_cost > now.optimum + 1e-6;
   const rho = now.spearman.toFixed(2);
   $("why").innerHTML = `
+    <p class="note">${S.context}</p>
     <p>The network never sees the true costs, only the picture. On this map its costs follow the true costs' order only ${now.spearman < 0.5 ? "weakly" : "moderately"} (rank correlation ${rho}; 1 would be perfect). Compare the <b>True cost</b> and <b>Network's cost</b> views.</p>
     ${failed ? (exactBad
       ? `<p><b>The costs are to blame.</b> Even a perfect search on the network's costs takes a route costing ${now.exact_cost.toFixed(1)} instead of ${now.optimum.toFixed(1)} (dashed purple in the Network's cost view).</p>`
@@ -554,6 +567,7 @@ function renderWarcraft() {
   legendWarcraft();
   $("status").textContent = S.message + (S.has_sweep ? "" : " The worst-repaint button covers terrain maps 0–299 (the step-11 sweep).");
   drawBoard();
+  updateTip();
 }
 function legendWarcraft() {
   let html = [["--optimal", "cheapest route (true costs)"], ["--route", "Neural A* route"], ["--flip", "repainted tile"]]

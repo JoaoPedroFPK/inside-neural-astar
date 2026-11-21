@@ -69,7 +69,8 @@ def test_drawn_route_matches_the_planner_on_attacked_maps(state) -> None:
 def test_http_api_serves_the_page_state_and_actions(state) -> None:
     """GET / is the page, GET /api/state the JSON, POST /api/action changes it."""
     state.load_map(0)
-    server = make_server(Demo(state), 0)
+    demo = Demo(state)
+    server = make_server(demo, 0)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     base = f"http://127.0.0.1:{server.server_port}"
@@ -81,6 +82,13 @@ def test_http_api_serves_the_page_state_and_actions(state) -> None:
             {"name": "flip", "arg": [10, 10]}).encode(), method="POST")
         snap = json.loads(urllib.request.urlopen(request).read())
         assert snap["flips"] == [[10, 10]]
+        # A second tab switching the server's default map type must not
+        # redirect this tab's maze clicks: the page names its map type.
+        demo.mode = "warcraft"
+        request = urllib.request.Request(base + "/api/action", data=json.dumps(
+            {"name": "flip", "arg": [10, 10], "mode": "maze"}).encode(), method="POST")
+        snap = json.loads(urllib.request.urlopen(request).read())
+        assert snap["mode"] == "maze" and snap["flips"] == []
     finally:
         server.shutdown()
         server.server_close()
