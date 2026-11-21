@@ -63,10 +63,10 @@ The learned cost map approximates two geometric quantities — distance to goal 
 
 | ID | Goal | Tests |
 |----|------|-------|
-| **E0** | Reproduce Neural A\* on the 32×32 maze benchmark (Opt, Exp, Hmean within tolerance). Set up attribution hooks. | — |
-| **E1** | Characterize the cost map: fit an additive model on geometric features (geodesic & Euclidean distance to goal, distance to nearest obstacle, local obstacle density, corridor width); residual analysis by local topology (junction / corridor / dead end / open area); Integrated Gradients from cost cells back to the input; controlled map edits. | H1 |
-| **E2** | Perturbations: flip 1–8 cells, chosen by gradient-guided search through the differentiable module (exhaustive for 1–2 cells, greedy for larger budgets), reachability preserved; random flips as baseline. Two objectives: degrade path optimality / degrade search efficiency. Compare against classical A\* on the same altered maps. | premise |
-| **E3** | Mediation via the 2×2 swap design (see below). Metrics: fraction of ΔOpt and ΔExp reproduced by each off-diagonal cell; ΔCost (L1 and spatial localization). | H2 |
+| **E0** ✅ | Reproduce Neural A\* on the 32×32 maze benchmark (Opt, Exp, Hmean within tolerance). Set up attribution hooks. | — |
+| **E1** ✅ | Characterize the cost map: fit an additive model on geometric features (geodesic & Euclidean distance to goal, distance to nearest obstacle, local obstacle density, corridor width); residual analysis by local topology (junction / corridor / dead end / open area); Integrated Gradients from cost cells back to the input; controlled map edits. | H1 |
+| **E2** ✅ | Perturbations: flip 1–8 cells, chosen by exhaustive search (every single cell) and greedy search (up to 8 cells), reachability preserved; random flips as baseline. A gradient-guided search through the differentiable module was planned and is **not built yet** (see *Next steps*). Two objectives: degrade path optimality / degrade search efficiency. Compare against classical A\* on the same altered maps. | premise |
+| **E3** ✅ | Mediation via the 2×2 swap design (see below). Metrics: fraction of ΔOpt and ΔExp reproduced by each off-diagonal cell; ΔCost (L1 and spatial localization). | H2 |
 | **E4** ✅ | Detection: do attacked inputs produce cost maps whose residual from the E1 surrogate is anomalous? Baselines: Mahalanobis distance on encoder activations **and** a model-free classifier on grid statistics. | H3 |
 
 ### The swap design (E3)
@@ -665,14 +665,15 @@ together. Each links to the step that produced it.
 ```
 .
 ├── README.md
-├── Makefile                   ✅ make env | test | test-env | e0 | lock
+├── Makefile                   ✅ every target below; `make help` lists them
 ├── .python-version            ✅ 3.10.18
 ├── requirements.txt           ✅ direct pins, one comment per non-obvious pin
 ├── requirements.lock.txt      ✅ full transitive closure (174 packages)
 ├── neural-astar/              ✅ git submodule, `minimal` branch (never edited)
 │   └── planning-datasets/     ✅ nested submodule: ships the .npz data
 ├── data/
-│   └── mazes_032_moore_c8.npz ✅ symlink into the nested submodule
+│   ├── mazes_032_moore_c8.npz ✅ symlink into the nested submodule
+│   └── warcraft/              ✅ [11] downloaded by `make warcraft-data` (not versioned)
 ├── scripts/
 │   ├── setup_env.sh           ✅ idempotent, self-verifying env build
 │   ├── e0_reproduce.py        ✅ [0] E0 numbers, both start protocols
@@ -680,7 +681,22 @@ together. Each links to the step that produced it.
 │   ├── pilot_random.py        ✅ [3] random-flip pilot + budget decision
 │   ├── probe_exhaustive_k1.py ✅ [3] worst-case probe (also step-6 timing)
 │   ├── build_features.py      ✅ [4] feature archives for all splits
-│   └── plot_feature_spotcheck.py ✅ [4] spot-check figure + correlations
+│   ├── plot_feature_spotcheck.py ✅ [4] spot-check figure + correlations
+│   ├── render_readme_figures.py ✅ the dataset samples and search animation above
+│   ├── fit_surrogate.py       ✅ [5] surrogate fits, residuals, sufficiency
+│   ├── sweep_k1.py            ✅ [6] exhaustive single-cell sweep → manifest
+│   ├── analyse_damaging_cells.py ✅ [6] where the damaging cells are
+│   ├── swap_k1.py             ✅ [7] 2×2 mediation swap
+│   ├── compare_families.py    ✅ [7b] maze-trained planner on all 8 families
+│   ├── attribution_study.py   ✅ [8] attribution vs the exact influence bound
+│   ├── greedy_budgets.py      ✅ [9] greedy search at k ≤ 8, mediation vs budget
+│   ├── train_encoders.py      ✅ [10] encoder training (mazes, forest)
+│   ├── seed_pipeline.sh       ✅ [10] per-model features + sweep + swap
+│   ├── compare_seeds.py       ✅ [10] dispersion across trained encoders
+│   ├── warcraft_study.py      ✅ [11] every WarCraft stage for one model
+│   ├── warcraft_report.py     ✅ [11] the three-model WarCraft report
+│   ├── e4_detector.py         ✅ [12] the detector and its baselines
+│   └── verify_reported_numbers.py ✅ figures quoted in the write-ups vs stored results
 ├── src/
 │   ├── config.py              ✅ paths, device, dataset layout, seeding
 │   ├── grid.py                ✅ 8-connected geometry, BFS, flips, path validation
@@ -697,14 +713,19 @@ together. Each links to the step that produced it.
 │   └── warcraft.py            ✅ [11] WarCraft loading, ground truth, tile transplants, probes
 ├── tests/                     ✅ 203 tests across 16 files, including published-tree and manifest-schema guards
 ├── notebooks/                 ✅ 01_features_spotcheck.ipynb (display only)
-└── results/
+└── results/                   ✅ versioned: the .md/.json reports; .npz, .parquet, .png and models are regenerated
     ├── e0_reproduce.json      ✅ [0]
     ├── step2_validation.json  ✅ [2]
     ├── pilot_random.md        ✅ [3] the step-3 table and the budget decision
-    ├── pilot_random.parquet   ✅ [3] 1 200 alterations, manifest-compatible schema
     ├── probe_k1.json          ✅ [3] exhaustive k=1 on 3 instances
-    ├── features_{split}.npz   ✅ [4] 14 features + 7 aux arrays, 1 000 instances
-    └── e1_features_spotcheck.{png,md} ✅ [4]
+    ├── e1_surrogate*.{md,json} ✅ [5]
+    ├── e2_k1_sweep*.{md,json} ✅ [6] (+ e2_damaging_cells*)
+    ├── e3_k1*.{md,json}       ✅ [7] · e3_budget.{md,json} [9]
+    ├── family_comparison.{md,json} ✅ [7b]
+    ├── e1_attribution/        ✅ [8]
+    ├── training_runs.json · seeds*.{md,json} ✅ [10]
+    ├── warcraft.{md,json} · warcraft/ ✅ [11]
+    └── e4_detector*.{md,json} ✅ [12]
 ```
 
 ---
@@ -735,7 +756,7 @@ Check an environment you did not build yourself:
 
 ```bash
 make test-env     # 16 assertions: interpreter, pins, data, checkpoint, clean submodule
-make test         # whole suite, 161 tests, ~35 s
+make test         # whole suite, 203 tests
 ```
 
 ### Data
@@ -746,7 +767,7 @@ into the nested `planning-datasets` submodule, which ships the file (800 train
 map, the one-hot goal map, the optimal 8-direction policy, and the **true
 geodesic distance of every cell** — the ground truth for the E1 probes and for
 the step-2 solver test. Seven more 32×32 map families (`forest`,
-`single_bugtrap`, `shifting_gaps`, …) sit next to it, which is the planned
+`single_bugtrap`, `shifting_gaps`, …) sit next to it; step 7b uses them as the
 control for "mazes may not be representative".
 
 The pretrained maze checkpoint also ships with the submodule, so **no training
@@ -764,7 +785,7 @@ checks its MD5 and keeps only `12x12/` under `data/warcraft/` (not versioned).
 Available now:
 
 ```bash
-make pipeline           # every experiment in dependency order, ~1h15
+make pipeline           # steps 0–9 in dependency order + verify, ~1h15 (training, seeds, WarCraft and the detector run separately)
 make e0                 # E0: Opt/Exp/Hmean on the test split, both start protocols
 make step2              # step-2 gate: solver vs dataset (1000 maps) + metrics vs E0
 make pilot              # step-3 random-flip pilot (k = 1, 2, 4, 8), ~20 s
@@ -776,20 +797,19 @@ make sweep              # step-6 exhaustive k=1 sweep, ~21 min
 make swap               # step-7 mediation decomposition, ~10 s
 make attribution        # step-8 attribution study, ~1 min
 make families           # step-7b cross-family comparison, ~4 min
+make damaging           # step-6 where the damaging cells are
+make budgets            # step-9 greedy search at k ≤ 8
+make train              # step-10 three maze encoders, ~30 min each
+make seed-pipeline TAG=mazes_seed0   # step-10 per-model features + sweep + swap
+make seeds              # step-10 dispersion across encoders
+python scripts/e4_detector.py        # step-12 detector (variants: docs/steps/step-12-detector.md)
+make figures            # README figures, ~6 s
+make verify             # quoted figures vs stored results
 make warcraft-data      # step-11 data: download, checksum, extract 12x12
 make warcraft-train     # step-11 three encoders, ~3 h in parallel on CPU
 make warcraft           # step-11 every stage for three models + report, ~45 min per model
 make test               # the full suite
 python scripts/pilot_random.py --instances 3 --timing-only   # extrapolate first
-```
-
-Planned (the module exists in the layout above only when ✅):
-
-```bash
-python -m src.features  --out results/features_test.npz          # [4]
-python -m src.surrogate --features results/features_test.npz     # [5]
-python -m src.perturb   --budget 1 --method exhaustive           # [6]
-python -m src.swap      --perturb results/perturb/               # [7]
 ```
 
 Every script seeds numpy and torch at the top and accepts `--seed`; everything
@@ -833,9 +853,9 @@ that same map. Classical A\* replanning correctly is not an error.
 ## Roadmap (course stages)
 
 - [x] **Stage 1 — Proposal** (16 Oct 2026): question, hypothesis, design. ✔ submitted
-- [ ] **Stage 2:** E0 reproduced ✅ · swap premise confirmed in `differentiable_astar.py` ✅ · exact solver + metrics [2] ✅ · random-flip pilot [3] ✅ · feature library [4] ✅ · surrogate fit [5] ✅ · perturbation harness [6] ✅
-- [ ] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] ✅ · WarCraft [11] ✅
-- [ ] **Final:** E4 detector [12] ✅ · write-up with explicit negative results.
+- [x] **Stage 2:** E0 reproduced ✅ · swap premise confirmed in `differentiable_astar.py` ✅ · exact solver + metrics [2] ✅ · random-flip pilot [3] ✅ · feature library [4] ✅ · surrogate fit [5] ✅ · perturbation harness [6] ✅
+- [x] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] ✅ · WarCraft [11] ✅
+- [ ] **Final:** E4 detector [12] ✅ · write-up with explicit negative results ⬜.
 
 **Everything planned for mazes and forest is done.** Three `forest` seeds
 settled the mediation question (the difference was noise; see step 7b), and
@@ -846,12 +866,18 @@ the last two between them withdrew half of step 12's first claim.
 **WarCraft is done too** (step 11): three encoders, the full sweep, pixel
 attacks, probes and a seam control.
 
-**Next step:**
+**Next steps** (every step in `PLAN.md` is done; these are what remains open):
 
-1. **A gradient-guided attack** (`PLAN.md` step 9's conditional branch). It is
-   the one experiment that could overturn step 12's surviving claim: an
-   alteration optimised directly against the encoder might be quiet in the grid
-   *and* quiet in the residual. It needs no download.
+1. **A gradient-guided attack on mazes** (`PLAN.md` step 9's conditional branch,
+   and the one item step 12 lists as not done). It is the one experiment that
+   could overturn step 12's surviving claim: an alteration optimised directly
+   against the encoder might be quiet in the grid *and* quiet in the residual.
+   On WarCraft the same kind of attack (PGD at 1/255 per pixel) breaks 84–85 %
+   of baseline-optimal maps against 4–8 % for random noise. It needs no download.
+2. **The final write-up**, with the negative results stated explicitly.
+3. **WarCraft with random start and goal tiles.** The only direct test that the
+   position shortcut of step 11 comes from the fixed corners; it changes the
+   task and needs retraining (~3 h).
 
 Smaller items, in descending order of value: a streaming version of the
 detector (a threshold fixed in advance, with no altered examples at fitting
