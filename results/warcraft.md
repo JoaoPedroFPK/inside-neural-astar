@@ -29,11 +29,16 @@ Mean learned cost per terrain class:
 | group | model | R² range | within-map R² range |
 |---|---|---|---|
 | geometric | ridge | 0.056–0.068 | 0.057–0.069 |
+| geometric | gbm | 0.623–0.683 | 0.630–0.692 |
 | terrain | ridge | 0.041–0.046 | 0.038–0.039 |
 | terrain | gbm | 0.089–0.100 | 0.085–0.092 |
 | path | ridge | 0.037–0.044 | 0.036–0.041 |
 | path | gbm | 0.078–0.086 | 0.076–0.081 |
 | terrain+geometric | ridge | 0.094–0.106 | 0.091–0.101 |
+| position | ridge | 0.000–0.006 | 0.000–0.006 |
+| position | gbm | 0.624–0.686 | 0.632–0.695 |
+| terrain+position | ridge | 0.041–0.049 | 0.038–0.043 |
+| terrain+position | gbm | 0.832–0.865 | 0.833–0.867 |
 | terrain+path | ridge | 0.088–0.097 | 0.086–0.092 |
 | all | ridge | 0.101–0.114 | 0.099–0.110 |
 | all | gbm | 0.846–0.875 | 0.847–0.876 |
@@ -45,8 +50,11 @@ Sufficiency — the same search run on a substitute cost map:
 | terrain/ridge | 0.072–0.078 | 1.225–1.406 |
 | terrain/gbm | 0.186–0.192 | 1.203–1.424 |
 | path/gbm | 0.012–0.031 | 1.905–2.080 |
+| position/gbm | 0.048 | 0.811–1.691 |
+| terrain+position/gbm | 0.152–0.155 | 0.764–1.486 |
 | all/ridge | 0.000–0.018 | 2.520–2.874 |
 | all/gbm | 0.372–0.431 | 0.630–1.032 |
+| network_minus_position | 0.238–0.261 | 0.964–1.099 |
 | true_weights | 0.924 | 1.000 |
 
 ## Random tile transplants (all 1 000 test maps, 3 draws per budget)
@@ -106,3 +114,29 @@ What carries the damage (damaging edits on baseline-optimal maps):
 | 8 | pgd | 0.013–0.040 | 0.899–0.972 | 0.867–0.920 | 0.960–0.993 |
 | 16 | random_sign | 0.117–0.177 | 0.657–0.832 | 0.473–0.657 | 0.880–0.920 |
 | 16 | pgd | 0.010–0.037 | 0.899–0.981 | 0.897–0.930 | 0.967–0.990 |
+
+## Seam control: same-terrain transplants (true costs unchanged)
+
+One random tile per draw, 3 draws on each of the 1 000 test maps, against the k = 1 different-terrain pilot.
+
+| transplant | optimal maps broken | worsened | path changed | mean ΔCost L1 |
+|---|---|---|---|---|
+| same terrain (seams only) | 0.034–0.052 | 0.033–0.050 | 0.081–0.104 | 2.133–2.313 |
+| different terrain (k = 1 pilot) | 0.134–0.171 | 0.140–0.161 | 0.188–0.212 | 4.640–5.316 |
+
+## Linear probes on tile-averaged encoder activations
+
+Fitted on 300 training maps, scored on the 1 000 test maps. Terrain: balanced accuracy, 5 classes (chance 0.20). Cost, row, col: ridge R². The untrained encoder has the same architecture and random weights.
+
+| encoder | layer | dim | terrain | true cost R² | row R² | col R² |
+|---|---|---|---|---|---|---|
+| trained | input | 4 | 1.000 | 0.702 | 0.003 | 0.010 |
+| trained | block1 | 32 | 1.000 | 0.925–0.931 | 0.337–0.352 | 0.341–0.411 |
+| trained | block2 | 64 | 1.000 | 0.921–0.931 | 0.381–0.423 | 0.367–0.433 |
+| trained | block3 | 128 | 0.999 | 0.905–0.914 | 0.423–0.443 | 0.451–0.464 |
+| trained | output | 1 | 0.227–0.247 | 0.053–0.081 | -0.000–0.001 | -0.000–0.002 |
+| untrained | input | 4 | 1.000 | 0.702 | 0.003 | 0.010 |
+| untrained | block1 | 32 | 1.000 | 0.883 | 0.298 | 0.361 |
+| untrained | block2 | 64 | 1.000 | 0.914 | 0.451 | 0.461 |
+| untrained | block3 | 128 | 1.000 | 0.918 | 0.475 | 0.481 |
+| untrained | output | 1 | 0.238 | 0.019 | 0.129 | 0.110 |

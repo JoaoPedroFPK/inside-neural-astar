@@ -14,6 +14,13 @@
       }
     },
     {
+      "group": "geometric",
+      "kind": "gbm",
+      "n_features": 2,
+      "r2": 0.6225549278160208,
+      "r2_within": 0.6300432895695425
+    },
+    {
       "group": "terrain",
       "kind": "ridge",
       "n_features": 6,
@@ -70,6 +77,48 @@
         "cheb_to_goal": -0.31658209545418164,
         "cheb_to_start": -0.3249428343436318
       }
+    },
+    {
+      "group": "position",
+      "kind": "ridge",
+      "n_features": 2,
+      "r2": 0.0005409028081810874,
+      "r2_within": 0.0005500793973310936,
+      "coefficients": {
+        "row": -0.0276447193421548,
+        "col": -0.007060384793212076
+      }
+    },
+    {
+      "group": "position",
+      "kind": "gbm",
+      "n_features": 2,
+      "r2": 0.62409441918021,
+      "r2_within": 0.6316013222557366
+    },
+    {
+      "group": "terrain+position",
+      "kind": "ridge",
+      "n_features": 8,
+      "r2": 0.04204099259091809,
+      "r2_within": 0.03841380333778033,
+      "coefficients": {
+        "is_0.8": -0.2074237558769717,
+        "is_1.2": -0.11831590110863704,
+        "is_5.3": 0.13154952904712724,
+        "is_7.7": 0.18827073648683598,
+        "is_9.2": 0.10943566738298398,
+        "weight_mean3": -0.15132123065122277,
+        "row": -0.01370711774054167,
+        "col": 0.004632632877027567
+      }
+    },
+    {
+      "group": "terrain+position",
+      "kind": "gbm",
+      "n_features": 8,
+      "r2": 0.834981969962429,
+      "r2_within": 0.8369777666766544
     },
     {
       "group": "terrain+path",
@@ -148,6 +197,26 @@
       "opt_exact_binary": 0.03,
       "valid": 1.0
     },
+    "position/gbm": {
+      "n": 1000,
+      "opt_mean": 1.6246944524378648,
+      "opt_binary": 0.048,
+      "exp_mean": 1.3902239265033818,
+      "exp_median": 1.1538461538461537,
+      "opt_exact_mean": 1.6246944524378648,
+      "opt_exact_binary": 0.048,
+      "valid": 1.0
+    },
+    "terrain+position/gbm": {
+      "n": 1000,
+      "opt_mean": 1.3366354301315637,
+      "opt_binary": 0.152,
+      "exp_mean": 1.0072001862019124,
+      "exp_median": 0.86552812858783,
+      "opt_exact_mean": 1.3222262641900364,
+      "opt_exact_binary": 0.162,
+      "valid": 1.0
+    },
     "all/ridge": {
       "n": 1000,
       "opt_mean": 1.5917875716585945,
@@ -166,6 +235,16 @@
       "exp_median": 0.6521120075937352,
       "opt_exact_mean": 1.1586137580062792,
       "opt_exact_binary": 0.43,
+      "valid": 1.0
+    },
+    "network_minus_position": {
+      "n": 1000,
+      "opt_mean": 1.2918522170502806,
+      "opt_binary": 0.238,
+      "exp_mean": 0.96423661920863,
+      "exp_median": 0.8137564052029957,
+      "opt_exact_mean": 1.2596728115847904,
+      "opt_exact_binary": 0.239,
       "valid": 1.0
     },
     "true_weights": {

@@ -1,0 +1,19 @@
+{
+  "tag": "warcraft_seed1",
+  "draws": 3,
+  "seed": 0,
+  "same_terrain": {
+    "n": 3000,
+    "frac_worsened": 0.033,
+    "frac_path_changed": 0.08066666666666666,
+    "frac_optimal_maps_broken": 0.040526849037487336,
+    "dcost_l1_mean": 2.1334380985523262
+  },
+  "different_terrain_k1_pilot": {
+    "n": 3000,
+    "frac_worsened": 0.14,
+    "frac_path_changed": 0.188,
+    "frac_optimal_maps_broken": 0.1337386018237082,
+    "dcost_l1_mean": 4.640471787293752
+  }
+}

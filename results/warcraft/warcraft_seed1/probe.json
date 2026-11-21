@@ -1,0 +1,97 @@
+{
+  "tag": "warcraft_seed1",
+  "n_train_maps": 300,
+  "chance_balanced_acc": 0.2,
+  "rows": [
+    {
+      "encoder": "trained",
+      "layer": "input",
+      "dim": 4,
+      "terrain_balanced_acc": 0.9997844134466224,
+      "row_r2": 0.0032433156681156428,
+      "col_r2": 0.009987190571421944,
+      "cost_r2": 0.7016123495371253
+    },
+    {
+      "encoder": "trained",
+      "layer": "block1",
+      "dim": 32,
+      "terrain_balanced_acc": 0.9997922697963257,
+      "row_r2": 0.3366017394907872,
+      "col_r2": 0.4107397176789074,
+      "cost_r2": 0.9254475534671057
+    },
+    {
+      "encoder": "trained",
+      "layer": "block2",
+      "dim": 64,
+      "terrain_balanced_acc": 0.9999146548152267,
+      "row_r2": 0.38408979728159953,
+      "col_r2": 0.3950797085726889,
+      "cost_r2": 0.9208332582053923
+    },
+    {
+      "encoder": "trained",
+      "layer": "block3",
+      "dim": 128,
+      "terrain_balanced_acc": 0.9993028472851181,
+      "row_r2": 0.4376311012638272,
+      "col_r2": 0.45271517665745187,
+      "cost_r2": 0.9053801631315059
+    },
+    {
+      "encoder": "trained",
+      "layer": "output",
+      "dim": 1,
+      "terrain_balanced_acc": 0.24681762145362124,
+      "row_r2": 0.00142199578135227,
+      "col_r2": 0.0017525582463607803,
+      "cost_r2": 0.08142785761460225
+    },
+    {
+      "encoder": "untrained",
+      "layer": "input",
+      "dim": 4,
+      "terrain_balanced_acc": 0.9997844134466224,
+      "row_r2": 0.0032433156681156428,
+      "col_r2": 0.009987190571421944,
+      "cost_r2": 0.7016123495371253
+    },
+    {
+      "encoder": "untrained",
+      "layer": "block1",
+      "dim": 32,
+      "terrain_balanced_acc": 0.999686678884582,
+      "row_r2": 0.29768063620342466,
+      "col_r2": 0.36114939508611366,
+      "cost_r2": 0.883165724021919
+    },
+    {
+      "encoder": "untrained",
+      "layer": "block2",
+      "dim": 64,
+      "terrain_balanced_acc": 0.9997281167930521,
+      "row_r2": 0.45101890541868594,
+      "col_r2": 0.4613828221050468,
+      "cost_r2": 0.913631942383922
+    },
+    {
+      "encoder": "untrained",
+      "layer": "block3",
+      "dim": 128,
+      "terrain_balanced_acc": 0.999590288599457,
+      "row_r2": 0.47510516304789974,
+      "col_r2": 0.4805525260769732,
+      "cost_r2": 0.91802038576143
+    },
+    {
+      "encoder": "untrained",
+      "layer": "output",
+      "dim": 1,
+      "terrain_balanced_acc": 0.23788278304174165,
+      "row_r2": 0.12927137693846003,
+      "col_r2": 0.11049443267862447,
+      "cost_r2": 0.019318230661711122
+    }
+  ]
+}

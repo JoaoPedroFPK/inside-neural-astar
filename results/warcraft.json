@@ -59,6 +59,13 @@
           }
         },
         {
+          "group": "geometric",
+          "kind": "gbm",
+          "n_features": 2,
+          "r2": 0.6360411874038994,
+          "r2_within": 0.6425992311393927
+        },
+        {
           "group": "terrain",
           "kind": "ridge",
           "n_features": 6,
@@ -115,6 +122,48 @@
             "cheb_to_goal": -0.3526126813287432,
             "cheb_to_start": -0.3385013562867606
           }
+        },
+        {
+          "group": "position",
+          "kind": "ridge",
+          "n_features": 2,
+          "r2": 0.00013627633063817424,
+          "r2_within": 0.00013962465499961496,
+          "coefficients": {
+            "row": 0.0004374623756457508,
+            "col": -0.008431016664227114
+          }
+        },
+        {
+          "group": "position",
+          "kind": "gbm",
+          "n_features": 2,
+          "r2": 0.6365574435906117,
+          "r2_within": 0.6431208386604716
+        },
+        {
+          "group": "terrain+position",
+          "kind": "ridge",
+          "n_features": 8,
+          "r2": 0.04070911525490151,
+          "r2_within": 0.03811677943068159,
+          "coefficients": {
+            "is_0.8": -0.21351978066368082,
+            "is_1.2": -0.12506545534332472,
+            "is_5.3": 0.16685294560447417,
+            "is_7.7": 0.1622856127819422,
+            "is_9.2": 0.11930188962488633,
+            "weight_mean3": -0.1612400459694094,
+            "row": 0.014882678120298243,
+            "col": 0.003598424876162957
+          }
+        },
+        {
+          "group": "terrain+position",
+          "kind": "gbm",
+          "n_features": 8,
+          "r2": 0.8318340466195617,
+          "r2_within": 0.8334533710802388
         },
         {
           "group": "terrain+path",
@@ -193,6 +242,26 @@
           "opt_exact_binary": 0.031,
           "valid": 1.0
         },
+        "position/gbm": {
+          "n": 1000,
+          "opt_mean": 1.6246944524378648,
+          "opt_binary": 0.048,
+          "exp_mean": 1.6914391105791144,
+          "exp_median": 1.4038461538461537,
+          "opt_exact_mean": 1.6246944524378648,
+          "opt_exact_binary": 0.048,
+          "valid": 1.0
+        },
+        "terrain+position/gbm": {
+          "n": 1000,
+          "opt_mean": 1.3620865890502287,
+          "opt_binary": 0.155,
+          "exp_mean": 1.486369569118142,
+          "exp_median": 1.1986842105263158,
+          "opt_exact_mean": 1.3532292262899914,
+          "opt_exact_binary": 0.163,
+          "valid": 1.0
+        },
         "all/ridge": {
           "n": 1000,
           "opt_mean": 1.5961912130741143,
@@ -211,6 +280,16 @@
           "exp_median": 0.9020061728395061,
           "opt_exact_mean": 1.1493498895939191,
           "opt_exact_binary": 0.444,
+          "valid": 1.0
+        },
+        "network_minus_position": {
+          "n": 1000,
+          "opt_mean": 1.2837527402340925,
+          "opt_binary": 0.244,
+          "exp_mean": 1.09857301958343,
+          "exp_median": 0.8765243902439024,
+          "opt_exact_mean": 1.2567049951457379,
+          "opt_exact_binary": 0.242,
           "valid": 1.0
         },
         "true_weights": {
@@ -490,6 +569,122 @@
           "dcost_l1_mean": 211.11146545410156
         }
       ]
+    },
+    "probe": {
+      "tag": "warcraft_seed0",
+      "n_train_maps": 300,
+      "chance_balanced_acc": 0.2,
+      "rows": [
+        {
+          "encoder": "trained",
+          "layer": "input",
+          "dim": 4,
+          "terrain_balanced_acc": 0.9997844134466224,
+          "row_r2": 0.0032433156681156428,
+          "col_r2": 0.009987190571421944,
+          "cost_r2": 0.7016123495371253
+        },
+        {
+          "encoder": "trained",
+          "layer": "block1",
+          "dim": 32,
+          "terrain_balanced_acc": 0.9998661063172918,
+          "row_r2": 0.3520424419185101,
+          "col_r2": 0.37677936625577424,
+          "cost_r2": 0.9289156363717319
+        },
+        {
+          "encoder": "trained",
+          "layer": "block2",
+          "dim": 64,
+          "terrain_balanced_acc": 0.99970451216351,
+          "row_r2": 0.4231053189491889,
+          "col_r2": 0.43318844614216767,
+          "cost_r2": 0.9241953961569115
+        },
+        {
+          "encoder": "trained",
+          "layer": "block3",
+          "dim": 128,
+          "terrain_balanced_acc": 0.9992718034713801,
+          "row_r2": 0.4428831858574144,
+          "col_r2": 0.463835717941643,
+          "cost_r2": 0.9052992522676507
+        },
+        {
+          "encoder": "trained",
+          "layer": "output",
+          "dim": 1,
+          "terrain_balanced_acc": 0.22689662636455,
+          "row_r2": 0.0002687088424210282,
+          "col_r2": -9.616608707130325e-06,
+          "cost_r2": 0.05273601389535809
+        },
+        {
+          "encoder": "untrained",
+          "layer": "input",
+          "dim": 4,
+          "terrain_balanced_acc": 0.9997844134466224,
+          "row_r2": 0.0032433156681156428,
+          "col_r2": 0.009987190571421944,
+          "cost_r2": 0.7016123495371253
+        },
+        {
+          "encoder": "untrained",
+          "layer": "block1",
+          "dim": 32,
+          "terrain_balanced_acc": 0.999686678884582,
+          "row_r2": 0.29768063620342466,
+          "col_r2": 0.36114939508611366,
+          "cost_r2": 0.883165724021919
+        },
+        {
+          "encoder": "untrained",
+          "layer": "block2",
+          "dim": 64,
+          "terrain_balanced_acc": 0.9997281167930521,
+          "row_r2": 0.45101890541868594,
+          "col_r2": 0.4613828221050468,
+          "cost_r2": 0.913631942383922
+        },
+        {
+          "encoder": "untrained",
+          "layer": "block3",
+          "dim": 128,
+          "terrain_balanced_acc": 0.999590288599457,
+          "row_r2": 0.47510516304789974,
+          "col_r2": 0.4805525260769732,
+          "cost_r2": 0.91802038576143
+        },
+        {
+          "encoder": "untrained",
+          "layer": "output",
+          "dim": 1,
+          "terrain_balanced_acc": 0.23788278304174165,
+          "row_r2": 0.12927137693846003,
+          "col_r2": 0.11049443267862447,
+          "cost_r2": 0.019318230661711122
+        }
+      ]
+    },
+    "seam": {
+      "tag": "warcraft_seed0",
+      "draws": 3,
+      "seed": 0,
+      "same_terrain": {
+        "n": 3000,
+        "frac_worsened": 0.039,
+        "frac_path_changed": 0.09366666666666666,
+        "frac_optimal_maps_broken": 0.0338680926916221,
+        "dcost_l1_mean": 2.3128613093247017
+      },
+      "different_terrain_k1_pilot": {
+        "n": 3000,
+        "frac_worsened": 0.14766666666666667,
+        "frac_path_changed": 0.21033333333333334,
+        "frac_optimal_maps_broken": 0.13814616755793227,
+        "dcost_l1_mean": 5.316492140293121
+      }
     }
   },
   "warcraft_seed1": {
@@ -552,6 +747,13 @@
           }
         },
         {
+          "group": "geometric",
+          "kind": "gbm",
+          "n_features": 2,
+          "r2": 0.6825887265224433,
+          "r2_within": 0.6918849583069198
+        },
+        {
           "group": "terrain",
           "kind": "ridge",
           "n_features": 6,
@@ -608,6 +810,48 @@
             "cheb_to_goal": -0.3210809080630806,
             "cheb_to_start": -0.4137005154809138
           }
+        },
+        {
+          "group": "position",
+          "kind": "ridge",
+          "n_features": 2,
+          "r2": 0.0056079812010766394,
+          "r2_within": 0.005692921655417904,
+          "coefficients": {
+            "row": -0.07848267973981729,
+            "col": -0.07243154290382342
+          }
+        },
+        {
+          "group": "position",
+          "kind": "gbm",
+          "n_features": 2,
+          "r2": 0.6855464230581596,
+          "r2_within": 0.6948830311613673
+        },
+        {
+          "group": "terrain+position",
+          "kind": "ridge",
+          "n_features": 8,
+          "r2": 0.048540831380307514,
+          "r2_within": 0.04264657815308437,
+          "coefficients": {
+            "is_0.8": -0.17720413510893418,
+            "is_1.2": -0.09447610007132463,
+            "is_5.3": 0.10475775031456955,
+            "is_7.7": 0.17350037329495444,
+            "is_9.2": 0.07864319376790546,
+            "weight_mean3": -0.015977533235798615,
+            "row": -0.05781726029961477,
+            "col": -0.05411165440374717
+          }
+        },
+        {
+          "group": "terrain+position",
+          "kind": "gbm",
+          "n_features": 8,
+          "r2": 0.8651320904256723,
+          "r2_within": 0.8665519260556072
         },
         {
           "group": "terrain+path",
@@ -686,6 +930,26 @@
           "opt_exact_binary": 0.012,
           "valid": 1.0
         },
+        "position/gbm": {
+          "n": 1000,
+          "opt_mean": 1.6246944524378648,
+          "opt_binary": 0.048,
+          "exp_mean": 0.8109639571269727,
+          "exp_median": 0.6730769230769231,
+          "opt_exact_mean": 1.6246944524378648,
+          "opt_exact_binary": 0.048,
+          "valid": 1.0
+        },
+        "terrain+position/gbm": {
+          "n": 1000,
+          "opt_mean": 1.3254150063616084,
+          "opt_binary": 0.155,
+          "exp_mean": 0.7638383319600601,
+          "exp_median": 0.6898052691867125,
+          "opt_exact_mean": 1.2843245559331422,
+          "opt_exact_binary": 0.179,
+          "valid": 1.0
+        },
         "all/ridge": {
           "n": 1000,
           "opt_mean": 1.6089675992913244,
@@ -704,6 +968,16 @@
           "exp_median": 0.6122448979591837,
           "opt_exact_mean": 1.1478130276621696,
           "opt_exact_binary": 0.418,
+          "valid": 1.0
+        },
+        "network_minus_position": {
+          "n": 1000,
+          "opt_mean": 1.2666515987137137,
+          "opt_binary": 0.261,
+          "exp_mean": 1.0242772135946088,
+          "exp_median": 0.8600571195430436,
+          "opt_exact_mean": 1.2414372598327585,
+          "opt_exact_binary": 0.249,
           "valid": 1.0
         },
         "true_weights": {
@@ -983,6 +1257,122 @@
           "dcost_l1_mean": 194.18557739257812
         }
       ]
+    },
+    "probe": {
+      "tag": "warcraft_seed1",
+      "n_train_maps": 300,
+      "chance_balanced_acc": 0.2,
+      "rows": [
+        {
+          "encoder": "trained",
+          "layer": "input",
+          "dim": 4,
+          "terrain_balanced_acc": 0.9997844134466224,
+          "row_r2": 0.0032433156681156428,
+          "col_r2": 0.009987190571421944,
+          "cost_r2": 0.7016123495371253
+        },
+        {
+          "encoder": "trained",
+          "layer": "block1",
+          "dim": 32,
+          "terrain_balanced_acc": 0.9997922697963257,
+          "row_r2": 0.3366017394907872,
+          "col_r2": 0.4107397176789074,
+          "cost_r2": 0.9254475534671057
+        },
+        {
+          "encoder": "trained",
+          "layer": "block2",
+          "dim": 64,
+          "terrain_balanced_acc": 0.9999146548152267,
+          "row_r2": 0.38408979728159953,
+          "col_r2": 0.3950797085726889,
+          "cost_r2": 0.9208332582053923
+        },
+        {
+          "encoder": "trained",
+          "layer": "block3",
+          "dim": 128,
+          "terrain_balanced_acc": 0.9993028472851181,
+          "row_r2": 0.4376311012638272,
+          "col_r2": 0.45271517665745187,
+          "cost_r2": 0.9053801631315059
+        },
+        {
+          "encoder": "trained",
+          "layer": "output",
+          "dim": 1,
+          "terrain_balanced_acc": 0.24681762145362124,
+          "row_r2": 0.00142199578135227,
+          "col_r2": 0.0017525582463607803,
+          "cost_r2": 0.08142785761460225
+        },
+        {
+          "encoder": "untrained",
+          "layer": "input",
+          "dim": 4,
+          "terrain_balanced_acc": 0.9997844134466224,
+          "row_r2": 0.0032433156681156428,
+          "col_r2": 0.009987190571421944,
+          "cost_r2": 0.7016123495371253
+        },
+        {
+          "encoder": "untrained",
+          "layer": "block1",
+          "dim": 32,
+          "terrain_balanced_acc": 0.999686678884582,
+          "row_r2": 0.29768063620342466,
+          "col_r2": 0.36114939508611366,
+          "cost_r2": 0.883165724021919
+        },
+        {
+          "encoder": "untrained",
+          "layer": "block2",
+          "dim": 64,
+          "terrain_balanced_acc": 0.9997281167930521,
+          "row_r2": 0.45101890541868594,
+          "col_r2": 0.4613828221050468,
+          "cost_r2": 0.913631942383922
+        },
+        {
+          "encoder": "untrained",
+          "layer": "block3",
+          "dim": 128,
+          "terrain_balanced_acc": 0.999590288599457,
+          "row_r2": 0.47510516304789974,
+          "col_r2": 0.4805525260769732,
+          "cost_r2": 0.91802038576143
+        },
+        {
+          "encoder": "untrained",
+          "layer": "output",
+          "dim": 1,
+          "terrain_balanced_acc": 0.23788278304174165,
+          "row_r2": 0.12927137693846003,
+          "col_r2": 0.11049443267862447,
+          "cost_r2": 0.019318230661711122
+        }
+      ]
+    },
+    "seam": {
+      "tag": "warcraft_seed1",
+      "draws": 3,
+      "seed": 0,
+      "same_terrain": {
+        "n": 3000,
+        "frac_worsened": 0.033,
+        "frac_path_changed": 0.08066666666666666,
+        "frac_optimal_maps_broken": 0.040526849037487336,
+        "dcost_l1_mean": 2.1334380985523262
+      },
+      "different_terrain_k1_pilot": {
+        "n": 3000,
+        "frac_worsened": 0.14,
+        "frac_path_changed": 0.188,
+        "frac_optimal_maps_broken": 0.1337386018237082,
+        "dcost_l1_mean": 4.640471787293752
+      }
     }
   },
   "warcraft_seed2": {
@@ -1045,6 +1435,13 @@
           }
         },
         {
+          "group": "geometric",
+          "kind": "gbm",
+          "n_features": 2,
+          "r2": 0.6225549278160208,
+          "r2_within": 0.6300432895695425
+        },
+        {
           "group": "terrain",
           "kind": "ridge",
           "n_features": 6,
@@ -1101,6 +1498,48 @@
             "cheb_to_goal": -0.31658209545418164,
             "cheb_to_start": -0.3249428343436318
           }
+        },
+        {
+          "group": "position",
+          "kind": "ridge",
+          "n_features": 2,
+          "r2": 0.0005409028081810874,
+          "r2_within": 0.0005500793973310936,
+          "coefficients": {
+            "row": -0.0276447193421548,
+            "col": -0.007060384793212076
+          }
+        },
+        {
+          "group": "position",
+          "kind": "gbm",
+          "n_features": 2,
+          "r2": 0.62409441918021,
+          "r2_within": 0.6316013222557366
+        },
+        {
+          "group": "terrain+position",
+          "kind": "ridge",
+          "n_features": 8,
+          "r2": 0.04204099259091809,
+          "r2_within": 0.03841380333778033,
+          "coefficients": {
+            "is_0.8": -0.2074237558769717,
+            "is_1.2": -0.11831590110863704,
+            "is_5.3": 0.13154952904712724,
+            "is_7.7": 0.18827073648683598,
+            "is_9.2": 0.10943566738298398,
+            "weight_mean3": -0.15132123065122277,
+            "row": -0.01370711774054167,
+            "col": 0.004632632877027567
+          }
+        },
+        {
+          "group": "terrain+position",
+          "kind": "gbm",
+          "n_features": 8,
+          "r2": 0.834981969962429,
+          "r2_within": 0.8369777666766544
         },
         {
           "group": "terrain+path",
@@ -1179,6 +1618,26 @@
           "opt_exact_binary": 0.03,
           "valid": 1.0
         },
+        "position/gbm": {
+          "n": 1000,
+          "opt_mean": 1.6246944524378648,
+          "opt_binary": 0.048,
+          "exp_mean": 1.3902239265033818,
+          "exp_median": 1.1538461538461537,
+          "opt_exact_mean": 1.6246944524378648,
+          "opt_exact_binary": 0.048,
+          "valid": 1.0
+        },
+        "terrain+position/gbm": {
+          "n": 1000,
+          "opt_mean": 1.3366354301315637,
+          "opt_binary": 0.152,
+          "exp_mean": 1.0072001862019124,
+          "exp_median": 0.86552812858783,
+          "opt_exact_mean": 1.3222262641900364,
+          "opt_exact_binary": 0.162,
+          "valid": 1.0
+        },
         "all/ridge": {
           "n": 1000,
           "opt_mean": 1.5917875716585945,
@@ -1197,6 +1656,16 @@
           "exp_median": 0.6521120075937352,
           "opt_exact_mean": 1.1586137580062792,
           "opt_exact_binary": 0.43,
+          "valid": 1.0
+        },
+        "network_minus_position": {
+          "n": 1000,
+          "opt_mean": 1.2918522170502806,
+          "opt_binary": 0.238,
+          "exp_mean": 0.96423661920863,
+          "exp_median": 0.8137564052029957,
+          "opt_exact_mean": 1.2596728115847904,
+          "opt_exact_binary": 0.239,
           "valid": 1.0
         },
         "true_weights": {
@@ -1476,6 +1945,122 @@
           "dcost_l1_mean": 209.40345764160156
         }
       ]
+    },
+    "probe": {
+      "tag": "warcraft_seed2",
+      "n_train_maps": 300,
+      "chance_balanced_acc": 0.2,
+      "rows": [
+        {
+          "encoder": "trained",
+          "layer": "input",
+          "dim": 4,
+          "terrain_balanced_acc": 0.9997844134466224,
+          "row_r2": 0.0032433156681156428,
+          "col_r2": 0.009987190571421944,
+          "cost_r2": 0.7016123495371253
+        },
+        {
+          "encoder": "trained",
+          "layer": "block1",
+          "dim": 32,
+          "terrain_balanced_acc": 0.9998213059588889,
+          "row_r2": 0.34803900420590583,
+          "col_r2": 0.3409106968233627,
+          "cost_r2": 0.93085376149115
+        },
+        {
+          "encoder": "trained",
+          "layer": "block2",
+          "dim": 64,
+          "terrain_balanced_acc": 0.9999061768517112,
+          "row_r2": 0.38130573989850014,
+          "col_r2": 0.36676871545695255,
+          "cost_r2": 0.9314580084172146
+        },
+        {
+          "encoder": "trained",
+          "layer": "block3",
+          "dim": 128,
+          "terrain_balanced_acc": 0.9993319006740492,
+          "row_r2": 0.4229896319990545,
+          "col_r2": 0.4507576483088904,
+          "cost_r2": 0.9141421703296911
+        },
+        {
+          "encoder": "trained",
+          "layer": "output",
+          "dim": 1,
+          "terrain_balanced_acc": 0.2330042741948005,
+          "row_r2": -1.8927936684676183e-06,
+          "col_r2": -1.3938231509857957e-05,
+          "cost_r2": 0.05936828670415739
+        },
+        {
+          "encoder": "untrained",
+          "layer": "input",
+          "dim": 4,
+          "terrain_balanced_acc": 0.9997844134466224,
+          "row_r2": 0.0032433156681156428,
+          "col_r2": 0.009987190571421944,
+          "cost_r2": 0.7016123495371253
+        },
+        {
+          "encoder": "untrained",
+          "layer": "block1",
+          "dim": 32,
+          "terrain_balanced_acc": 0.999686678884582,
+          "row_r2": 0.29768063620342466,
+          "col_r2": 0.36114939508611366,
+          "cost_r2": 0.883165724021919
+        },
+        {
+          "encoder": "untrained",
+          "layer": "block2",
+          "dim": 64,
+          "terrain_balanced_acc": 0.9997281167930521,
+          "row_r2": 0.45101890541868594,
+          "col_r2": 0.4613828221050468,
+          "cost_r2": 0.913631942383922
+        },
+        {
+          "encoder": "untrained",
+          "layer": "block3",
+          "dim": 128,
+          "terrain_balanced_acc": 0.999590288599457,
+          "row_r2": 0.47510516304789974,
+          "col_r2": 0.4805525260769732,
+          "cost_r2": 0.91802038576143
+        },
+        {
+          "encoder": "untrained",
+          "layer": "output",
+          "dim": 1,
+          "terrain_balanced_acc": 0.23788278304174165,
+          "row_r2": 0.12927137693846003,
+          "col_r2": 0.11049443267862447,
+          "cost_r2": 0.019318230661711122
+        }
+      ]
+    },
+    "seam": {
+      "tag": "warcraft_seed2",
+      "draws": 3,
+      "seed": 0,
+      "same_terrain": {
+        "n": 3000,
+        "frac_worsened": 0.05,
+        "frac_path_changed": 0.10433333333333333,
+        "frac_optimal_maps_broken": 0.051630434782608696,
+        "dcost_l1_mean": 2.205062907010317
+      },
+      "different_terrain_k1_pilot": {
+        "n": 3000,
+        "frac_worsened": 0.161,
+        "frac_path_changed": 0.21166666666666667,
+        "frac_optimal_maps_broken": 0.17119565217391305,
+        "dcost_l1_mean": 4.929741686304411
+      }
     }
   }
 }
