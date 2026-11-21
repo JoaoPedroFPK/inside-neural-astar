@@ -87,10 +87,10 @@ If the failure reappears with altered costs on original obstacles, the encoder's
 
 ---
 
-## Status — 2026-10-17
+## Status — 2026-11-21
 
-**Steps 0–10 of the plan are done**, plus both halves of the cross-family
-validity check (step 7b).
+**Every step of the plan is done (0–12)**, plus both halves of the cross-family
+validity check (step 7b) and the WarCraft terrain-image replication (step 11).
 The environment is pinned and asserted; the published numbers are reproduced;
 the structural premise of the mediation design is verified in code and under
 test; the exact solver reproduces the published search exactly; every one of
@@ -593,6 +593,33 @@ Full write-up: `docs/steps/step-12-detector.md`, including two predictions this
 step made and then overturned, and the leak that made its first transfer run
 return a flat AUC of 1.000.
 
+### Step 11 — WarCraft: on picture maps the cost map encodes *where*, not *what*
+
+Neural A\* trained on 12×12 WarCraft terrain images (96×96 RGB; each 8×8-pixel
+tile has a hidden cost of 0.8–9.2; start and goal always in opposite corners).
+Three encoders trained from different seeds, 50 epochs each on CPU. With no
+walls, the search sees the world only through the cost map, so the 2×2 swap
+has no obstacle half; damage is split instead by running an *exact* search on
+the learned costs.
+
+| measurement (ranges over three models) | result |
+|---|---|
+| Neural A\* optimal / exact search on its costs / same search on true costs | 33–37 % / 32 % / 92 % |
+| Cost map explained by **position** alone (non-linear) / by terrain (linear) | **R² 0.62–0.69** / 0.04–0.05 |
+| Planner with the position pattern removed from its own map | 24–26 % optimal |
+| Linear probe for true terrain cost: last hidden layer / output | R² 0.91 / **0.05–0.08** |
+| Optimal maps with ≥ 1 damaging single-tile edit | 100 % (12–13 % of edits per map) |
+| Damage that is cost-ranking (exact search on the costs also fails) | 82–85 % |
+| Damaging edits where the right answer had not changed | 51–57 % |
+| Same-terrain transplants (seams only) / different terrain | 3–5 % / 13–17 % of optimal maps broken |
+| Optimal maps broken by 1/255 pixel change: random / PGD | 4–8 % / 84–85 % |
+
+The encoder carries the terrain to its last hidden layer — an untrained encoder
+does too, so it comes from the picture — and drops it at the output, emitting
+mostly a position pattern that the fixed start and goal make useful. Location
+again decides damage (Spearman with the size of the cost change 0.10–0.13).
+Full report: `results/warcraft.md`; write-up: `docs/steps/step-11-warcraft.md`.
+
 ### Negative and corrected results, collected
 
 The plan asks for these to be explicit rather than buried, so they are listed
@@ -606,6 +633,7 @@ together. Each links to the step that produced it.
 | Large distortions steer the search to a worse path | Correlation between the size of the cost-map change and whether the path broke: **+0.04**. Among broken cases, severity correlates **−0.06**. Non-monotone, with the largest distortions *less* damaging. Location predicts damage; magnitude does not. |
 | ~~Search-effort damage is search-mediated~~ | **Reinstated.** The pooled 2.6 : 1 was wrong, and so was the single-model correction (0.23 vs 0.26). Across four models the search route is larger in every one, 0.256–0.363 against 0.040–0.229. |
 | Denser map families would make the plan's cell partition usable | The "dead end" class is empty in **all eight** families, including the densest at 36 % obstacles. |
+| The guidance map is a learned terrain cost (WarCraft) | Terrain explains R² **0.04–0.05** of it, position **0.62–0.69**. The most expensive terrain gets a lower learned cost than the middle two. The terrain is linearly readable one layer earlier (0.91) and dropped at the output. |
 | The surrogate residual would beat an out-of-distribution score at detecting tampering | It loses in **all ten** conditions. It is a complement to a map-only control, not a replacement for the standard baseline. |
 | The OOD baseline is essentially counting obstacles | Its dominant activation direction correlates 0.994 with the obstacle count, but hiding the count costs it **0.003** AUC (and costs the hand-feature control 0.124). Written down, then tested, then withdrawn. |
 | Detecting tampering without a clean reference would be harder | The opposite. Dropping the clean twin costs map-based detectors AUC and the residual nothing; the grid statistics fall to **0.449** on stealthy effort flips. Predicted, measured, corrected. |
@@ -665,8 +693,9 @@ together. Each links to the step that produced it.
 │   ├── perturb.py             ✅ [3,6,9] flips: random, exhaustive, greedy
 │   ├── swap.py                ✅ [7] the 2×2 cost/obstacle harness + mediation
 │   ├── attribution.py         ✅ [8] integrated gradients, Grad-CAM, sanity checks
-│   └── detect.py              ✅ [12] residual detector, OOD + model-free baselines, bootstrap
-├── tests/                     ✅ 195 tests across 15 files, including published-tree and manifest-schema guards
+│   ├── detect.py              ✅ [12] residual detector, OOD + model-free baselines, bootstrap
+│   └── warcraft.py            ✅ [11] WarCraft loading, ground truth, tile transplants, probes
+├── tests/                     ✅ 203 tests across 16 files, including published-tree and manifest-schema guards
 ├── notebooks/                 ✅ 01_features_spotcheck.ipynb (display only)
 └── results/
     ├── e0_reproduce.json      ✅ [0]
@@ -723,10 +752,10 @@ control for "mazes may not be representative".
 The pretrained maze checkpoint also ships with the submodule, so **no training
 is needed for steps 0–9**.
 
-**WarCraft 12×12 (conditional).** Download `warcraft_maps.tar.gz` from the
-[Blackbox Combinatorial Solvers page](https://edmond.mpdl.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.YJCQ5S)
-and extract `12x12/` to the repo root. Only if E1–E3 on mazes finish before
-stage 3.
+**WarCraft 12×12 (step 11).** `make warcraft-data` downloads
+`warcraft_maps.tar.gz` (0.9 GB, CC BY 4.0) from the
+[Blackbox Combinatorial Solvers page](https://edmond.mpdl.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.YJCQ5S),
+checks its MD5 and keeps only `12x12/` under `data/warcraft/` (not versioned).
 
 ---
 
@@ -747,6 +776,9 @@ make sweep              # step-6 exhaustive k=1 sweep, ~21 min
 make swap               # step-7 mediation decomposition, ~10 s
 make attribution        # step-8 attribution study, ~1 min
 make families           # step-7b cross-family comparison, ~4 min
+make warcraft-data      # step-11 data: download, checksum, extract 12x12
+make warcraft-train     # step-11 three encoders, ~3 h in parallel on CPU
+make warcraft           # step-11 every stage for three models + report, ~45 min per model
 make test               # the full suite
 python scripts/pilot_random.py --instances 3 --timing-only   # extrapolate first
 ```
@@ -802,7 +834,7 @@ that same map. Classical A\* replanning correctly is not an error.
 
 - [x] **Stage 1 — Proposal** (16 Oct 2026): question, hypothesis, design. ✔ submitted
 - [ ] **Stage 2:** E0 reproduced ✅ · swap premise confirmed in `differentiable_astar.py` ✅ · exact solver + metrics [2] ✅ · random-flip pilot [3] ✅ · feature library [4] ✅ · surrogate fit [5] ✅ · perturbation harness [6] ✅
-- [ ] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] ✅ · WarCraft [11] not started — it needs a third-party dataset download, so it waits for an explicit decision rather than being fetched automatically.
+- [ ] **Stage 3:** E2 + E3 complete on mazes [6–8] ✅ · greedy budgets [9] ✅ · three training seeds [10] ✅ · WarCraft [11] ✅
 - [ ] **Final:** E4 detector [12] ✅ · write-up with explicit negative results.
 
 **Everything planned for mazes and forest is done.** Three `forest` seeds
@@ -811,12 +843,12 @@ step 12's three open extensions were all run: the unpaired detection task, the
 convolutional map-only control, and replication across all seven encoders —
 the last two between them withdrew half of step 12's first claim.
 
-**Next step:** one of two things, both needing a decision rather than more
-compute.
+**WarCraft is done too** (step 11): three encoders, the full sweep, pixel
+attacks, probes and a seam control.
 
-1. **Step 11 (WarCraft 12×12)** — needs a third-party dataset download, so it
-   waits for an explicit go-ahead rather than being fetched automatically.
-2. **A gradient-guided attack** (`PLAN.md` step 9's conditional branch). It is
+**Next step:**
+
+1. **A gradient-guided attack** (`PLAN.md` step 9's conditional branch). It is
    the one experiment that could overturn step 12's surviving claim: an
    alteration optimised directly against the encoder might be quiet in the grid
    *and* quiet in the residual. It needs no download.
