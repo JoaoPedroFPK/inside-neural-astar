@@ -104,3 +104,16 @@ def test_score_of_the_reference_path_is_optimal(test_data) -> None:
     s = score(w, paths, paths, np.broadcast_to(np.ones((12, 12)), (5, 12, 12)))
     np.testing.assert_allclose(s["opt"], 1.0)
     assert s["valid"].all()
+
+
+def test_tile_activations_output_is_the_cost_map_before_its_squashing(test_data, random_planner) -> None:
+    """The probed `output` layer orders tiles exactly as the cost map does."""
+    from scipy.stats import spearmanr
+
+    from src.warcraft import plan, tile_activations
+
+    images = test_data.images[:4]
+    acts = tile_activations(random_planner, images)
+    assert {a.shape[:3] for a in acts.values()} == {(4, 12, 12)}
+    costs = plan(random_planner, images)[0]
+    assert spearmanr(acts["output"][..., 0].ravel(), costs.ravel())[0] > 0.999

@@ -213,6 +213,34 @@ def plan(planner: NeuralAstar, images: np.ndarray, batch_size: int = 256):
 
 
 @torch.no_grad()
+def tile_activations(planner: NeuralAstar, images: np.ndarray, batch_size: int = 256) -> dict:
+    """Encoder activations averaged over each tile, for probing.
+
+    Returns:
+        dict: layer name -> ``(B, 12, 12, C)`` array. ``input`` is the encoder
+        input (RGB plus the start/goal channel), ``block1``-``block3`` the
+        output of each conv-BN-ReLU block (before its max-pool), ``output``
+        the encoder's final pre-sigmoid layer (one channel).
+    """
+    seq = planner.encoder.model
+    taps = {"block1": seq[2], "block2": seq[6], "block3": seq[10], "output": seq[13]}
+    out = {name: [] for name in ("input", *taps)}
+    grabbed = {}
+    hooks = [seq[0].register_forward_hook(lambda _m, i, _o: grabbed.__setitem__("input", i[0]))]
+    hooks += [m.register_forward_hook(lambda _m, _i, o, n=n: grabbed.__setitem__(n, o)) for n, m in taps.items()]
+    try:
+        with torch.no_grad():
+            for b in range(0, len(images), batch_size):
+                planner.encode(*to_tensors(images[b : b + batch_size]))
+                for n in out:
+                    pooled = torch.nn.functional.adaptive_avg_pool2d(grabbed[n], GRID)
+                    out[n].append(pooled.permute(0, 2, 3, 1).numpy())
+    finally:
+        for h in hooks:
+            h.remove()
+    return {n: np.concatenate(v) for n, v in out.items()}
+
+
 def search_cost_maps(planner: NeuralAstar, cost_maps: np.ndarray):
     """Run only the search module on given ``(B, 12, 12)`` cost maps.
 
@@ -280,6 +308,8 @@ FEATURE_GROUPS = {
     "path": ("on_optimal_path", "cheb_to_optimal_path", "log_excess"),
 }
 FEATURE_GROUPS["terrain+geometric"] = FEATURE_GROUPS["terrain"] + FEATURE_GROUPS["geometric"]
+FEATURE_GROUPS["position"] = ("row", "col")
+FEATURE_GROUPS["terrain+position"] = FEATURE_GROUPS["terrain"] + FEATURE_GROUPS["position"]
 FEATURE_GROUPS["terrain+path"] = FEATURE_GROUPS["terrain"] + FEATURE_GROUPS["path"]
 FEATURE_GROUPS["all"] = (
     FEATURE_GROUPS["terrain"] + FEATURE_GROUPS["geometric"] + FEATURE_GROUPS["path"]
@@ -310,6 +340,8 @@ def tile_features(weights: np.ndarray) -> dict:
             replicated), the context an 8-pixel-wide receptive field sees.
         ``cheb_to_goal`` / ``cheb_to_start``: Chebyshev distance in tiles,
             the quantity the search heuristic is built from.
+        ``row`` / ``col``: the tile's position. Start and goal are fixed on
+            this dataset, so position is a feature a network can exploit.
         ``on_optimal_path``: 1 on every tile of *some* optimal path.
         ``cheb_to_optimal_path``: Chebyshev distance to the nearest such tile.
         ``log_excess``: ``log(1 + through - optimum)``, how much more a path
@@ -330,6 +362,8 @@ def tile_features(weights: np.ndarray) -> dict:
         weight_mean3=uniform_filter(weights, size=3, mode="nearest"),
         cheb_to_goal=np.maximum(np.abs(rows - GOAL_RC[0]), np.abs(cols - GOAL_RC[1])).astype(float),
         cheb_to_start=np.maximum(np.abs(rows - START_RC[0]), np.abs(cols - START_RC[1])).astype(float),
+        row=rows.astype(np.float64),
+        col=cols.astype(np.float64),
         on_optimal_path=on_path.astype(np.float64),
         cheb_to_optimal_path=cheb_to_path.astype(np.float64),
         log_excess=np.log1p(excess),

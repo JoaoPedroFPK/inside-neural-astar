@@ -15,6 +15,10 @@ Stages, each cached so the report never recomputes:
   no obstacle half here.
 * ``linf`` — pixel perturbations bounded in L-infinity norm, which leave the
   true costs unchanged: random noise and a projected-gradient attack.
+* ``probe`` — linear probes for terrain class and tile position on each
+  encoder layer, trained against an untrained-encoder control.
+* ``seam`` — same-terrain transplants, which change texture and seams but not
+  the true costs (a control for the ``pilot`` stage; needs ``pilot`` first).
 
 Usage:
     python scripts/warcraft_study.py --tag warcraft_seed0 --stage sweep --instances 3
@@ -116,6 +120,11 @@ def stage_eval(planner, tag: str) -> None:
 # surrogate
 # --------------------------------------------------------------------------- #
 
+# Linear fits cannot express a per-position mean, so groups that carry
+# position get the non-linear model too.
+GBM_GROUPS = ("geometric", "position", "terrain", "terrain+position", "path", "all")
+
+
 def stage_surrogate(planner, tag: str, n_train: int) -> None:
     from sklearn.metrics import r2_score
 
@@ -123,7 +132,7 @@ def stage_surrogate(planner, tag: str, n_train: int) -> None:
     test = wc.load_warcraft_split("test")
     y_train = wc.plan(planner, train.images[:n_train])[0].reshape(-1)
     y_test = np.load(out_dir(tag) / "test_outputs.npz")["cost_maps"]
-    columns = wc.FEATURE_GROUPS["all"]
+    columns = list(dict.fromkeys(n for names in wc.FEATURE_GROUPS.values() for n in names))
     X_train = wc.design_matrix(train.weights[:n_train], columns)
     X_test = wc.design_matrix(test.weights, columns)
     instance = np.repeat(np.arange(len(test)), wc.GRID * wc.GRID)
@@ -132,7 +141,7 @@ def stage_surrogate(planner, tag: str, n_train: int) -> None:
     predictions = {}
     for group, names in wc.FEATURE_GROUPS.items():
         cols = [columns.index(n) for n in names]
-        for kind in ("ridge", "gbm") if group in ("terrain", "path", "all") else ("ridge",):
+        for kind in ("ridge", "gbm") if group in GBM_GROUPS else ("ridge",):
             model = make_model(kind).fit(X_train[:, cols], y_train)
             pred = model.predict(X_test[:, cols])
             predictions[(group, kind)] = pred
@@ -148,10 +157,17 @@ def stage_surrogate(planner, tag: str, n_train: int) -> None:
 
     # Sufficiency: does the surrogate's map, searched by the same module, plan?
     sufficiency = {}
-    for key in (("terrain", "ridge"), ("terrain", "gbm"), ("path", "gbm"), ("all", "ridge"), ("all", "gbm")):
+    for key in (("terrain", "ridge"), ("terrain", "gbm"), ("path", "gbm"), ("position", "gbm"),
+                ("terrain+position", "gbm"), ("all", "ridge"), ("all", "gbm")):
         maps = np.clip(predictions[key].reshape(-1, wc.GRID, wc.GRID), 1e-3, None)
         paths, hists = wc.search_cost_maps(planner, maps)
         sufficiency["/".join(key)] = summary_of(wc.score(test.weights, paths, hists, maps))
+    # Causal test of the position component: the network's own map with its
+    # per-position mean (the position/gbm fit) removed, overall level kept.
+    pos = predictions[("position", "gbm")]
+    maps = np.clip(y_test.reshape(-1) - pos + pos.mean(), 1e-3, None).reshape(-1, wc.GRID, wc.GRID)
+    paths, hists = wc.search_cost_maps(planner, maps)
+    sufficiency["network_minus_position"] = summary_of(wc.score(test.weights, paths, hists, maps))
     # The ideal cost estimator: the true weights themselves, same search.
     paths, hists = wc.search_cost_maps(planner, test.weights)
     sufficiency["true_weights"] = summary_of(wc.score(test.weights, paths, hists, test.weights))
@@ -370,13 +386,104 @@ def stage_linf(planner, tag: str, n_instances: int, seed: int, steps: int) -> No
     })
 
 
+# --------------------------------------------------------------------------- #
+# probe and seam control
+# --------------------------------------------------------------------------- #
+
+def stage_probe(planner, tag: str, n_train: int, seed: int) -> None:
+    """Linear probes on tile-averaged encoder activations, layer by layer.
+
+    Asks whether terrain class (5-way) and tile position are linearly
+    decodable at each depth, for the trained encoder and for an untrained
+    one of the same architecture (the control: what the architecture and the
+    input give for free).
+    """
+    from neural_astar.planner import NeuralAstar
+    from sklearn.linear_model import LogisticRegression, RidgeCV
+    from sklearn.metrics import balanced_accuracy_score, r2_score
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    train, test = wc.load_warcraft_split("train"), wc.load_warcraft_split("test")
+    torch.manual_seed(seed)
+    untrained = NeuralAstar(learn_obstacles=True, **wc.ENCODER_KW).eval()
+    rows_idx, cols_idx = np.indices((wc.GRID, wc.GRID))
+    targets = {
+        "terrain": (train.weights[:n_train].reshape(-1).astype(str), test.weights.reshape(-1).astype(str)),
+        "row": (np.tile(rows_idx.ravel(), n_train), np.tile(rows_idx.ravel(), len(test))),
+        "col": (np.tile(cols_idx.ravel(), n_train), np.tile(cols_idx.ravel(), len(test))),
+        # the best one-number linear readout of true cost: what the final
+        # one-channel layer could have computed from the same block
+        "cost": (train.weights[:n_train].reshape(-1), test.weights.reshape(-1)),
+    }
+    results = []
+    for model_name, model in (("trained", planner), ("untrained", untrained)):
+        a_train = wc.tile_activations(model, train.images[:n_train])
+        a_test = wc.tile_activations(model, test.images)
+        for layer in a_train:
+            X_tr = a_train[layer].reshape(-1, a_train[layer].shape[-1])
+            X_te = a_test[layer].reshape(-1, a_test[layer].shape[-1])
+            row = {"encoder": model_name, "layer": layer, "dim": int(X_tr.shape[1])}
+            clf = make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000))
+            clf.fit(X_tr, targets["terrain"][0])
+            row["terrain_balanced_acc"] = float(balanced_accuracy_score(targets["terrain"][1], clf.predict(X_te)))
+            for t in ("row", "col", "cost"):
+                reg = make_pipeline(StandardScaler(), RidgeCV()).fit(X_tr, targets[t][0])
+                row[f"{t}_r2"] = float(r2_score(targets[t][1], reg.predict(X_te)))
+            results.append(row)
+            print(f"  {model_name:9s} {layer:7s} terrain {row['terrain_balanced_acc']:.3f} "
+                  f"row {row['row_r2']:.3f} col {row['col_r2']:.3f} cost {row['cost_r2']:.3f}", flush=True)
+    write_json(out_dir(tag) / "probe.json", {
+        "tag": tag, "n_train_maps": n_train, "chance_balanced_acc": 1 / len(wc.TERRAIN_COSTS), "rows": results,
+    })
+
+
+def stage_seam(planner, tag: str, draws: int, seed: int) -> None:
+    """Same-terrain transplants: a new texture and new seams, same true costs.
+
+    Any damage here comes from the transplant itself, not from a change in
+    the right answer, so it bounds how much of the k=1 pilot's damage the
+    seams alone could explain.
+    """
+    test, train = wc.load_warcraft_split("test"), wc.load_warcraft_split("train")
+    pool = wc.donor_pool(train.weights)
+    rng = np.random.default_rng(seed)
+    rows = []
+    for i in range(len(test)):
+        alts = []
+        for _ in range(draws):
+            rc = wc.EDITABLE_TILES[rng.integers(len(wc.EDITABLE_TILES))]
+            cls = float(test.weights[i][rc])
+            alts.append(wc.Alteration((rc,), (cls,), (wc.draw_donor(pool, cls, rng),)))
+        base, results = wc.evaluate_alterations(planner, test.images[i], test.weights[i], alts, train.images)
+        rows += [{"instance_id": i, "opt_C0": base["opt"], **r} for r in results]
+    same = pd.DataFrame(rows)
+    other = pd.read_parquet(out_dir(tag) / "pilot.parquet").query("budget == 1")
+
+    def summary(df: pd.DataFrame) -> Dict[str, float]:
+        optimal = df[df.opt_C0 <= 1 + TOL]
+        return {
+            "n": int(len(df)),
+            "frac_worsened": float((df.opt_C1 > df.opt_C0 + TOL).mean()),
+            "frac_path_changed": float(df.path_changed.mean()),
+            "frac_optimal_maps_broken": float((optimal.opt_C1 > 1 + TOL).mean()),
+            "dcost_l1_mean": float(df.dcost_l1.mean()),
+        }
+
+    write_json(out_dir(tag) / "seam.json", {
+        "tag": tag, "draws": draws, "seed": seed,
+        "same_terrain": summary(same), "different_terrain_k1_pilot": summary(other),
+    })
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--tag", required=True, help="model directory name under results/models/")
     parser.add_argument("--stage", default="all",
-                        choices=["eval", "surrogate", "pilot", "sweep", "linf", "all"])
+                        choices=["eval", "surrogate", "pilot", "sweep", "linf", "probe", "seam", "all"])
     parser.add_argument("--instances", type=int, default=300, help="test maps for sweep / linf")
     parser.add_argument("--surrogate-train-maps", type=int, default=2000)
+    parser.add_argument("--probe-train-maps", type=int, default=300)
     parser.add_argument("--draws", type=int, default=3)
     parser.add_argument("--pgd-steps", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
@@ -384,7 +491,7 @@ def main() -> int:
 
     config.set_global_seeds(args.seed)
     planner = wc.load_warcraft_planner(config.RESULTS_DIR / "models" / args.tag)
-    stages = ["eval", "surrogate", "pilot", "sweep", "linf"] if args.stage == "all" else [args.stage]
+    stages = ["eval", "surrogate", "pilot", "sweep", "linf", "probe", "seam"] if args.stage == "all" else [args.stage]
     for stage in stages:
         print(f"==> {args.tag}: {stage}", flush=True)
         started = time.perf_counter()
@@ -398,6 +505,10 @@ def main() -> int:
             stage_sweep(planner, args.tag, args.instances, args.seed)
         elif stage == "linf":
             stage_linf(planner, args.tag, args.instances, args.seed, args.pgd_steps)
+        elif stage == "probe":
+            stage_probe(planner, args.tag, args.probe_train_maps, args.seed)
+        elif stage == "seam":
+            stage_seam(planner, args.tag, args.draws, args.seed)
         print(f"    {stage} took {(time.perf_counter() - started) / 60:.1f} min", flush=True)
     return 0
 

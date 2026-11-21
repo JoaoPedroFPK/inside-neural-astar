@@ -1,6 +1,6 @@
 """PLAN.md step 11: gather the per-model WarCraft results into one report.
 
-Reads ``results/warcraft/<tag>/{eval,surrogate,pilot,sweep,linf}.json`` for
+Reads ``results/warcraft/<tag>/{eval,surrogate,pilot,sweep,linf,probe,seam}.json`` for
 every tag given and writes ``results/warcraft.{md,json}``. Every headline is
 quoted as a range across models, never as one model's value.
 
@@ -35,7 +35,7 @@ def main() -> int:
     parser.add_argument("--tags", nargs="+", required=True)
     args = parser.parse_args()
     tags = args.tags
-    data = {t: {n: load(t, n) for n in ("eval", "surrogate", "pilot", "sweep", "linf")} for t in tags}
+    data = {t: {n: load(t, n) for n in ("eval", "surrogate", "pilot", "sweep", "linf", "probe", "seam")} for t in tags}
     (config.RESULTS_DIR / "warcraft.json").write_text(json.dumps(data, indent=2, default=float) + "\n")
 
     def col(stage: str, *keys):
@@ -125,6 +125,25 @@ def main() -> int:
         get = lambda key: [data[t]["linf"]["rows"][i][key] for t in tags]  # noqa: E731,B023
         L.append(f"| {row['eps_255']} | {row['method']} | {rng(get('opt_binary'))} | "
                  f"{rng(get('frac_optimal_maps_broken'))} | {rng(get('frac_worsened'))} | {rng(get('frac_path_changed'))} |")
+
+    L += ["", "## Seam control: same-terrain transplants (true costs unchanged)", "",
+          f"One random tile per draw, {data[tags[0]]['seam']['draws']} draws on each of the 1 000 test maps, "
+          "against the k = 1 different-terrain pilot.", "",
+          "| transplant | optimal maps broken | worsened | path changed | mean ΔCost L1 |", "|---|---|---|---|---|"]
+    for key, label in (("same_terrain", "same terrain (seams only)"), ("different_terrain_k1_pilot", "different terrain (k = 1 pilot)")):
+        get = lambda k: [data[t]["seam"][key][k] for t in tags]  # noqa: E731,B023
+        L.append(f"| {label} | {rng(get('frac_optimal_maps_broken'))} | {rng(get('frac_worsened'))} | "
+                 f"{rng(get('frac_path_changed'))} | {rng(get('dcost_l1_mean'))} |")
+
+    L += ["", "## Linear probes on tile-averaged encoder activations", "",
+          f"Fitted on {data[tags[0]]['probe']['n_train_maps']} training maps, scored on the 1 000 test maps. "
+          f"Terrain: balanced accuracy, 5 classes (chance {data[tags[0]]['probe']['chance_balanced_acc']:.2f}). "
+          "Cost, row, col: ridge R². The untrained encoder has the same architecture and random weights.", "",
+          "| encoder | layer | dim | terrain | true cost R² | row R² | col R² |", "|---|---|---|---|---|---|---|"]
+    for i, row in enumerate(data[tags[0]]["probe"]["rows"]):
+        get = lambda k: [data[t]["probe"]["rows"][i][k] for t in tags]  # noqa: E731,B023
+        L.append(f"| {row['encoder']} | {row['layer']} | {row['dim']} | {rng(get('terrain_balanced_acc'))} | "
+                 f"{rng(get('cost_r2'))} | {rng(get('row_r2'))} | {rng(get('col_r2'))} |")
 
     path = config.RESULTS_DIR / "warcraft.md"
     path.write_text("\n".join(L) + "\n")
