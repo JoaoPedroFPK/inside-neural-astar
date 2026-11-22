@@ -13,7 +13,15 @@ real pretrained planner:
   changed is the correct response;
 * where the damage comes from: the search rerun with only the new costs and
   with only the new obstacles (the 2x2 swap of step 7);
-* optionally, step 12's tamper detector.
+* optionally, step 12's tamper detector;
+* what the cost map encodes, live on the map as it stands: step 5's
+  surrogate cost maps and how each plans when the search runs on it, step 4's
+  feature correlations, and step 8's attribution of any single cost value
+  (integrated gradients, Grad-CAM and the randomisation check). On WarCraft:
+  step 11's position pattern, its ablation, and linear probes.
+
+An overview page lists every step of the project with the method it used and
+its headline result, with a link into the live view that shows it.
 
 Actions: worst single cell for path / effort from the exhaustive sweep, one
 round of the gradient-guided attack of step 13, a random flip, undo, reset,
@@ -49,6 +57,7 @@ from src.perturb import (  # noqa: E402
 )
 from src.planner import encode_cost_map, load_pretrained_neural_astar, run_astar_module  # noqa: E402
 from src.swap import run_swap  # noqa: E402
+from scripts.demo_explain import MazeExplainer, WarcraftExplainer  # noqa: E402
 
 TOL = 1e-6
 RECEPTIVE_RADIUS = 5
@@ -176,9 +185,12 @@ class DemoState:
     """
 
     def __init__(self, planner, split: str = "test", seed: int = 0,
-                 manifest_path: Optional[Path] = None, detector: Optional[TamperDetector] = None) -> None:
+                 manifest_path: Optional[Path] = None, detector: Optional[TamperDetector] = None,
+                 explainer: Optional[MazeExplainer] = None) -> None:
         self.planner = planner
         self.detector = detector
+        self.explainer = explainer
+        self.attr_target: Optional[RC] = None
         self.split = load_split(split)
         self.seed = seed
         self.manifest_path = manifest_path or config.RESULTS_DIR / "manifest.parquet"
@@ -196,6 +208,7 @@ class DemoState:
         self.instance_id = int(instance_id) % len(self.split)
         self.instance = self.split.instance(self.instance_id, seed=self.seed)
         self.flips, self.undo_stack = [], []
+        self.attr_target = None
         self.message = "Click a cell to add or remove a wall."
         self._clean = self._evaluate([])
         self.view = self._clean
@@ -281,6 +294,27 @@ class DemoState:
                 self.message = "Random cell flipped."
                 return
 
+    def attribute(self, rc: RC) -> None:
+        """Explain the cost value of one free cell of the map as it stands (step 8).
+
+        The result is kept until the map changes; the page asks again then.
+        """
+        if self.explainer is None:
+            self.message = "attribution is not loaded in this demo"
+            return
+        rc = (int(rc[0]), int(rc[1]))
+        h, w = self.instance.map_design.shape
+        if not (0 <= rc[0] < h and 0 <= rc[1] < w):
+            self.message = "Outside the map."
+            return
+        if self.view["map"][rc] == 0:
+            self.message = "That is a wall: the search never reads its cost. Pick a free cell."
+            return
+        started = time.perf_counter()
+        self.attr_target = rc
+        self.view["attribution"] = self.explainer.attribute(self.instance, self.view["map"], rc)
+        self.message = f"Cost of cell {rc[0]},{rc[1]} explained ({time.perf_counter() - started:.1f} s)."
+
     def manifest(self):
         """The exhaustive single-cell sweep for this split, if it has been run."""
         if self._manifest is None and self.manifest_path.exists():
@@ -322,6 +356,10 @@ class DemoState:
             "exp": expanded / float(classical.expansions),
             "swap": swap,
             "tamper": self.detector.score(inst, altered) if self.detector else None,
+            "explain": (self.explainer.explain(inst, altered, cost1[0, 0].numpy(), clean=not flips)
+                        if self.explainer else None),
+            # Stale as soon as the map changes; the page re-requests it.
+            "attribution": None,
         }
 
     def verdict(self) -> Tuple[str, str]:
@@ -399,7 +437,42 @@ def snapshot(state: DemoState) -> Dict[str, object]:
     if v["tamper"] is not None:
         out["tamper"] = {"map_only": v["tamper"][0], "with_planner": v["tamper"][1],
                          "fitted_on_this_map": state.instance_id < TamperDetector.TRAIN_MAPS}
+    out["explain"] = explain_snapshot(v["explain"], inst) if v["explain"] is not None else None
+    target = state.attr_target
+    out["attr_target"] = list(target) if target is not None and v["map"][target] == 1 else None
+    a = v["attribution"]
+    out["attribution"] = None if a is None else {
+        "target": list(a["target"]), "value": a["value"], "baseline_value": a["baseline_value"],
+        "ig": np.round(a["ig"], 5).tolist(), "cam": np.round(a["cam"], 5).tolist(),
+        "random": np.round(a["random"], 5).tolist(),
+        "inside": {"ig": a["ig_inside"], "cam": a["cam_inside"], "random": a["random_inside"]},
+        "random_r": a["random_r"], "completeness_error": a["completeness_error"],
+    }
     return out
+
+
+def explain_snapshot(e: Dict[str, object], inst) -> Dict[str, object]:
+    """The interpretability views of one map, JSON-ready."""
+    from scripts.demo_explain import CORRELATES
+
+    def nan_to_none(x: float) -> Optional[float]:
+        return None if not np.isfinite(x) else float(x)
+
+    surrogates = {}
+    for key, group in (("geo", "geometric_h1"), ("full", "all")):
+        s = e["surrogates"][group]
+        surrogates[key] = {
+            "cost": np.round(s["cost"], 3).tolist(),
+            "route": [list(rc) for rc in order_path(s["path_map"], inst.start_rc, inst.goal_rc)],
+            "moves": s["moves"], "expanded": s["expanded"],
+            "r2_this_map": nan_to_none(s["r2_this_map"]), "r2_test_split": s["r2_test_split"],
+        }
+    return {
+        "surrogates": surrogates,
+        "residual": np.round(e["residual"], 3).tolist(),
+        "correlations": [{"label": label, "r": nan_to_none(e["correlations"][name])}
+                         for name, label in CORRELATES.items()],
+    }
 
 
 def apply_action(state: DemoState, name: str, arg: object = None) -> None:
@@ -415,6 +488,8 @@ def apply_action(state: DemoState, name: str, arg: object = None) -> None:
         state.gradient_step(objective[arg])
     elif name == "random":
         state.random_flip()
+    elif name == "attr":
+        state.attribute(tuple(int(x) for x in arg))
     elif name == "undo":
         state.undo()
     elif name == "reset":
@@ -461,6 +536,7 @@ class WarcraftState:
         self.test = wc.load_warcraft_split("test")
         self.train = wc.load_warcraft_split("train")
         self.pool = wc.donor_pool(self.train.weights)
+        self.explainer = WarcraftExplainer(self.planner, self.train, seed)
         self.rng = np.random.default_rng(seed)
         outputs = config.RESULTS_DIR / "warcraft" / "warcraft_seed0" / "test_outputs.npz"
         self.solved = (np.load(outputs)["opt"] <= 1 + wc.OPT_TOL) if outputs.exists() else None
@@ -632,6 +708,7 @@ class WarcraftState:
             "exact_cost": float(sc["opt_exact"][0] * sc["optimum"][0]),
             "expanded_n": float(sc["expansions"][0]), "classical": float(sc["classical_expansions"][0]),
             "spearman": float(spearmanr(costs[0].ravel(), self.weights.ravel()).correlation),
+            "explain": self.explainer.explain(x, self.weights, costs[0]),
         }
 
     def context(self) -> str:
@@ -682,6 +759,17 @@ class WarcraftState:
             "solved_clean": bool(c["path_cost"] <= c["optimum"] + 1e-6),
             "context": self.context(),
         }
+        e = v["explain"]
+        out["explain"] = {
+            "position": np.round(e["position"], 3).tolist(),
+            "position_rank": np.round(np.argsort(np.argsort(e["position"].ravel())).reshape(e["position"].shape)
+                                      / (e["position"].size - 1), 3).tolist(),
+            "rank_position": e["rank_position"],
+            "ablated_cost": e["ablated_cost"],
+            "ablated_route": [list(rc) for rc in order_path(e["ablated_path_map"], self.wc.START_RC, self.wc.GOAL_RC)],
+            "readout": np.round(e["readout"]["block3"], 2).tolist(),
+            "probe_r2": e["probe_r2"],
+        }
         return out
 
 
@@ -722,6 +810,9 @@ class Demo:
                 except (FileNotFoundError, OSError) as error:
                     self.warcraft_error = f"WarCraft is not available here: {error}. Run `make warcraft-data` and `make warcraft-train`."
                     return
+                except Exception as error:  # noqa: BLE001 - shown on the page instead of dropping the request
+                    self.warcraft_error = f"WarCraft could not start: {error!r}"
+                    return
             self.mode = "warcraft" if arg == "warcraft" else "maze"
             return self.mode
         mode = mode or self.mode
@@ -747,6 +838,22 @@ class Demo:
 
 
 PAGE = Path(__file__).with_name("demo_page.html")
+
+
+def json_safe(value):
+    """Replace NaN and infinities by None, recursively.
+
+    Browsers reject the bare ``NaN`` that Python's json module writes, and a
+    few statistics are undefined on some maps (an attribution with nothing to
+    credit, a correlation with a constant), so the page receives null instead.
+    """
+    if isinstance(value, float):
+        return value if np.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe(v) for v in value]
+    return value
 
 
 def make_server(state: "Demo", port: int):
@@ -775,7 +882,7 @@ def make_server(state: "Demo", port: int):
             if url.path in ("/", "/index.html"):
                 self._send(PAGE.read_bytes(), "text/html; charset=utf-8")
             elif url.path == "/api/state":
-                self._send(json.dumps(state.snapshot(mode)).encode(), "application/json")
+                self._send(json.dumps(json_safe(state.snapshot(mode)), allow_nan=False).encode(), "application/json")
             else:
                 self._send(b"not found", "text/plain", 404)
 
@@ -789,10 +896,10 @@ def make_server(state: "Demo", port: int):
                 request = json.loads(self.rfile.read(length) or b"{}")
                 mode = request.get("mode")
                 mode = state.apply(request.get("name", ""), request.get("arg"), mode)
-            except (ValueError, KeyError, TypeError, IndexError, AttributeError) as error:
+            except (ValueError, KeyError, TypeError, IndexError, AttributeError, OverflowError) as error:
                 target = state.warcraft if mode == "warcraft" and state.warcraft else state.maze
                 target.message = f"could not do that: {error}"
-            self._send(json.dumps(state.snapshot(mode)).encode(), "application/json")
+            self._send(json.dumps(json_safe(state.snapshot(mode)), allow_nan=False).encode(), "application/json")
 
         def log_message(self, *args) -> None:  # keep the terminal quiet
             pass
@@ -818,20 +925,30 @@ def main() -> int:
     config.set_global_seeds(args.seed)
     planner = load_pretrained_neural_astar(checkpoint_path=args.checkpoint)
     detector = TamperDetector(planner, seed=args.seed) if args.detector else None
-    state = DemoState(planner, seed=args.seed, detector=detector)
+    print("fitting step 5's two surrogates (a few seconds)", flush=True)
+    split = load_split("test")
+    explainer = MazeExplainer(planner, split, seed=args.seed)
+    state = DemoState(planner, seed=args.seed, detector=detector, explainer=explainer)
     state.load_map(args.map)
 
     if args.actions is not None:
         for action in args.actions.split():
             name, _, arg = action.partition(":")
-            apply_action(state, name, arg.split(",") if name == "flip" else (arg or None))
+            apply_action(state, name, arg.split(",") if name in ("flip", "attr") else (arg or None))
             print(f"{action:>14}: {state.verdict()[1]} | {state.message}")
         return 0
 
     demo = Demo(state, seed=args.seed)
     if args.warcraft:
         demo.apply("mode", "warcraft")
-    server = make_server(demo, args.port)
+    try:
+        server = make_server(demo, args.port)
+    except OSError as error:
+        # Usually another demo still running: the browser would otherwise open
+        # that one, with its own state, and look broken.
+        print(f"cannot serve on port {args.port}: {error}. Another demo may still be running; "
+              f"stop it, or pass --port {args.port + 1}.", file=sys.stderr)
+        return 1
     url = f"http://127.0.0.1:{server.server_port}/"
     print(f"demo running at {url}  (Ctrl+C to stop)", flush=True)
     if not args.no_browser:

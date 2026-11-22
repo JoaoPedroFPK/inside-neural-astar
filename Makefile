@@ -98,7 +98,7 @@ gradient:  ## PLAN.md step 13: gradient-guided flip attack vs random pool and sw
 adaptive:  ## PLAN.md step 13: detector-aware attack on step 12's surviving claim (~30 min)
 	$(PY) scripts/adaptive_attack.py
 
-demo:  ## browser demo at http://127.0.0.1:8765 (MAP=63, DETECTOR=1 adds the tamper detector, WARCRAFT=1 opens on terrain maps)
+demo:  ## browser demo at http://127.0.0.1:8765: attacks, surrogates, attribution, probes, step overview (MAP=63, DETECTOR=1 adds the tamper detector, WARCRAFT=1 opens on terrain maps)
 	$(PY) scripts/demo.py --map $(or $(MAP),0) $(if $(DETECTOR),--detector,) $(if $(WARCRAFT),--warcraft,)
 
 pipeline:  ## every experiment in dependency order (~1h15 on a laptop CPU)

@@ -117,7 +117,7 @@ Data and the pretrained maze checkpoint ship in the `neural-astar` submodule
 | `make train`, `seed-pipeline TAG=…`, `seeds` | extra encoders and their replication | ~30 min per model |
 | `make warcraft-train`, `warcraft` | WarCraft study | ~3 h + ~45 min per model |
 | `make detector` / `gradient` / `adaptive` | detection and attacks | ~2 / ~45 / ~30 min |
-| `make demo` | interactive browser demo (`MAP=63`, `DETECTOR=1`, `WARCRAFT=1`) | — |
+| `make demo` | interactive browser demo: flip cells, the 2×2 swap, surrogate cost maps, attribution, WarCraft probes, and an overview of every step with its method (`MAP=63`, `DETECTOR=1`, `WARCRAFT=1`) | ~10 s to start |
 | `make help` | every target | — |
 
 Every script seeds numpy and torch and accepts `--seed`.
