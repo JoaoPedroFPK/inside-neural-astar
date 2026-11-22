@@ -63,6 +63,10 @@
   }
   .under { display: flex; align-items: center; gap: 10px 18px; flex-wrap: wrap; }
   .layers button { white-space: nowrap; }
+  .lbl { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 1px; white-space: normal; }
+  .lbl .how { font-size: 12px; opacity: 0.72; }
+  .tools button:has(.lbl), .layers.vertical button:has(.lbl) { padding-top: 5px; padding-bottom: 5px; }
+  .lbl { line-height: 1.25; }
   #maplabel { min-width: 104px; text-align: center; }
   .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted); }
   .legend span { display: inline-flex; align-items: center; gap: 7px; }
@@ -130,7 +134,7 @@
   .pert { display: flex; gap: 14px; align-items: flex-start; }
   .pert img { width: 150px; height: 150px; image-rendering: pixelated; border-radius: 4px; box-shadow: 0 0 0 1px var(--rule); }
   [hidden] { display: none !important; }
-  .tools { display: flex; flex-direction: column; gap: 22px; min-height: 0; overflow-y: auto; }
+  .tools { display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; }
   .tools .group { display: flex; flex-direction: column; gap: 8px; }
   .tools h2 { font-size: 14px; color: var(--muted); font-weight: 400; margin: 4px 0 0; }
   .tools button { width: 100%; justify-content: space-between; }
@@ -232,15 +236,15 @@
     </div>
     <div class="group" id="actions-maze">
       <h2>Change the map</h2>
-      <button class="attack" data-act="grad:opt" title="add the cell the planner's gradient says hurts the route most">Attack the route <kbd>g</kbd></button>
-      <button class="attack" data-act="grad:eff" title="add the cell the planner's gradient says adds the most work">Attack the work <kbd>h</kbd></button>
-      <button data-act="worst:opt" title="the single cell that hurts the route most, out of every cell tried">Worst cell: route <kbd>w</kbd></button>
-      <button data-act="worst:eff" title="the single cell that adds the most work, out of every cell tried">Worst cell: work <kbd>e</kbd></button>
-      <button data-act="random">Random cell <kbd>r</kbd></button>
+      <button class="attack" data-act="grad:opt" title="ranks cells by the planner's gradient, tries the top 64 and adds the one that lengthens the route most"><span class="lbl"><span class="how">Gradient-guided greedy:</span> Attack the route</span> <kbd>g</kbd></button>
+      <button class="attack" data-act="grad:eff" title="ranks cells by the planner's gradient, tries the top 64 and adds the one that adds the most search work"><span class="lbl"><span class="how">Gradient-guided greedy:</span> Attack the work</span> <kbd>h</kbd></button>
+      <button data-act="worst:opt" title="every single-cell flip of this map was tried; this is the one that lengthens the route most"><span class="lbl"><span class="how">Exhaustive search:</span> Worst cell for the route</span> <kbd>w</kbd></button>
+      <button data-act="worst:eff" title="every single-cell flip of this map was tried; this is the one that adds the most work while keeping the route near-shortest"><span class="lbl"><span class="how">Exhaustive search:</span> Worst cell for the work</span> <kbd>e</kbd></button>
+      <button data-act="random" title="one cell chosen uniformly at random, as the baseline the attacks are compared with"><span class="lbl"><span class="how">Random control:</span> Flip a random cell</span> <kbd>r</kbd></button>
       <div class="pair"><button data-act="undo">Undo <kbd>u</kbd></button><button data-act="reset">Reset <kbd>0</kbd></button></div>
     </div>
     <div class="group" id="actions-wc" hidden>
-      <h2>Repaint a tile</h2>
+      <h2>Tile transplant: repaint a tile</h2>
       <div class="palette" id="palette"></div>
       <h2>Change the pixels</h2>
       <select id="eps" aria-label="largest change per pixel" title="largest change per pixel">
@@ -249,9 +253,9 @@
         <option value="4">at most ±4/255 per pixel</option>
         <option value="8">at most ±8/255 per pixel</option>
       </select>
-      <button class="attack" data-wact="pgd" title="every pixel moved in the direction the planner's gradient says hurts most">Pixel attack <kbd>g</kbd></button>
-      <button data-wact="noise" title="the same size of change, in random directions">Random noise <kbd>r</kbd></button>
-      <button data-wact="worst" title="the single tile repaint that hurt the planner most, out of every one tried">Worst repaint <kbd>w</kbd></button>
+      <button class="attack" data-wact="pgd" title="PGD: ten steps of gradient ascent on the planner's training loss, every pixel kept within the chosen amount"><span class="lbl"><span class="how">Gradient ascent:</span> Pixel attack</span> <kbd>g</kbd></button>
+      <button data-wact="noise" title="every pixel moved by the same amount, in random directions: the baseline for the pixel attack"><span class="lbl"><span class="how">Random control:</span> Pixel noise</span> <kbd>r</kbd></button>
+      <button data-wact="worst" title="every single-tile repaint of this map was tried; this is the one that hurt the route most"><span class="lbl"><span class="how">Exhaustive search:</span> Worst repaint</span> <kbd>w</kbd></button>
       <div class="pair"><button data-wact="undo">Undo <kbd>u</kbd></button><button data-wact="reset">Reset <kbd>0</kbd></button></div>
     </div>
     <div class="status" id="status" aria-live="polite"></div>
@@ -306,15 +310,17 @@ let view = "live", attrMethod = "ig";
 // "-" entries are group headings, not layers.
 const LAYERS = {
   maze: [["-", "The planner"], ["maze", "Maze"], ["cost", "Cost map"], ["change", "Cost change"],
-         ["-", "Inside the cost map"], ["geo", "Surrogate: geometry"], ["full", "Surrogate: all features"],
-         ["resid", "Unexplained part"], ["attr", "Attribution"]],
+         ["-", "Inside the cost map"], ["geo", "Geometry only", "Surrogate model"], ["full", "All features", "Surrogate model"],
+         ["resid", "Unexplained part", "Residual"], ["attr", "Explain one cell's cost", "Attribution"]],
   warcraft: [["-", "The planner"], ["picture", "Picture"], ["truth", "True cost"], ["cost", "Network's cost"],
-             ["-", "Inside the network"], ["position", "Position pattern"], ["probe", "Hidden-layer readout"]],
+             ["-", "Inside the network"], ["position", "Position pattern", "Ablation"], ["probe", "Hidden-layer readout", "Linear probe"]],
 };
+// A button that runs a method names it first: "Method: what it does".
+const label = (how, what) => `<span class="lbl"><span class="how">${how}:</span> ${what}</span>`;
 const layerKeys = (m) => LAYERS[m].filter(([k]) => k !== "-").map(([k]) => k);
 function buildLayers() {
-  $("layers").innerHTML = LAYERS[mode].map(([k, t]) => k === "-" ? `<div class="layer-group">${t}</div>`
-    : `<button data-layer="${k}" aria-pressed="${k === layer}">${t}</button>`).join("");
+  $("layers").innerHTML = LAYERS[mode].map(([k, t, how]) => k === "-" ? `<div class="layer-group">${t}</div>`
+    : `<button data-layer="${k}" aria-pressed="${k === layer}">${how ? label(how, t) : t}</button>`).join("");
   $("layers").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { layer = b.dataset.layer; buildLayers(); render(); }));
 }
 const picture = new Image();
