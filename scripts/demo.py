@@ -15,10 +15,12 @@ real pretrained planner:
   with only the new obstacles (the 2x2 swap of step 7);
 * optionally, step 12's tamper detector;
 * what the cost map encodes, live on the map as it stands: step 5's
-  surrogate cost maps and how each plans when the search runs on it, step 4's
-  feature correlations, and step 8's attribution of any single cost value
-  (integrated gradients, Grad-CAM and the randomisation check). On WarCraft:
-  step 11's position pattern, its ablation, and linear probes.
+  surrogate cost maps and how each plans when the search runs on it, with the
+  network's own map weakened as the control, step 4's feature correlations,
+  and step 8's attribution of any single cost value (integrated gradients,
+  saliency, Grad-CAM and the randomisation check). On WarCraft: step 11's
+  position pattern, its ablation, and linear probes with an untrained-encoder
+  control; repainting a tile with its own terrain is step 11's seam control.
 
 An overview page lists every step of the project with the method it used and
 its headline result, with a link into the live view that shows it.
@@ -444,8 +446,11 @@ def snapshot(state: DemoState) -> Dict[str, object]:
     out["attribution"] = None if a is None else {
         "target": list(a["target"]), "value": a["value"], "baseline_value": a["baseline_value"],
         "ig": np.round(a["ig"], 5).tolist(), "cam": np.round(a["cam"], 5).tolist(),
-        "random": np.round(a["random"], 5).tolist(),
-        "inside": {"ig": a["ig_inside"], "cam": a["cam_inside"], "random": a["random_inside"]},
+        # Negated: inputs are 1 = free, so -gradient is the first-order effect of
+        # a wall on that cell, the sign integrated gradients uses.
+        "sal": np.round(-a["saliency"], 5).tolist(), "random": np.round(a["random"], 5).tolist(),
+        "inside": {"ig": a["ig_inside"], "cam": a["cam_inside"], "sal": a["saliency_inside"],
+                   "random": a["random_inside"]},
         "random_r": a["random_r"], "completeness_error": a["completeness_error"],
     }
     return out
@@ -470,6 +475,7 @@ def explain_snapshot(e: Dict[str, object], inst) -> Dict[str, object]:
     return {
         "surrogates": surrogates,
         "residual": np.round(e["residual"], 3).tolist(),
+        "strength": e["strength"],
         "correlations": [{"label": label, "r": nan_to_none(e["correlations"][name])}
                          for name, label in CORRELATES.items()],
     }
@@ -631,13 +637,15 @@ class WarcraftState:
             self.message = "Tile restored."
             return
         cls = min(self.wc.TERRAIN_COSTS, key=lambda c: abs(c - float(cls)))
+        same = abs(float(self.weights[rc]) - cls) < 1e-6
         donor = self.wc.draw_donor(self.pool, cls, self.rng)
         self._push()
         self.image, self.weights = self.wc.transplant_tiles(
             self.image, self.weights, [rc], [self.train.images[donor[0]]], [(donor[1], donor[2])], [cls])
         self.edits = [e for e in self.edits if e[0] != rc] + [(rc, cls)]
         self.view = self._evaluate()
-        self.message = f"Tile repainted, true cost {cls}."
+        self.message = (f"Same terrain, true cost {cls} unchanged: any change is the seam (control)."
+                        if same else f"Tile repainted, true cost {cls}.")
 
     def worst(self) -> None:
         """The single tile repaint that hurt the planner most, from the exhaustive sweep."""
@@ -769,6 +777,7 @@ class WarcraftState:
             "ablated_route": [list(rc) for rc in order_path(e["ablated_path_map"], self.wc.START_RC, self.wc.GOAL_RC)],
             "readout": np.round(e["readout"]["block3"], 2).tolist(),
             "probe_r2": e["probe_r2"],
+            "untrained_probe_r2": e["untrained_probe_r2"],
         }
         return out
 

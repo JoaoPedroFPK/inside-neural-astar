@@ -105,16 +105,24 @@ def test_live_surrogates_reproduce_the_sufficiency_test(explained, test_split) -
     """Planning with the live surrogates on the clean test maps gives step 5's figures.
 
     Step 5 stored 0.620 exactly optimal for the geometry surrogate and 0.920
-    for the all-features one; the demo recomputes features and predictions per
-    map, so any drift in either shows up here.
+    for the all-features one, and the guidance-strength control (the network's
+    map weakened to ``0.5 + a * (cost - 0.5)``) at 0.83 / 0.84 / 0.84 / 0.86 /
+    0.88 / 0.81 for a = 1 / 0.75 / 0.5 / 0.25 / 0.1 / 0; the demo recomputes all
+    of them per map, so any drift shows up here.
     """
     optimal = {"geometric_h1": 0, "all": 0}
+    strength = [0] * 6
     for i in range(len(test_split)):
         explained.load_map(i)
         view = explained.view
         for group, s in view["explain"]["surrogates"].items():
             optimal[group] += s["moves"] <= view["optimal_moves"]
+        curve = view["explain"]["strength"]
+        assert (curve[0]["moves"], curve[0]["expanded"]) == (view["moves"], view["expanded"])  # a = 1 is the network
+        for k, point in enumerate(curve):
+            strength[k] += point["moves"] <= view["optimal_moves"]
     assert optimal == {"geometric_h1": 62, "all": 92}
+    assert strength == [83, 84, 84, 86, 88, 81]
 
 
 def test_attribution_respects_the_receptive_field_and_refuses_walls(explained) -> None:
@@ -133,6 +141,8 @@ def test_attribution_respects_the_receptive_field_and_refuses_walls(explained) -
     outside = np.maximum(np.abs(rows - free[0]), np.abs(cols - free[1])) > 5
     assert np.all(a["ig"][outside] == 0) and np.all(a["ig"][grid == 1] == 0)
     assert a["ig_inside"] > 0.999 and a["completeness_error"] < 0.05
+    # saliency is a gradient too, so it cannot reach past the receptive field either
+    assert np.all(a["saliency"][outside] == 0) and a["saliency_inside"] > 0.999
     # a change to the map makes the attribution stale; the target is kept
     explained.toggle(next(rc for rc in [(20, 20), (21, 21), (25, 25)] if grid[rc] == 1))
     assert explained.view["attribution"] is None and explained.attr_target == free
@@ -145,3 +155,40 @@ def test_json_safe_turns_undefined_statistics_into_null() -> None:
     out = json_safe({"a": float("nan"), "b": [1.0, float("inf")], "c": (2, {"d": -float("inf")})})
     assert out == {"a": None, "b": [1.0, None], "c": [2, {"d": None}]}
     json.dumps(out, allow_nan=False)
+
+
+def test_page_feature_list_matches_the_surrogates_feature_groups() -> None:
+    """The page's feature box lists as many features per surrogate as the fits use."""
+    import re
+    from pathlib import Path
+
+    from src.surrogate import FEATURE_GROUPS
+
+    page = (Path(__file__).resolve().parents[1] / "scripts" / "demo_page.html").read_text()
+    block = page.split("const SURROGATE_FEATURES = [", 1)[1].split("];", 1)[0]
+    flags = re.findall(r",\s*(true|false)\]", block)
+    assert len(flags) == len(FEATURE_GROUPS["all"])
+    assert flags.count("true") == len(FEATURE_GROUPS["geometric_h1"])
+
+
+def test_warcraft_probe_control_matches_step_11() -> None:
+    """The untrained-encoder probe reads terrain off the last hidden block about as well as the trained one.
+
+    Step 11 reported R² 0.91 (trained) and 0.92 (untrained) at the last hidden
+    block over all test maps; on single maps the two must stay close and high.
+    """
+    from scripts.demo import WarcraftState
+
+    try:
+        w = WarcraftState()
+    except (FileNotFoundError, OSError) as error:
+        pytest.skip(f"WarCraft data or model missing: {error}")
+    for i in range(5):
+        w.load_map(i)
+        e = w.view["explain"]
+        assert e["untrained_probe_r2"]["block3"] > 0.8 and e["probe_r2"]["block3"] > 0.8
+        assert e["untrained_probe_r2"]["output"] < 0.5
+    # repainting a tile with its own terrain is the seam control, and says so
+    rc = (5, 5)
+    w.paint(rc, float(w.weights[rc]))
+    assert "Same terrain" in w.message and w.view["explain"] is not None

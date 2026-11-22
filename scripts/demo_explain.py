@@ -11,13 +11,17 @@ with the project's own methods and fitted the way the experiments fit them:
   to the *same* search the encoder feeds, so a surrogate is scored by how it
   plans, not only by how closely it copies the network.
 * **Feature correlations (step 4)** of the cost map with single features.
-* **Attribution (step 8).** Integrated gradients and Grad-CAM for one cost
-  value, checked against the encoder's exact 11 x 11 receptive field, plus the
+* **Guidance-strength control (step 5).** The network's own cost map
+  weakened toward a constant, ``0.5 + a * (cost - 0.5)``, and planned with: the
+  control showing a surrogate is not merely weaker guidance.
+* **Attribution (step 8).** Integrated gradients, saliency and Grad-CAM for one
+  cost value, checked against the encoder's exact 11 x 11 receptive field, plus the
   randomisation sanity check: the same attribution on an encoder with random
   weights should look different.
 * **WarCraft (step 11).** The position pattern the network's costs follow,
   ablated by removing it before the search, and linear probes that read the
-  true terrain cost off the last hidden layer and off the output.
+  true terrain cost off the last hidden layer and off the output, with the
+  same probes on an untrained encoder as the control.
 """
 
 from __future__ import annotations
@@ -39,6 +43,7 @@ from src.attribution import (  # noqa: E402
     grad_cam,
     integrated_gradients,
     randomize_encoder,
+    saliency,
 )
 from src.exact_solver import distance_field  # noqa: E402
 from src.features import compute_instance_features, on_solver_path  # noqa: E402
@@ -48,6 +53,9 @@ from src.surrogate import FEATURE_GROUPS, build_design_matrix, fit_and_score  # 
 
 #: The two surrogates of step 5 the demo shows, by feature group.
 SURROGATES = ("geometric_h1", "all")
+
+#: Scale factors of step 5's guidance-strength control, strongest first.
+STRENGTHS = (1.0, 0.75, 0.5, 0.25, 0.1, 0.0)
 
 #: Single features whose correlation with the cost map step 4 reported.
 CORRELATES = {
@@ -125,6 +133,14 @@ class MazeExplainer:
                 "expanded": float(run.histories[0, 0].sum()),
                 "path_map": run.paths[0, 0].numpy(),
             }
+        out["strength"] = []
+        for alpha in STRENGTHS:
+            scaled = (0.5 + alpha * (cost - 0.5)).astype(np.float32)
+            with torch.no_grad():
+                run = run_astar_module(self.planner, torch.from_numpy(scaled).reshape_as(starts),
+                                       starts, goals, obstacles)
+            out["strength"].append({"alpha": alpha, "moves": float(run.paths[0, 0].sum() - 1),
+                                    "expanded": float(run.histories[0, 0].sum())})
         out["residual"] = np.where(mask, cost - out["surrogates"]["all"]["cost"], 0.0)
         out["mask"] = mask
         for name in CORRELATES:
@@ -136,15 +152,18 @@ class MazeExplainer:
         current = replace(instance, map_design=design)
         ig = integrated_gradients(self.planner, current, target, baseline="free", steps=64)
         cam = grad_cam(self.planner, current, target)
+        sal = saliency(self.planner, current, target)
         rand = integrated_gradients(self.randomized, current, target, baseline="free", steps=64)
         return {
             "target": target,
             "value": ig.output_value,
             "ig": ig.values[0],
             "cam": cam.values[0],
+            "saliency": sal.values[0],
             "random": rand.values[0],
             "ig_inside": attribution_radius(ig)["share_within_5"],
             "cam_inside": attribution_radius(cam)["share_within_5"],
+            "saliency_inside": attribution_radius(sal)["share_within_5"],
             "random_inside": attribution_radius(rand)["share_within_5"],
             # Step 8's statistic: both input channels, trained vs random weights.
             "random_r": pearson(ig.values.ravel(), rand.values.ravel()),
@@ -153,11 +172,29 @@ class MazeExplainer:
         }
 
 
+def untrained_warcraft_encoder(seed: int = 0):
+    """The WarCraft planner's architecture with random weights: step 11's probe control.
+
+    Built inside a forked torch RNG, so asking for it does not move the
+    global random stream the rest of the demo draws from.
+    """
+    from neural_astar.planner import NeuralAstar
+
+    from src import warcraft as wc
+
+    with torch.random.fork_rng():
+        torch.manual_seed(seed)
+        return NeuralAstar(learn_obstacles=True, **wc.ENCODER_KW).eval()
+
+
 class WarcraftExplainer:
     """Step 11's position pattern and linear probes, for the terrain maps.
 
     Fitted once on the first 300 training maps for the probes (step 11's
-    setting) and the first 2 000 for the position pattern, then cached.
+    setting) and the first 2 000 for the position pattern, then cached. The
+    probes are fitted twice: on the trained encoder and, as the control, on an
+    untrained one of the same architecture, so a high readout can be split into
+    what the picture gives for free and what training built.
     """
 
     PROBE_MAPS = 300
@@ -165,32 +202,41 @@ class WarcraftExplainer:
 
     def __init__(self, planner, train, seed: int = 0) -> None:
         self.planner = planner
-        if WARCRAFT_CACHE.exists():
-            parts = pickle.loads(WARCRAFT_CACHE.read_bytes())
-        else:
-            parts = self._fit(train, seed)
-            WARCRAFT_CACHE.parent.mkdir(parents=True, exist_ok=True)
-            WARCRAFT_CACHE.write_bytes(pickle.dumps(parts))
+        self.untrained = untrained_warcraft_encoder(seed)
+        parts = pickle.loads(WARCRAFT_CACHE.read_bytes()) if WARCRAFT_CACHE.exists() else {}
+        if "probes" not in parts:
+            parts.update(self._fit(train, seed))
+        if "untrained_probes" not in parts:  # caches written before the control existed
+            parts["untrained_probes"] = self._fit_probes(self.untrained, train)
+        WARCRAFT_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        WARCRAFT_CACHE.write_bytes(pickle.dumps(parts))
         self.position, self.probes = parts["position"], parts["probes"]
+        self.untrained_probes = parts["untrained_probes"]
 
     def _fit(self, train, seed: int) -> Dict[str, object]:
-        from sklearn.linear_model import RidgeCV
-        from sklearn.pipeline import make_pipeline
-        from sklearn.preprocessing import StandardScaler
-
         from src import warcraft as wc
 
         print("fitting the WarCraft probes once (about a minute); cached afterwards", flush=True)
         # The per-tile mean of the network's own costs: what step 11's
         # position-only surrogate (row and column, gradient boosting) estimates.
         position = wc.plan(self.planner, train.images[: self.POSITION_MAPS])[0].mean(axis=0)
-        acts = wc.tile_activations(self.planner, train.images[: self.PROBE_MAPS])
+        return {"position": position, "probes": self._fit_probes(self.planner, train)}
+
+    def _fit_probes(self, planner, train) -> Dict[str, object]:
+        """Ridge probes from the last hidden block and the output to true tile cost."""
+        from sklearn.linear_model import RidgeCV
+        from sklearn.pipeline import make_pipeline
+        from sklearn.preprocessing import StandardScaler
+
+        from src import warcraft as wc
+
+        acts = wc.tile_activations(planner, train.images[: self.PROBE_MAPS])
         target = train.weights[: self.PROBE_MAPS].reshape(-1)
         probes = {}
         for layer in ("block3", "output"):
             x = acts[layer].reshape(-1, acts[layer].shape[-1])
             probes[layer] = make_pipeline(StandardScaler(), RidgeCV()).fit(x, target)
-        return {"position": position, "probes": probes}
+        return probes
 
     def explain(self, image: np.ndarray, weights: np.ndarray, cost: np.ndarray) -> Dict[str, object]:
         """Position pattern, the ablation that removes it, and the probes' readouts."""
@@ -204,6 +250,9 @@ class WarcraftExplainer:
         acts = wc.tile_activations(self.planner, image[None])
         readout = {layer: probe.predict(acts[layer].reshape(-1, acts[layer].shape[-1])).reshape(cost.shape)
                    for layer, probe in self.probes.items()}
+        acts = wc.tile_activations(self.untrained, image[None])
+        untrained = {layer: probe.predict(acts[layer].reshape(-1, acts[layer].shape[-1])).reshape(cost.shape)
+                     for layer, probe in self.untrained_probes.items()}
         return {
             "position": self.position,
             "rank_position": float(spearmanr(cost.ravel(), self.position.ravel()).correlation),
@@ -212,6 +261,7 @@ class WarcraftExplainer:
             "ablated_path_map": paths[0],
             "readout": readout,
             "probe_r2": {layer: r2_on(weights.ravel(), r.ravel()) for layer, r in readout.items()},
+            "untrained_probe_r2": {layer: r2_on(weights.ravel(), r.ravel()) for layer, r in untrained.items()},
         }
 
 

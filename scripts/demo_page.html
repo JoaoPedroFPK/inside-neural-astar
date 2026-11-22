@@ -140,6 +140,9 @@
   .layers.vertical { display: flex; flex-direction: column; }
   .layers.vertical button { text-align: left; padding: 8px 12px; }
   .layer-group { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; padding: 9px 12px 3px; background: var(--bg); }
+  .strength { margin-top: 10px; font-size: 14px; }
+  .strength input { width: 100%; margin: 6px 0 0; }
+  .strength .hint { margin: 4px 0 0; }
   details.why { font-size: 13px; color: var(--muted); margin-top: 8px; }
   details.why summary { cursor: pointer; }
   details.why p { margin: 4px 0 0; }
@@ -268,7 +271,7 @@
     </section>
     <section id="attr-section" hidden>
       <h2>Why does this cell cost what it costs?</h2>
-      <div class="methods"><span class="method">Integrated gradients</span><span class="method">Grad-CAM</span><span class="method">Randomisation sanity check</span></div>
+      <div class="methods"><span class="method">Integrated gradients</span><span class="method">Saliency</span><span class="method">Grad-CAM</span><span class="method">Randomisation sanity check</span></div>
       <div id="attr"></div>
     </section>
     <section id="why-section" hidden>
@@ -519,6 +522,7 @@ function legend() {
   const diverging = ramp(changeColor(-1, 1), changeColor(0, 1), changeColor(1, 1));
   if (layer === "attr") {
     const scale = attrMethod === "cam" ? `<span>${ramp(heatColor(0), heatColor(1))}no credit → most credit</span>`
+      : attrMethod === "sal" ? `<span>${diverging}a wall here would lower → raise this cost</span>`
       : `<span>${diverging}wall lowers → raises this cost</span>`;
     $("legend").innerHTML = scale + `<span>dashed: the 11 × 11 cells this cost can depend on</span>`;
     return;
@@ -575,6 +579,29 @@ const signed = (x) => (x > 0 ? "+" : x < 0 ? "−" : "±") + Math.abs(x);
 const PLANNER_LAYERS = ["maze", "cost", "change"];
 const chips = (...names) => names.map((m) => `<span class="method">${m}</span>`).join("");
 const why = (text) => `<details class="why"><summary>Why this matters</summary><p>${text}</p></details>`;
+// Mirrors FEATURE_GROUPS["geometric_h1"] and ["all"] in src/surrogate.py: [feature, in geometry surrogate?]
+const SURROGATE_FEATURES = [
+  ["Distance to the goal along free cells", true],
+  ["Straight-line distance to the goal", true],
+  ["Chebyshev distance to the goal (the search's own heuristic)", true],
+  ["Distance to the nearest wall (Chebyshev)", true],
+  ["Distance to the nearest wall (straight-line)", true],
+  ["Share of walls in the 3×3 window", true],
+  ["Share of walls in the 5×5 window", true],
+  ["Corridor width: nearest wall over 4 directions", true],
+  ["Free run through the cell, narrower of row and column", true],
+  ["Free neighbours (of 8)", true],
+  ["Distance from the start along free cells", false],
+  ["On the dataset's optimal route", false],
+  ["On any optimal route", false],
+  ["On our solver's optimal route", false],
+];
+const featuresBox = () => `<details class="why"><summary>Features each surrogate uses</summary>
+  <p>Gradient boosting predicts each free cell's cost from these values of that cell, fitted on 800 training maps.</p>
+  <table class="tbl">
+    <tr><th>feature</th><th class="n">geometry</th><th class="n">all</th></tr>
+    ${SURROGATE_FEATURES.map(([name, geo]) => `<tr><td>${name}</td><td class="n">${geo ? "✓" : ""}</td><td class="n">✓</td></tr>`).join("")}
+  </table></details>`;
 function renderWhy() {
   const sw = S.swap;
   $("why-section").hidden = !sw || !PLANNER_LAYERS.includes(layer);
@@ -621,7 +648,7 @@ function renderEncode() {
   const row = (name, explains, moves, expanded, mine) =>
     `<tr class="${mine ? "mine" : ""}"><td>${name}</td><td class="n">${explains}</td><td class="n">${routeWord(moves, now.optimum)}</td><td class="n">${expanded}</td></tr>`;
   $("encode-title").textContent = "Plan with a rebuilt cost map";
-  $("encode-methods").innerHTML = chips("Surrogate models", "Sufficiency test");
+  $("encode-methods").innerHTML = chips("Surrogate models", "Sufficiency test", "Guidance-strength control");
   $("encode").innerHTML = `
     <table class="tbl">
       <tr><th>search runs on</th><th class="n">R²</th><th class="n">route</th><th class="n">work</th></tr>
@@ -630,7 +657,33 @@ function renderEncode() {
       ${row("all-features surrogate", pct(a.r2_this_map), a.moves, a.expanded, layer === "full")}
       ${row("flat costs (classical A*)", "", now.optimum, now.classical)}
     </table>
-    ${why(`A surrogate rebuilds the cost map from named features (distance to goal and walls; the all-features one is also told where the optimal routes run). R² is how much of the network's map it rebuilds: on all test maps ${pct(g.r2_test_split)} and ${pct(a.r2_test_split)}. If a surrogate plans as well, the named features are enough.${S.flips.length ? " On an altered map the solver's route stands in for the dataset's." : ""}`)}`;
+    ${strengthBox(E.strength, now.optimum)}
+    ${featuresBox()}
+    ${why(`A surrogate rebuilds the cost map from named features (distance to goal and walls; the all-features one is also told where the optimal routes run). R² is how much of the network's map it rebuilds: on all test maps ${pct(g.r2_test_split)} and ${pct(a.r2_test_split)}. If a surrogate plans as well, the named features are enough. The slider weakens the network's own map toward flat: over all test maps that never matches the all-features surrogate (half strength: 84 % optimal, work 0.644 of A*; surrogate: 92 %, 0.627), so its edge is its structure, not weaker guidance.${S.flips.length ? " On an altered map the solver's route stands in for the dataset's." : ""}`)}`;
+  bindStrength();
+}
+// Step 5's control: the network's map weakened toward flat, 0.5 + a (cost − 0.5).
+let strengthIdx = 2;   // a = 0.5, the point step 5 compares the surrogate with
+function strengthBox(curve, optimum) {
+  const i = Math.min(strengthIdx, curve.length - 1), s = curve[i];
+  return `<div class="strength">
+    <label for="strength">Network's map at strength <b id="strength-a">${s.alpha}</b></label>
+    <input id="strength" type="range" min="0" max="${curve.length - 1}" step="1" value="${curve.length - 1 - i}"
+      aria-label="Strength of the network's cost map, from flat to full">
+    <p class="hint">route <b id="strength-route">${routeWord(s.moves, optimum)}</b> · work <b id="strength-work">${s.expanded}</b></p>
+  </div>`;
+}
+function bindStrength() {
+  const input = $("strength");
+  if (!input) return;
+  input.addEventListener("input", () => {
+    const curve = S.explain.strength;
+    strengthIdx = curve.length - 1 - Number(input.value);
+    const s = curve[strengthIdx];
+    $("strength-a").textContent = s.alpha;
+    $("strength-route").innerHTML = routeWord(s.moves, S.now.optimum);
+    $("strength-work").textContent = s.expanded;
+  });
 }
 function renderAttr() {
   const on = layer === "attr" && !!S.explain;
@@ -647,7 +700,7 @@ function renderAttr() {
       <p class="hint">No wall within its 11 × 11 reach, so nothing to credit. Pick a cell near a wall.</p>`;
     return;
   }
-  const names = {ig: "Integrated gradients", cam: "Grad-CAM", random: "IG, random weights"};
+  const names = {ig: "Integrated gradients", sal: "Saliency", cam: "Grad-CAM", random: "IG, random weights"};
   const toggle = Object.entries(names).map(([k, t]) => `<button data-attr="${k}" aria-pressed="${k === attrMethod}">${t}</button>`).join("");
   const inside = A.inside[attrMethod], bad = inside != null && inside < 0.9;
   const rnd = A.random_r == null ? "" : `<p class="hint">Randomisation check: trained vs random weights r = ${(A.random_r < 0 ? "−" : "+") + Math.abs(A.random_r).toFixed(2)} ${Math.abs(A.random_r) < 0.3 ? "(passes)" : "(high: here the wall layout drives it)"}</p>`;
@@ -656,7 +709,7 @@ function renderAttr() {
     <div class="seg-toggle">${toggle}</div>
     <p class="big"><b class="${bad ? "bad" : ""}">${pct(inside)}</b> of the credit inside the dashed reach${bad ? " — the rest is impossible" : ""}.</p>
     ${rnd}
-    ${why("The encoder is five 3 × 3 convolutions, so this cost can depend only on the 11 × 11 cells around it: a test with a known answer. Grad-CAM averages gradients over the whole map and paints where the network is active in general. The randomisation check (Adebayo et al.) asks whether the explanation changes when the weights are random; step 8 found +0.04 on average, +0.33 next to walls.")}`;
+    ${why("The encoder is five 3 × 3 convolutions, so this cost can depend only on the 11 × 11 cells around it: a test with a known answer. Saliency is the plain gradient: local sensitivity of every cell, free ones included, with no budget to add up. Grad-CAM averages gradients over the whole map and paints where the network is active in general. The randomisation check (Adebayo et al.) asks whether the explanation changes when the weights are random; step 8 found +0.04 on average, +0.33 next to walls.")}`;
   $("attr").querySelectorAll("[data-attr]").forEach((b) => b.addEventListener("click", () => { attrMethod = b.dataset.attr; render(); }));
 }
 function renderTamper() {
@@ -771,15 +824,15 @@ function renderWarcraft() {
       ${why("The position pattern is the network's average cost per tile over 2 000 training maps. Over all test maps it explains R² 0.64 of the costs and the terrain 0.04; removing it before the search cuts the optimal maps from 37 % to 24 %. Start and goal are always in the same corners, so position is a usable shortcut.")}`;
   } else if (layer === "probe") {
     $("encode-title").textContent = "Is the terrain inside the network?";
-    $("encode-methods").innerHTML = chips("Linear probes");
+    $("encode-methods").innerHTML = chips("Linear probes", "Untrained-encoder control");
     $("encode").innerHTML = `
       <table class="tbl">
-        <tr><th>true terrain cost read from</th><th class="n">R², this map</th></tr>
-        <tr><td>the last hidden layer</td><td class="n"><b>${r2(X.probe_r2.block3)}</b></td></tr>
-        <tr><td>the output the search reads</td><td class="n">${r2(X.probe_r2.output)}</td></tr>
+        <tr><th>true terrain cost read from</th><th class="n">trained</th><th class="n" title="same architecture, random weights">untrained</th></tr>
+        <tr><td>the last hidden layer</td><td class="n"><b>${r2(X.probe_r2.block3)}</b></td><td class="n">${r2(X.untrained_probe_r2.block3)}</td></tr>
+        <tr><td>the output the search reads</td><td class="n">${r2(X.probe_r2.output)}</td><td class="n">${r2(X.untrained_probe_r2.output)}</td></tr>
       </table>
       <p class="hint">The board shows the hidden layer's reading. Compare with <i>True cost</i>.</p>
-      ${why("A linear probe is a straight-line fit from a layer's activations to the true cost. Over all test maps: R² 0.91 one layer before the output, 0.05 from the output. The network has the terrain and drops it at the last layer.")}`;
+      ${why("A linear probe is a straight-line fit from a layer's activations to the true cost. Over all test maps: R² 0.91 one layer before the output, 0.05 from the output. An untrained encoder reads it just as well (0.92): the terrain comes from the picture, not from training. What training chose is the last layer, and it dropped the terrain.")}`;
   }
   if (S.perturbation) {
     $("pert").src = S.perturbation;
@@ -824,11 +877,11 @@ const OVERVIEW = [
     {step: "Step 5", name: "The unexplained part", methods: ["Residual analysis", "Guidance-strength control"],
      q: "What is the 59 % no feature explains?", r: "Not where planning skill lives: it trades route quality for fewer expansions. Weakening the network's map never matches the surrogate.",
      go: "maze:resid", label: "Show the residual"},
-    {step: "Step 8", name: "Attribution, tested", methods: ["Integrated gradients", "Grad-CAM", "Randomisation check"],
+    {step: "Step 8", name: "Attribution, tested", methods: ["Integrated gradients", "Saliency", "Grad-CAM", "Randomisation check"],
      q: "Which input cells produced one cost value, and can the methods be trusted?", r: "The receptive field is exactly 11 × 11. Integrated gradients keep <b>100 %</b> of their credit inside it, Grad-CAM <b>10.9 %</b>.",
      go: "maze:attr", label: "Explain a cell"},
-    {step: "Step 11", name: "Probes on terrain images", methods: ["Linear probes", "Position surrogate", "Ablation"],
-     q: "On WarCraft pictures, does the cost map encode the terrain?", r: "Mostly position (R² 0.62–0.69), not terrain (0.04–0.05). A probe reads terrain at R² <b>0.91</b> one layer before the output, <b>0.05</b> from the output.",
+    {step: "Step 11", name: "Probes on terrain images", methods: ["Linear probes", "Untrained control", "Position surrogate", "Ablation"],
+     q: "On WarCraft pictures, does the cost map encode the terrain?", r: "Mostly position (R² 0.62–0.69), not terrain (0.04–0.05). A probe reads terrain at R² <b>0.91</b> one layer before the output, <b>0.05</b> from the output; an untrained encoder also reads 0.92.",
      go: "warcraft:probe", label: "Show the probe"},
   ]},
   {title: "How do small changes break it, and where?", note: "The planner fails; the 2 × 2 swap tells whether the network's costs or the search caused it.", cards: [
@@ -858,7 +911,7 @@ const OVERVIEW = [
     {step: "Step 7b", name: "Map families", methods: ["Transfer", "Retraining on forest (3 seeds)"],
      q: "Are the findings about the planner or about mazes?", r: "Route damage is network-led in <b>7 of 7</b> models; the effort split is undetermined on forest. The route component of the cost map nearly vanishes there.",
      live: "Model-level; no live view"},
-    {step: "Step 11", name: "WarCraft edits", methods: ["Tile transplants", "Pixel attack (PGD)"],
+    {step: "Step 11", name: "WarCraft edits", methods: ["Tile transplants", "Seam control", "Pixel attack (PGD)"],
      q: "Does fragility survive on pictures with real terrain costs?", r: "82–85 % of damage is cost ranking; a 1/255 pixel attack breaks 84–85 % of optimal maps.",
      go: "warcraft:picture", label: "Open WarCraft"},
   ]},
