@@ -177,6 +177,15 @@
   .seg-toggle button { border: 0; background: var(--panel); font: inherit; font-size: 13px; padding: 6px 10px; cursor: pointer; color: var(--muted); }
   .seg-toggle button[aria-pressed="true"] { background: var(--ink); color: #fff; }
   .hint { font-size: 14px; color: var(--muted); }
+  /* ---- robustness tests: rotation and the shortcut maps ---- */
+  .tools .rots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .tools .rots button { justify-content: center; padding: 8px 4px; }
+  .tools .rots button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .tbl tr.now td { font-weight: 700; }
+  .gate-verdict { font-size: 17px; font-weight: 700; margin: 6px 0 0; }
+  .gate-verdict.fail { color: var(--fail); }
+  .gate-verdict.ok { color: var(--ok); }
+  .gate-verdict.warn { color: var(--warn); }
   /* ---- overview: every step, with its method and result ---- */
   #overview { grid-column: 1 / -1; overflow-y: auto; padding: 0 4px 30px; }
   #overview .lead { max-width: 900px; font-size: 17px; margin: 0 0 6px; }
@@ -236,6 +245,19 @@
       <button data-act="random">Random cell <kbd>r</kbd></button>
       <div class="pair"><button data-act="undo">Undo <kbd>u</kbd></button><button data-act="reset">Reset <kbd>0</kbd></button></div>
     </div>
+    <div class="group" id="robust-maze">
+      <h2>Turn the map <kbd>t</kbd></h2>
+      <div class="rots" id="rots">
+        <button data-rot="0" title="the map as stored">0°</button>
+        <button data-rot="1" title="the same problem turned a quarter turn counter-clockwise">90°</button>
+        <button data-rot="2" title="the same problem turned upside down">180°</button>
+        <button data-rot="3" title="the same problem turned three quarter turns">270°</button>
+      </div>
+      <h2>Shortcut maps</h2>
+      <button data-act="scenario:0" id="open-gates" title="maps whose shortest route goes through a 3-cell gate, with a long way round">Open shortcut maps</button>
+      <button class="attack" data-act="sabotage" id="sabotage" title="add the flip near the gate that pushes Neural A* round the long way, without closing the gate or making it longer than the detour">Sabotage the shortcut <kbd>s</kbd></button>
+      <button data-act="map:0" id="back-mazes" hidden>Back to the test mazes</button>
+    </div>
     <div class="group" id="actions-wc" hidden>
       <h2>Repaint a tile</h2>
       <div class="palette" id="palette"></div>
@@ -265,6 +287,16 @@
     <p class="sub" id="sub"></p>
     <section>
       <div class="meter" id="meters"></div>
+    </section>
+    <section id="sab-section" hidden>
+      <h2>The shortcut</h2>
+      <div class="methods"><span class="method">Constrained greedy attack</span><span class="method">Exact optimum, gate open vs closed</span></div>
+      <div id="sab"></div>
+    </section>
+    <section id="sym-section" hidden>
+      <h2>The same problem, turned</h2>
+      <div class="methods"><span class="method">Rotation test</span><span class="method">Equivariance gap</span></div>
+      <div id="sym"></div>
     </section>
     <section id="attr-section" hidden>
       <h2>Why does this cell cost what it costs?</h2>
@@ -304,7 +336,8 @@ let view = "live", attrMethod = "ig";
 const LAYERS = {
   maze: [["-", "The planner"], ["maze", "Maze"], ["cost", "Cost map"], ["change", "Cost change"],
          ["-", "Inside the cost map"], ["geo", "Surrogate: geometry"], ["full", "Surrogate: all features"],
-         ["resid", "Unexplained part"], ["attr", "Attribution"]],
+         ["resid", "Unexplained part"], ["attr", "Attribution"],
+         ["-", "Robustness tests"], ["spread", "Rotation spread"]],
   warcraft: [["-", "The planner"], ["picture", "Picture"], ["truth", "True cost"], ["cost", "Network's cost"],
              ["-", "Inside the network"], ["position", "Position pattern"], ["probe", "Hidden-layer readout"]],
 };
@@ -323,7 +356,9 @@ async function load() { S = await (await fetch("/api/state?mode=" + (S ? S.mode 
 async function act(name, arg) {
   if (busy) return;
   busy = true; setBusy(true);
-  $("status").textContent = name === "grad" ? "Trying 64 cells the gradient points at…" : "Working…";
+  $("status").textContent = name === "grad" ? "Trying 64 cells the gradient points at…"
+    : name === "sabotage" ? "Trying every allowed cell around the gate…"
+    : name === "scenario" && !(S && S.scenario) ? "Choosing shortcut maps the planner solves (first time only)…" : "Working…";
   try {
     // The page says which map type it is showing: actions never land on the other one.
     const r = await fetch("/api/action", {method: "POST", body: JSON.stringify({name, arg, mode: name === "mode" ? arg : S.mode})});
@@ -388,6 +423,9 @@ function drawBoard() {
   if (layer === "change") S.cost_change.forEach((row) => row.forEach((d) => (lim = Math.max(lim, Math.abs(d)))));
   if (layer === "resid" && E) E.residual.forEach((row) => row.forEach((d) => (lim = Math.max(lim, Math.abs(d)))));
   if (attrValues) { lim = 1e-9; attrValues.forEach((row) => row.forEach((d) => (lim = Math.max(lim, Math.abs(d))))); }
+  const spread = layer === "spread" && S.symmetry ? S.symmetry.spread : null;
+  let spreadLim = 1e-9;
+  if (spread) spread.forEach((row) => row.forEach((d) => (spreadLim = Math.max(spreadLim, d))));
   for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
     const free = S.grid[r][c] === 1;
     let fill = free ? css("--panel") : css("--ink");
@@ -395,6 +433,7 @@ function drawBoard() {
     if (free && layer === "change") fill = changeColor(S.cost_change[r][c], lim);
     if (free && surr) fill = costColor(surr.cost[r][c]);
     if (free && layer === "resid" && E) fill = changeColor(E.residual[r][c], lim);
+    if (free && spread) fill = heatColor(spread[r][c] / spreadLim, false);
     if (attrValues) {
       const v = attrValues[r][c];
       // Grad-CAM is a non-negative heat map over every cell; integrated
@@ -432,6 +471,11 @@ function drawBoard() {
     ctx.save(); ctx.strokeStyle = css("--focus"); ctx.lineWidth = Math.max(3, cell * 0.18);
     ctx.strokeRect(target[1] * cell + 1.5, target[0] * cell + 1.5, cell - 3, cell - 3); ctx.restore();
   }
+  // the gate of a shortcut map: a purple frame around each of its cells
+  if (S.sabotage) S.sabotage.gate.forEach(([r, c]) => {
+    ctx.save(); ctx.strokeStyle = "#a46cff"; ctx.lineWidth = Math.max(3, cell * 0.2);
+    ctx.strokeRect(c * cell + 1, r * cell + 1, cell - 2, cell - 2); ctx.restore();
+  });
   // flipped cells: a yellow ring inside the cell, so the cell's new state stays visible
   S.flips.forEach(([r, c]) => {
     ctx.save(); ctx.strokeStyle = css("--flip"); ctx.lineWidth = Math.max(2.5, cell * 0.16);
@@ -492,6 +536,8 @@ function updateTip() {
     : `click to explain this cell's cost (${S.cost[rc[0]][rc[1]].toFixed(2)})`;
   else if ((layer === "geo" || layer === "full") && S.explain) text = `surrogate ${S.explain.surrogates[layer].cost[rc[0]][rc[1]].toFixed(2)}, network ${S.cost[rc[0]][rc[1]].toFixed(2)}`;
   else if (layer === "resid" && S.explain) text = `network − surrogate: ${fmtSigned(S.explain.residual[rc[0]][rc[1]])}`;
+  else if (layer === "spread" && S.symmetry) text = !S.grid[rc[0]][rc[1]] ? "a wall"
+    : `cost ${S.cost[rc[0]][rc[1]].toFixed(2)}, spread over the 4 orientations ${S.symmetry.spread[rc[0]][rc[1]].toFixed(3)}`;
   else if (layer === "cost") text = `cost ${S.cost[rc[0]][rc[1]].toFixed(2)}`;
   else if (layer === "change") text = `cost change ${S.cost_change[rc[0]][rc[1]] >= 0 ? "+" : ""}${S.cost_change[rc[0]][rc[1]].toFixed(2)}`;
   else text = changed ? "click to restore" : S.grid[rc[0]][rc[1]] ? "click to add a wall" : "click to remove this wall";
@@ -531,6 +577,8 @@ function legend() {
   if (layer === "geo" || layer === "full") html += `<span><i class="sw" style="background:#7a4fd0"></i>search on this surrogate</span>`;
   if (layer === "change") html += `<span>${diverging}cheaper → costlier</span><span>dashed: reach of the last change</span>`;
   if (layer === "resid") html += `<span>${diverging}network below → above the surrogate</span>`;
+  if (layer === "spread") html += `<span>${ramp(heatColor(0), heatColor(1))}same cost in every orientation → disagrees most</span>`;
+  if (S && S.sabotage) html += `<span><i class="sw" style="background:#a46cff"></i>gate</span>`;
   $("legend").innerHTML = html;
 }
 // One row: label, bar with a black yardstick mark, the two numbers.
@@ -551,10 +599,15 @@ function render() {
   $("overview").hidden = view !== "overview";
   if (view === "overview") { renderOverview(); return; }
   const wc = mode === "warcraft";
-  $("actions-maze").hidden = wc; $("actions-wc").hidden = !wc;
+  $("actions-maze").hidden = wc; $("actions-wc").hidden = !wc; $("robust-maze").hidden = wc;
   $("pixel-section").hidden = !wc || !S.perturbation || layer === "position" || layer === "probe";
   if (wc) { renderWarcraft(); fit(); return; }
-  $("maplabel").textContent = `maze ${S.map_id}`;
+  $("maplabel").textContent = (S.scenario ? `shortcut ${S.scenario.index + 1}/${S.scenario.n}` : `maze ${S.map_id}`)
+    + (S.rotation ? ` · ${S.rotation}°` : "");
+  document.querySelectorAll("[data-rot]").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.rot) * 90 === S.rotation)));
+  $("back-mazes").hidden = !S.scenario; $("open-gates").hidden = !!S.scenario;
+  $("prev").title = S.scenario ? "previous shortcut map ( [ )" : "previous map ( [ )";
+  $("next").title = S.scenario ? "next shortcut map ( ] )" : "next map ( ] )";
   $("verdict").textContent = S.headline;
   $("verdict").className = "verdict " + S.level;
   const now = S.now, clean = S.clean, f = S.flips.length;
@@ -564,7 +617,7 @@ function render() {
       now.moves > now.optimum ? css("--fail") : css("--route"), `${now.moves} / ${now.optimum}`, "the shortest route") +
     meter("Work", now.expanded, now.classical, Math.max(now.expanded, now.classical) * 1.08,
       css("--focus"), `${now.expanded} / ${now.classical}`, "cells classical A* expands");
-  renderWhy(); renderTamper(); renderEncode(); renderAttr(); legend();
+  renderWhy(); renderTamper(); renderEncode(); renderAttr(); renderSabotage(); renderSymmetry(); legend();
   $("status").textContent = S.message + (S.has_sweep ? "" : " (worst-cell needs make sweep)");
   drawBoard();
   updateTip();
@@ -658,6 +711,45 @@ function renderAttr() {
     ${rnd}
     ${why("The encoder is five 3 × 3 convolutions, so this cost can depend only on the 11 × 11 cells around it: a test with a known answer. Grad-CAM averages gradients over the whole map and paints where the network is active in general. The randomisation check (Adebayo et al.) asks whether the explanation changes when the weights are random; step 8 found +0.04 on average, +0.33 next to walls.")}`;
   $("attr").querySelectorAll("[data-attr]").forEach((b) => b.addEventListener("click", () => { attrMethod = b.dataset.attr; render(); }));
+}
+function renderSabotage() {
+  const g = S.sabotage;
+  $("sab-section").hidden = !g || !PLANNER_LAYERS.concat(["spread"]).includes(layer);
+  if (!g) return;
+  const extra = S.now.moves - g.optimal_cost;
+  let level, text;
+  if (!g.shortcut_optimal) { level = "warn"; text = g.gate_open === 0 ? "Gate closed: that changes the problem, not a sabotage"
+    : "The gate is no longer the shortest way: not a fair sabotage"; }
+  else if (g.success) { level = "fail"; text = `Fooled: Neural A* goes round, +${plural(extra, "move")}`; }
+  else { level = "ok"; text = "Neural A* still takes the gate"; }
+  $("sab").innerHTML = `
+    <p class="gate-verdict ${level}">${text}</p>
+    <table class="tbl">
+      <tr><td>gate cells still open</td><td class="n"><b>${g.gate_open}</b> / ${g.gate_size}</td></tr>
+      <tr><td>shortest route, through the gate</td><td class="n">${g.optimal_cost}</td></tr>
+      <tr><td>shortest route, gate closed</td><td class="n">${g.closed_cost == null ? "none" : g.closed_cost}</td></tr>
+      <tr><td>Neural A*</td><td class="n">${S.now.moves} ${g.planner_uses_gate ? "(through the gate)" : "(goes round)"}</td></tr>
+    </table>
+    ${why("The attack only adds flips that keep at least one gate cell open and keep the gate strictly shorter than any way round, so classical A* still takes it. Each click tries every cell within 5 of the gate (the network's reach) and keeps the one that lengthens Neural A*'s route most. Notebook 03 runs it on three maps with a random control.")}`;
+}
+function renderSymmetry() {
+  const Y = S.symmetry;
+  $("sym-section").hidden = !Y || !PLANNER_LAYERS.concat(["spread"]).includes(layer);
+  if (!Y) return;
+  const rows = Y.rows.map((r) => `<tr class="${r.current ? "now" : ""}"><td><button class="goto-rot" data-rotto="${r.degrees / 90}" title="show this orientation" style="font:inherit;border:0;background:none;padding:0;cursor:pointer;color:var(--focus)">${r.degrees}°</button></td>
+      <td class="n">${routeWord(r.moves, r.optimum)}</td><td class="n">${r.expanded}</td>
+      <td class="n">${r.current ? "—" : r.same_route ? "same" : "different"}</td><td class="n">${r.current ? "—" : r.cost_mae.toFixed(3)}</td></tr>`).join("");
+  const lengths = new Set(Y.rows.map((r) => r.moves));
+  const verdict = Y.same_length ? (Y.same_route ? "Same route in every orientation." : "Same length in every orientation, different cells.")
+    : `<b class="bad">The route length depends on the orientation</b> (${[...lengths].sort((a, b) => a - b).join(", ")} moves).`;
+  $("sym").innerHTML = `
+    <table class="tbl">
+      <tr><th>turned</th><th class="n">route</th><th class="n">work</th><th class="n">route vs shown</th><th class="n">cost gap</th></tr>
+      ${rows}
+    </table>
+    <p>${verdict}</p>
+    ${why("Turning map, start and goal together gives the same problem, and the search (unit moves, Chebyshev heuristic) has no preferred direction. Only the network's cost map can break the symmetry. Cost gap: mean |Δcost| over free cells between that orientation's cost map, turned back, and the one shown. The Rotation spread layer shows where they disagree. Notebook 02 runs this on all 100 test maps.")}`;
+  $("sym").querySelectorAll("[data-rotto]").forEach((b) => b.addEventListener("click", () => act("rot", Number(b.dataset.rotto))));
 }
 function renderTamper() {
   const t = S.tamper;
@@ -862,6 +954,14 @@ const OVERVIEW = [
      q: "Does fragility survive on pictures with real terrain costs?", r: "82–85 % of damage is cost ranking; a 1/255 pixel attack breaks 84–85 % of optimal maps.",
      go: "warcraft:picture", label: "Open WarCraft"},
   ]},
+  {title: "Robustness tests", note: "Two targeted questions on top of the steps: is the planner indifferent to orientation, and can a shortcut be sabotaged without closing it? Results: notebooks 02 and 03.", cards: [
+    {step: "Notebook 02", name: "Rotation symmetry", methods: ["Rotation test", "Equivariance gap", "Symmetrised encoder"],
+     q: "Does the same problem, turned 90°, 180° or 270°, get a route of the same length?", r: "The search is orientation-free; only the learned cost map can break the symmetry. The table compares all four copies of the map on screen.",
+     go: "maze:spread:rot:1", label: "Turn a map"},
+    {step: "Notebook 03", name: "Opportune sabotage", methods: ["Constrained greedy attack", "Random control", "2 × 2 swap"],
+     q: "Can a few flips make the planner skip a 3-cell shortcut that is still open and still the shortest way?", r: "Shortcut maps with a long detour; every flip keeps the gate open and optimal, so going round is the planner's error.",
+     go: "maze:maze:scenario:0", label: "Open a shortcut map"},
+  ]},
 ];
 function renderOverview() {
   $("verdict").textContent = "";
@@ -894,8 +994,11 @@ async function goto(spec) {
 document.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", () => {
   const [name, arg] = b.dataset.act.split(":"); act(name, arg);
 }));
-$("prev").onclick = () => S.mode === "warcraft" ? act("solved", -1) : act("map", S.map_id - 1);
-$("next").onclick = () => S.mode === "warcraft" ? act("solved", 1) : act("map", S.map_id + 1);
+const step = (d) => S.mode === "warcraft" ? act("solved", d)
+  : S.scenario ? act("scenario", S.scenario.index + d) : act("map", S.map_id + d);
+$("prev").onclick = () => step(-1);
+$("next").onclick = () => step(1);
+document.querySelectorAll("[data-rot]").forEach((b) => b.addEventListener("click", () => act("rot", Number(b.dataset.rot))));
 document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => {
   view = "live"; act("mode", b.dataset.mode).then(() => { fit(); fit(); });
 }));
@@ -913,7 +1016,8 @@ document.addEventListener("keydown", (ev) => {
     return;
   }
   const keys = {w: ["worst", "opt"], e: ["worst", "eff"], g: ["grad", "opt"], h: ["grad", "eff"],
-    r: ["random"], u: ["undo"], "0": ["reset"], "[": ["map", () => S.map_id - 1], "]": ["map", () => S.map_id + 1]};
+    r: ["random"], u: ["undo"], "0": ["reset"], s: ["sabotage"], t: ["rot", () => (S.rotation / 90 + 1) % 4]};
+  if (ev.key === "[" || ev.key === "]") { ev.preventDefault(); step(ev.key === "]" ? 1 : -1); return; }
   const k = keys[ev.key];
   if (k) { ev.preventDefault(); act(k[0], typeof k[1] === "function" ? k[1]() : k[1]); }
   const layers = Object.fromEntries(layerKeys("maze").map((k, i) => [String(i + 1), k]));

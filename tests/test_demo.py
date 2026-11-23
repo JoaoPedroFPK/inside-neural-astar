@@ -9,7 +9,7 @@ import urllib.request
 import numpy as np
 import pytest
 
-from scripts.demo import Demo, DemoState, explain, make_server, order_path
+from scripts.demo import Demo, DemoState, explain, json_safe, make_server, order_path, snapshot
 
 
 def test_order_path_never_jumps_between_touching_but_distant_cells() -> None:
@@ -92,6 +92,47 @@ def test_http_api_serves_the_page_state_and_actions(state) -> None:
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_rotation_turns_the_flips_with_the_map_and_keeps_the_optimum(state) -> None:
+    """Turning keeps the problem: same optimum, flips carried along, and back again."""
+    from src.symmetry import rotate_rc
+
+    state.load_map(0)
+    optimum = state.view["optimal_moves"]
+    cell = next(rc for rc in [(10, 10), (12, 12), (20, 20)] if state.toggle(rc))
+    state.rotate(1)
+    assert state.rotation == 1 and state.flips == [rotate_rc(cell, 1, (32, 32))]
+    state.rotate(0)
+    assert state.flips == [cell]
+    state.reset()
+    for k in range(4):
+        state.rotate(k)
+        assert state.view["optimal_moves"] == optimum
+        sym = state.view["symmetry"]
+        assert [r["degrees"] for r in sym["rows"]] == [0, 90, 180, 270]
+        assert sum(r["current"] for r in sym["rows"]) == 1
+    json.dumps(json_safe(snapshot(state)), allow_nan=False)
+
+
+def test_sabotage_on_a_shortcut_map_keeps_the_gate_open_and_optimal(state) -> None:
+    """Each sabotage click adds one flip that leaves the gate open and still the shortest way."""
+    state.load_scenario(0)
+    assert state.view["sabotage"]["planner_uses_gate"] and not state.view["sabotage"]["success"]
+    for n in (1, 2):
+        state.sabotage_step()
+        s = state.view["sabotage"]
+        assert len(state.flips) == n and s["gate_open"] >= 1 and s["shortcut_optimal"]
+    state.rotate(2)  # the gate turns with the board
+    s = state.view["sabotage"]
+    assert all(state.view["map"][tuple(rc)] in (0, 1) for rc in s["gate"]) and s["shortcut_optimal"]
+    snap = json_safe(snapshot(state))
+    assert snap["scenario"]["index"] == 0 and snap["rotation"] == 180
+    json.dumps(snap, allow_nan=False)
+    state.worst("optimality")
+    assert "shortcut" in state.message
+    state.load_map(0)
+    assert state.scenario_idx is None and state.view["sabotage"] is None
 
 
 @pytest.fixture(scope="module")

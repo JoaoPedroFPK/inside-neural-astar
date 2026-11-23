@@ -1,7 +1,7 @@
 # Convenience targets. Everything runs inside the project venv (.venv).
 PY := .venv/bin/python
 
-.PHONY: help env lock test test-env e0 step2 pilot probe features spotcheck figures surrogate sweep swap attribution budgets families damaging train seed-pipeline verify seeds warcraft-data warcraft-train warcraft detector gradient adaptive demo pipeline clean
+.PHONY: help env lock test test-env e0 step2 pilot probe features spotcheck figures surrogate sweep swap attribution budgets families damaging train seed-pipeline verify seeds warcraft-data warcraft-train warcraft detector gradient adaptive demo symmetry sabotage pipeline clean
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -98,8 +98,14 @@ gradient:  ## PLAN.md step 13: gradient-guided flip attack vs random pool and sw
 adaptive:  ## PLAN.md step 13: detector-aware attack on step 12's surviving claim (~30 min)
 	$(PY) scripts/adaptive_attack.py
 
-demo:  ## browser demo at http://127.0.0.1:8765: attacks, surrogates, attribution, probes, step overview (MAP=63, DETECTOR=1 adds the tamper detector, WARCRAFT=1 opens on terrain maps)
+demo:  ## browser demo at http://127.0.0.1:8765: attacks, surrogates, attribution, probes, rotation and shortcut sabotage, step overview (MAP=63, DETECTOR=1 adds the tamper detector, WARCRAFT=1 opens on terrain maps)
 	$(PY) scripts/demo.py --map $(or $(MAP),0) $(if $(DETECTOR),--detector,) $(if $(WARCRAFT),--warcraft,)
+
+symmetry:  ## notebook 02: rotation symmetry on the 100 test mazes, executed in place (needs jupyter in .venv)
+	$(PY) -m jupyter nbconvert --to notebook --execute --inplace notebooks/02_symmetry.ipynb
+
+sabotage:  ## notebook 03: constrained attack on 3-cell shortcuts, executed in place (needs jupyter in .venv)
+	$(PY) -m jupyter nbconvert --to notebook --execute --inplace notebooks/03_sabotage.ipynb
 
 pipeline:  ## every experiment in dependency order (~1h15 on a laptop CPU)
 	@echo "==> step 0: reproduction"      && $(MAKE) --no-print-directory e0
