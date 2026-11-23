@@ -31,6 +31,7 @@ changed is not an error; deviating from the *altered* map's optimum is.
 | Experiments (plan steps 0–13) | **All done.** Mazes (4 models), forest (3 models), WarCraft (3 models), detector, gradient and adaptive attacks. |
 | Reproducibility | Pinned env, `make` target per step, 16-file test suite, `make verify` checks quoted numbers against stored results. |
 | **Open** | Final write-up (course deliverable). Team names below are still placeholders. |
+| Robustness tests (branch `sabotage`) | Rotation symmetry (`notebooks/02_symmetry.ipynb`) and opportune sabotage of a 3-cell shortcut (`notebooks/03_sabotage.ipynb`); both live in the demo. |
 | Optional, not started | Joint two-cell adaptive attack; WarCraft with random start/goal (tests the position shortcut); 64×64 map families. |
 
 Reproduction (100 test mazes): Opt 84.0 %, Exp 43.5 %, Hmean 57.3 %, against the
@@ -91,6 +92,23 @@ it is distorted does not explain the damage. Where the flipped cell sits does.
 
 Per-step reports with every number: `results/*.md`.
 
+### Robustness tests
+
+- **Rotation symmetry** (`notebooks/02_symmetry.ipynb`, `src/symmetry.py`). Each test map,
+  with its start and goal, is turned by 90°, 180° and 270°: the same problem, the same optimum.
+  The search is orientation-free (unit moves, Chebyshev heuristic), so only the encoder can
+  break the symmetry. Measured: route length and cells per copy, the cost map's equivariance
+  gap, and a symmetrised encoder (averaged over the four turns) as the control.
+- **Opportune sabotage** (`notebooks/03_sabotage.ipynb`, `src/sabotage.py`). The benchmark has
+  no narrow passages (its openings are room-wide), so maze-like maps are generated with a
+  3-cell gate on the shortest route and a detour ≥ 1.5× longer, keeping those the clean planner
+  solves through the gate. A greedy attack flips cells within the encoder's reach of the gate,
+  never closing it and never letting it stop being the shortest way; it succeeds when Neural A\*
+  goes round. Random flips from the same cells are the control; the 2 × 2 swap says whether the
+  costs or the search were fooled.
+- **In the demo**: *Turn the map* (0°/90°/180°/270°, key `t`), the *Rotation spread* layer,
+  *Open shortcut maps* and *Sabotage the shortcut* (key `s`).
+
 ## Setup
 
 Python 3.10, CPU only.
@@ -118,6 +136,7 @@ Data and the pretrained maze checkpoint ship in the `neural-astar` submodule
 | `make warcraft-train`, `warcraft` | WarCraft study | ~3 h + ~45 min per model |
 | `make detector` / `gradient` / `adaptive` | detection and attacks | ~2 / ~45 / ~30 min |
 | `make demo` | interactive browser demo: flip cells, the 2×2 swap, surrogate cost maps, attribution, WarCraft probes, and an overview of every step with its method (`MAP=63`, `DETECTOR=1`, `WARCRAFT=1`) | ~10 s to start |
+| `make symmetry` / `sabotage` | notebooks 02 / 03 executed in place (needs `jupyter` in `.venv`) | ~1 / ~5 min |
 | `make help` | every target | — |
 
 Every script seeds numpy and torch and accepts `--seed`.

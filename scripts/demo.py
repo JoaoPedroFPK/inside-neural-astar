@@ -22,6 +22,17 @@ real pretrained planner:
   position pattern, its ablation, and linear probes with an untrained-encoder
   control; repainting a tile with its own terrain is step 11's seam control.
 
+Two robustness tests (notebooks 02 and 03) are live too:
+
+* **rotation**: turn the map by 90, 180 or 270 degrees. The same problem, so a
+  planner without a preferred orientation finds a route of the same length;
+  the page compares all four copies and shows where the cost map disagrees
+  with itself (the *Rotation spread* layer);
+* **sabotage**: the *shortcut maps* have a 3-cell gate on the shortest route
+  and a long detour around it; each click of *Sabotage the shortcut* adds one
+  flip near the gate that never closes it and never stops it being the
+  shortest way, chosen to push Neural A* round the long way.
+
 An overview page lists every step of the project with the method it used and
 its headline result, with a link into the live view that shows it.
 
@@ -33,6 +44,7 @@ Usage:
     python scripts/demo.py                      # opens http://127.0.0.1:8765/
     python scripts/demo.py --map 63 --detector
     python scripts/demo.py --actions "worst:opt grad:opt"   # headless, prints verdicts
+    python scripts/demo.py --actions "scenario:0 sabotage sabotage rot:1"
 """
 
 from __future__ import annotations
@@ -40,6 +52,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -58,7 +71,22 @@ from src.perturb import (  # noqa: E402
     greedy_flip_search,
 )
 from src.planner import encode_cost_map, load_pretrained_neural_astar, run_astar_module  # noqa: E402
+from src.sabotage import (  # noqa: E402
+    open_gate_cells,
+    sabotage_attack,
+    select_scenarios,
+    shortcut_status,
+    uses_gate,
+)
 from src.swap import run_swap  # noqa: E402
+from src.symmetry import (  # noqa: E402
+    DEGREES,
+    evaluate_rotations,
+    rotate_cells,
+    rotate_instance,
+    rotate_rc,
+    summarize_rotations,
+)
 from scripts.demo_explain import MazeExplainer, WarcraftExplainer  # noqa: E402
 
 TOL = 1e-6
@@ -202,18 +230,90 @@ class DemoState:
         self.undo_stack: List[List[RC]] = []
         self.message = ""
         self.rng = np.random.default_rng(seed)
+        # Robustness tests: quarter turns of the map as shown, and the
+        # shortcut (gate) maps of notebook 03, selected on first use.
+        self.rotation = 0
+        self.scenario_idx: Optional[int] = None
+        self._scenarios = None
         self.load_map(0)
 
     # ----------------------------------------------------------- actions
     def load_map(self, instance_id: int) -> None:
-        """Switch to another test map, with no flips."""
+        """Switch to another test map, with no flips and no rotation."""
+        self.scenario_idx = None
         self.instance_id = int(instance_id) % len(self.split)
-        self.instance = self.split.instance(self.instance_id, seed=self.seed)
-        self.flips, self.undo_stack = [], []
+        self.base_instance = self.split.instance(self.instance_id, seed=self.seed)
+        self.rotation = 0
+        self._reload("Click a cell to add or remove a wall.")
+
+    def _reload(self, message: str, flips: Sequence[RC] = ()) -> None:
+        """Rebuild the shown instance from the base one and the rotation, then evaluate."""
+        self.instance = rotate_instance(self.base_instance, self.rotation) if self.rotation else self.base_instance
+        self.flips, self.undo_stack = [tuple(int(v) for v in rc) for rc in flips], []
         self.attr_target = None
-        self.message = "Click a cell to add or remove a wall."
+        self.message = message
         self._clean = self._evaluate([])
-        self.view = self._clean
+        self.view = self._evaluate(self.flips) if self.flips else self._clean
+
+    def rotate(self, k: int) -> None:
+        """Show the same problem turned by `k` counter-clockwise quarter turns.
+
+        The flips turn with the map, so the altered problem stays the same
+        problem; only the orientation the planner sees changes.
+        """
+        k = int(k) % 4
+        if k == self.rotation:
+            self.message = f"Already at {DEGREES[k]}°."
+            return
+        delta = (k - self.rotation) % 4
+        flips = rotate_cells(self.flips, delta, self.instance.map_design.shape)
+        self.rotation = k
+        self._reload(f"Turned to {DEGREES[k]}°: the same problem, so the same route length is expected.", flips)
+
+    def scenarios(self):
+        """The shortcut maps (notebook 03), chosen once: clean planner optimal through the gate."""
+        if self._scenarios is None:
+            self._scenarios = select_scenarios(self.planner, n=3)
+        return self._scenarios
+
+    def load_scenario(self, index: int) -> None:
+        """Open one of the shortcut maps, with no flips and no rotation."""
+        scenarios = self.scenarios()
+        if not scenarios:
+            self.message = "No shortcut map is solved by the clean planner; nothing to sabotage."
+            return
+        self.scenario_idx = int(index) % len(scenarios)
+        sc = scenarios[self.scenario_idx]
+        self.base_instance = sc.instance
+        self.instance_id = sc.instance.instance_id
+        self.rotation = 0
+        self._reload(f"Shortcut map {self.scenario_idx + 1}: the purple gate saves "
+                     f"{sc.closed_cost - sc.base_cost:.0f} moves. Sabotage it without closing it.")
+
+    def current_scenario(self):
+        """The open shortcut map, turned like the board (None on test maps)."""
+        if self.scenario_idx is None:
+            return None
+        sc = self._scenarios[self.scenario_idx]
+        shape = self.base_instance.map_design.shape
+        return replace(sc, instance=self.instance, gate=tuple(rotate_cells(sc.gate, self.rotation, shape)))
+
+    def sabotage_step(self) -> None:
+        """Add one flip chosen by the constrained gate attack (notebook 03)."""
+        sc = self.current_scenario()
+        if sc is None:
+            self.message = "Sabotage needs a shortcut map: open one with Shortcut maps."
+            return
+        started = time.perf_counter()
+        result = sabotage_attack(self.planner, sc, budget=len(self.flips) + 1, initial=self.flips,
+                                 stop_on_success=False)
+        if len(result.flips) == len(self.flips):
+            self.message = ("No cell can be added: every choice would close the gate, stop it being "
+                            "the shortest way or wall off the goal.")
+            return
+        verdict = "fooled: it goes round" if result.success else "still through the gate"
+        self._set(result.flips, f"Sabotage added a cell, {result.evaluated} tried "
+                                f"({time.perf_counter() - started:.1f} s); planner {verdict}.")
 
     def _set(self, flips: Sequence[RC], message: str) -> None:
         self.undo_stack.append(list(self.flips))
@@ -259,6 +359,9 @@ class DemoState:
 
     def worst(self, objective: str) -> None:
         """Replace the flips with the single worst cell found by the exhaustive sweep."""
+        if self.scenario_idx is not None:
+            self.message = "The worst-cell sweep covers the test mazes only; on shortcut maps use Sabotage."
+            return
         manifest = self.manifest()
         if manifest is None:
             self.message = "no exhaustive sweep found: run `make sweep` first"
@@ -270,6 +373,8 @@ class DemoState:
             self.message = "No single cell hurts this map."
             return
         cell = tuple(int(v) for v in rows.iloc[0]["flip_cells"][0])
+        # The sweep ran on the unturned map; turn its cell with the board.
+        cell = rotate_rc(cell, self.rotation, self.base_instance.map_design.shape)
         tried = int(((manifest["instance_id"] == self.instance_id)).sum())
         self._set([cell], f"Worst of {tried} single cells.")
 
@@ -343,6 +448,8 @@ class DemoState:
         moves = float(path_map.sum() - 1)
         expanded = float(out.histories[0, 0].numpy().sum())
         swap = run_swap(self.planner, inst, list(flips), RECEPTIVE_RADIUS) if flips else None
+        # The dataset's reference route exists only for an untouched, unturned test map.
+        dataset_map = not flips and self.rotation == 0 and self.scenario_idx is None
         return {
             "map": altered,
             "cost0": cost0[0, 0].numpy(),
@@ -358,10 +465,50 @@ class DemoState:
             "exp": expanded / float(classical.expansions),
             "swap": swap,
             "tamper": self.detector.score(inst, altered) if self.detector else None,
-            "explain": (self.explainer.explain(inst, altered, cost1[0, 0].numpy(), clean=not flips)
+            "explain": (self.explainer.explain(inst, altered, cost1[0, 0].numpy(), clean=dataset_map)
                         if self.explainer else None),
             # Stale as soon as the map changes; the page re-requests it.
             "attribution": None,
+            "symmetry": self._symmetry(altered),
+            "sabotage": self._sabotage(altered, path_map),
+        }
+
+    def _symmetry(self, altered: np.ndarray) -> Dict[str, object]:
+        """The map as it stands, in all four orientations, compared with the shown one."""
+        current = replace(self.instance, map_design=altered)
+        results = evaluate_rotations(self.planner, current)
+        report = summarize_rotations(results, free=altered)
+        rows = []
+        for row in report.rows:
+            rows.append({
+                "degrees": DEGREES[(self.rotation + row["k"]) % 4],
+                "current": row["k"] == 0,
+                "moves": row["path_cost"], "optimum": row["optimal_cost"],
+                "expanded": row["expansions"], "classical": row["classical_expansions"],
+                "same_route": row["route_iou"] > 1 - 1e-9,
+                "cost_mae": row["cost_mae"], "cost_max": row["cost_max"],
+            })
+        rows.sort(key=lambda r: r["degrees"])
+        return {"rows": rows, "spread": report.cost_spread, "same_length": report.same_cost,
+                "same_route": report.same_route}
+
+    def _sabotage(self, altered: np.ndarray, path_map: np.ndarray) -> Optional[Dict[str, object]]:
+        """Where the shortcut stands on a gate map (None on test maps)."""
+        sc = self.current_scenario()
+        if sc is None:
+            return None
+        status = shortcut_status(altered, self.instance.start_rc, self.instance.goal_rc, sc.gate)
+        planner_uses = uses_gate(path_map, sc.gate)
+        return {
+            "gate": [list(rc) for rc in sc.gate],
+            "gate_open": open_gate_cells(altered, sc.gate),
+            "gate_size": len(sc.gate),
+            "optimal_cost": status["optimal_cost"],
+            "closed_cost": status["closed_cost"],
+            "shortcut_optimal": status["shortcut_optimal"],
+            "planner_uses_gate": planner_uses,
+            "success": bool(status["shortcut_optimal"] and not planner_uses),
+            "name": sc.name,
         }
 
     def verdict(self) -> Tuple[str, str]:
@@ -426,7 +573,20 @@ def snapshot(state: DemoState) -> Dict[str, object]:
         "swap": None,
         "tamper": None,
         "has_sweep": state.manifest() is not None,
+        "rotation": DEGREES[state.rotation],
+        "scenario": None,
+        "sabotage": v["sabotage"],
+        "symmetry": {
+            "rows": v["symmetry"]["rows"],
+            "spread": np.round(v["symmetry"]["spread"], 4).tolist(),
+            "same_length": v["symmetry"]["same_length"],
+            "same_route": v["symmetry"]["same_route"],
+        },
     }
+    if state.scenario_idx is not None:
+        sc = state.scenarios()[state.scenario_idx]
+        out["scenario"] = {"index": state.scenario_idx, "n": len(state.scenarios()), "name": sc.name,
+                           "optimum": sc.base_cost, "detour": sc.closed_cost}
     if swap is not None:
         out["swap"] = {
             "moves": swap.path_cost, "expanded": swap.expansions,
@@ -496,6 +656,12 @@ def apply_action(state: DemoState, name: str, arg: object = None) -> None:
         state.random_flip()
     elif name == "attr":
         state.attribute(tuple(int(x) for x in arg))
+    elif name == "rot":
+        state.rotate(int(arg) if arg is not None else state.rotation + 1)
+    elif name == "scenario":
+        state.load_scenario(int(arg) if arg is not None else 0)
+    elif name == "sabotage":
+        state.sabotage_step()
     elif name == "undo":
         state.undo()
     elif name == "reset":

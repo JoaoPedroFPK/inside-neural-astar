@@ -63,7 +63,8 @@ def test_integrated_gradients_respects_the_receptive_field(
     result = integrated_gradients(pretrained_planner, instance, TARGET, steps=32)
     radius = attribution_radius(result)
     assert radius["max_radius"] <= 5.0
-    assert radius["share_within_5"] == 1.0
+    # The share is summed in float32: 1.0000001 means all of it.
+    assert radius["share_within_5"] == pytest.approx(1.0, abs=1e-6)
 
 
 def test_saliency_also_respects_the_receptive_field(pretrained_planner, instance) -> None:
@@ -136,4 +137,5 @@ def test_attribution_radius_on_a_known_map() -> None:
     radius = attribution_radius(result)
     assert radius["max_radius"] == 3.0
     assert radius["share_on_target"] == 0.5
-    assert radius["share_within_5"] == 1.0
+    # The share is summed in float32: 1.0000001 means all of it.
+    assert radius["share_within_5"] == pytest.approx(1.0, abs=1e-6)
