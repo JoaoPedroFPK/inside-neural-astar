@@ -166,7 +166,7 @@ figures/        README figures (make figures)
 
 ## Team
 
-Group *<group name>* — <member 1>, <member 2>, <member 3>.
+Group *No caminho tinha uma pedra* — João Pedro Ferreira Pereira (Mestrado, 00324521), Raquel Prais dos Santos (Mestrado, 00264076), Letícia dos Santos (Doutorado, 00275604), Thiago Rodrigues Silva Leão (Mestrado, 00612628).
 
 ## References
 
